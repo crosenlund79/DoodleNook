@@ -752,6 +752,19 @@ public class WindowTests
     }
 
     [AvaloniaFact]
+    public void Pixel_art_has_the_full_layers_panel_from_the_palette_column()
+    {
+        var w = Open(workspace: WorkspaceKind.PixelArt);
+        Click(w, Find<Button>(w, "PixelLayersButton"));
+        var panel = w.GetVisualDescendants().OfType<LayersPanel>().First(p => p.IsEffectivelyVisible);
+        var add = panel.GetVisualDescendants().OfType<Button>().First(b => ToolTip.GetTip(b) is string t && t.StartsWith("New layer"));
+        Click(w, add);
+        Assert.Equal(2, w.Session.Document.Layers.Count);
+        Assert.Contains(Texts(Find<Button>(w, "PixelLayersButton")), t => t == w.Session.Document.ActiveLayer.Name);
+        w.Close();
+    }
+
+    [AvaloniaFact]
     public void Palette_column_picks_foreground_and_background()
     {
         var w = Open(workspace: WorkspaceKind.PixelArt);

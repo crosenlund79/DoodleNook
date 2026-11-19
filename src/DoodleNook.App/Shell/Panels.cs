@@ -374,6 +374,7 @@ public sealed class PaletteColumn : StackPanel
     private readonly WrapPanel _grid = new() { ItemWidth = 30, ItemHeight = 30 };
     private readonly Border _fg, _bg;
     private readonly TextBlock _name = UiKit.Label("Palette");
+    private readonly TextBlock _layerName = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 80 };
     private Document? _watched;
 
     public PaletteColumn(EditorSession session, Func<Control> colourEditor, Action<bool> setRightPaintsBackground, Func<bool> rightPaintsBackground)
@@ -397,6 +398,20 @@ public sealed class PaletteColumn : StackPanel
         pair.Children.Add(bgButton);
         pair.Children.Add(fgButton);
         Children.Add(pair);
+
+        // Layers: the full layers panel in a pop-over (the column is too narrow to dock it).
+        var layersContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        layersContent.Children.Add(new DnIcon { Kind = "layers" });
+        layersContent.Children.Add(_layerName);
+        var layers = UiKit.Button(null, null, "Layers: add, hide, reorder, opacity, blend, locks");
+        layers.Content = layersContent;
+        layers.Name = "PixelLayersButton";
+        layers.HorizontalAlignment = HorizontalAlignment.Stretch;
+        layers.HorizontalContentAlignment = HorizontalAlignment.Left;
+        layers.Background = new SolidColorBrush(DnColors.Ui2);
+        layers.Height = 32;
+        layers.Flyout = UiKit.PopFlyout(new LayersPanel(session, 360) { Width = 290 }, Avalonia.Controls.PlacementMode.LeftEdgeAlignedTop);
+        Children.Add(layers);
 
         var menu = UiKit.Button("dots", tip: "Palette options");
         menu.Width = 28;
@@ -439,11 +454,22 @@ public sealed class PaletteColumn : StackPanel
 
     public void Refresh()
     {
-        if (!ReferenceEquals(_watched, _session.Document)) _watched = _session.Document;
+        if (!ReferenceEquals(_watched, _session.Document))
+        {
+            if (_watched is not null)
+            {
+                _watched.ActiveLayerChanged -= Refresh;
+                _watched.LayersChanged -= Refresh;
+            }
+            _watched = _session.Document;
+            _watched.ActiveLayerChanged += Refresh;
+            _watched.LayersChanged += Refresh;
+        }
         _fg.Background = UiKit.Brush(_session.Foreground);
         _bg.Background = UiKit.Brush(_session.Background);
         var palette = _session.Document.Palette;
         _name.Text = palette.Name;
+        _layerName.Text = _session.Document.ActiveLayer.Name;
         _grid.Children.Clear();
         foreach (var c in palette.Colors)
         {

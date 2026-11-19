@@ -27,7 +27,7 @@ Switch with the workspace buttons at the top right, **Alt+1 … Alt+5**, the *Wi
 | B | **Quick Sketch** | Mission 004's single bar: brush chip, size, opacity, colour, erase, undo/redo, plus a **layers chip** and the workspace switcher. Seven tools on the left. | Spontaneous doodling |
 | C | **Painting** | Menu row, options bar for the current tool, nine tools, and a dock with **Colour**, **Brushes** and **Layers** | Finished artwork |
 | D | **Editing** | Menu row, options bar, thirteen tools, a dock with **Layers**, **Properties** and **History**, and a status bar | Selections, transforms, crop, resize, adjustments |
-| E | **Pixel Art** | Menu row (with *Sprite* instead of *Image*), pixel options bar, ten pixel tools, a **palette column** and a floating **1:1 preview** | Exact pixels for game art |
+| E | **Pixel Art** | Menu row (with *Sprite* instead of *Image*), pixel options bar, ten pixel tools, a **palette column** (with a layers button) and a floating **1:1 preview** | Exact pixels for game art |
 
 Each workspace remembers its own tool, dock width, collapsed or closed panels, and (in Pixel Art) grid, tiled view and preview.
 
@@ -94,7 +94,7 @@ Each workspace remembers its own tool, dock width, collapsed or closed panels, a
   - tiled view for seamless patterns;
   - a 1:1 preview (click it for 2× and 3×).
 - Move and transform stay on whole pixels (nearest-neighbour; rotation snaps to 90°).
-- Palette column: big foreground/background squares and the *Nook 32* palette. Left-click a swatch for foreground, right-click for background. Add/remove colours, or make a palette from the picture.
+- Palette column: big foreground/background squares, a **layers button** that opens the full layers panel, and the *Nook 32* palette. Left-click a swatch for foreground, right-click for background. Add/remove colours, or make a palette from the picture.
 - Right-click on the canvas opens the quick palette, or can be set to **paint with the background colour** (Aseprite style).
 - New picture offers sprite sizes (16 × 16 to 256 × 144), transparent by default. Export PNG keeps the exact pixels and transparency.
 
@@ -281,7 +281,7 @@ Rules enforced by tests: the engine references nothing but .NET; the input contr
 | What | How | Result |
 |---|---|---|
 | Engine | 129 tests (including the performance measurement). Mission 004's stroke, pressure, coordinate and undo tests are kept. New: layers (properties, blend modes against the W3C formulas, clipping, lock/alpha lock, merge, reorder), history limits, selections and modes, fill tolerance, gradient, shapes, pixel-perfect lines, symmetry, airbrush build-up, grain, chisel, transforms and resampling, crop/resize/rotate, adjustments with preview, .dnk round trip, version and damage checks, atomic saves, and a multi-tool end-to-end scenario | Pass (Linux; Windows CI) |
-| App | 71 tests. Input controller: every tool through synthetic pen/mouse input. Files and settings, including workspace states. **The real window driven headlessly**: each workspace's chrome, switching by buttons and Alt+1..5, per-workspace memory, 40 rapid switches keeping document, history and pixels, quick palette, layers panel (add, hide, duplicate, merge, select, rename, label), Ctrl+T transform and Esc, image size dialog, adjustment preview and cancel, menus, status bar, pixel art zoom, palette column, a narrow window scrolling the options bar. Workflows: sketch → paint on a new layer → save .dnk → reopen; open PNG → select → paste → transform → grayscale → export (Ctrl+S refuses to flatten into the PNG); single-layer PNG saves back; new sprite → pixel tools → move → exact PNG. Screenshots of all five workspaces | Pass (Linux; Windows CI) |
+| App | 72 tests. Input controller: every tool through synthetic pen/mouse input. Files and settings, including workspace states. **The real window driven headlessly**: each workspace's chrome, switching by buttons and Alt+1..5, per-workspace memory, 40 rapid switches keeping document, history and pixels, quick palette, layers panel (add, hide, duplicate, merge, select, rename, label), Ctrl+T transform and Esc, image size dialog, adjustment preview and cancel, menus, status bar, pixel art zoom, palette column and its layers button, a narrow window scrolling the options bar. Workflows: sketch → paint on a new layer → save .dnk → reopen; open PNG → select → paste → transform → grayscale → export (Ctrl+S refuses to flatten into the PNG); single-layer PNG saves back; new sprite → pixel tools → move → exact PNG. Screenshots of all five workspaces | Pass (Linux; Windows CI) |
 | Packaged app on Windows | CI extracts the ZIP and runs `DoodleNook.exe --smoke-test`. It draws pen and mouse strokes, erases, undoes and redoes; adds a layer and paints on it in Painting; selects, flips and inverts in Editing; saves and reopens a .dnk; exports PNG, JPEG and WebP; draws a sprite in Pixel Art and exports it exactly; visits Pure Sketch and returns with Tab; and saves a frame of each workspace | See the CI result in the report |
 | Real app on Linux | The same smoke test under a virtual X display | Pass (24 checks) |
 | **Feel on the Kamvas 13** | Only you can test this | **Not yet tested** |
