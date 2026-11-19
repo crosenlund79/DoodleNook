@@ -427,7 +427,7 @@ public class WindowTests
         Assert.Equal(ToolKind.Fill, w.Session.Tool);
         w.ToggleDockSection("colour"); // close the colour section
         Pump();
-        Assert.False(w.GetVisualDescendants().OfType<ColourPanel>().Any(p => p.IsEffectivelyVisible));
+        Assert.DoesNotContain(w.GetVisualDescendants().OfType<ColourPanel>(), p => p.IsEffectivelyVisible);
 
         w.SetWorkspace(WorkspaceKind.Editing);
         Key(w, Avalonia.Input.Key.W);
@@ -456,15 +456,20 @@ public class WindowTests
         Drag(w, MouseButton.Left, RawInputModifiers.None, (300, 300), (900, 300));
         var doc = w.Session.Document;
         var pixels = (uint[])doc.ActiveLayer.Image.Pixels.Clone();
+        w.Session.AddLayer();
+        doc.SetActiveLayer(doc.Layers[0]); // the bottom layer stays active through all the switching
         for (int i = 0; i < 40; i++)
         {
             w.SetWorkspace((WorkspaceKind)(i % 5));
             Pump();
         }
         Assert.Same(doc, w.Session.Document);
+        Assert.Same(doc.Layers[0], doc.ActiveLayer);
         Assert.Equal(pixels, doc.ActiveLayer.Image.Pixels);
-        Assert.Equal(1, doc.History.UndoCount);
+        Assert.Equal(2, doc.History.UndoCount); // the stroke and the new layer
         w.SetWorkspace(WorkspaceKind.Painting);
+        Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control);
+        Assert.Single(doc.Layers);
         Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control);
         Assert.Equal(0, Alpha(w, 600, 300));
         w.Close();

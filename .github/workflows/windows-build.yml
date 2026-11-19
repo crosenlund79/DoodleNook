@@ -96,4 +96,5 @@ jobs:
             TestResults/
             smoke-test/
             tests/DoodleNook.App.Tests/out/screenshots/
+            tests/DoodleNook.Engine.Tests/out/
           if-no-files-found: ignore

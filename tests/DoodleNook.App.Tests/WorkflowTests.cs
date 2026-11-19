@@ -91,6 +91,17 @@ public sealed class WorkflowTests : IDisposable
         var gray = pasted.Image[300, 200];
         Assert.Equal(Pixel.R(gray), Pixel.G(gray));
 
+        // Undo the grayscale and the transform, then redo both.
+        var coloured = (uint[])pasted.Image.Pixels.Clone();
+        Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control);
+        Assert.NotEqual(Pixel.R(pasted.Image[300, 200]), Pixel.G(pasted.Image[300, 200]));
+        Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control);
+        Assert.Equal(255, Pixel.A(pasted.Image[100, 100])); // back where it was pasted
+        Assert.Equal(0, Pixel.A(pasted.Image[300, 200]));
+        Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control | RawInputModifiers.Shift);
+        Key(w, Avalonia.Input.Key.Y, RawInputModifiers.Control);
+        Assert.Equal(coloured, pasted.Image.Pixels);
+
         // Export: flattened copies; the open picture keeps both layers.
         var outPng = Path.Combine(_dir, "result.png");
         var outJpg = Path.Combine(_dir, "result.jpg");

@@ -268,7 +268,7 @@ public sealed class CanvasView : Control, ICustomHitTest
 
         double zoom = ActualZoom;
         context.Custom(new DocumentDrawOperation(visible, _texture, m, doc.Width, doc.Height, zoom, PixelExact, Tiled,
-            ShowGrid && zoom >= 5, _selectionPath, _antsOffset, View.Scale));
+            ShowGrid && zoom >= 5, _selectionPath, _antsOffset));
 
         DrawOverlays(context);
     }
@@ -637,7 +637,7 @@ public sealed class CanvasView : Control, ICustomHitTest
 
     /// <summary>Renders the projection with Skia (GPU when available), plus grid, tiles and the selection outline.</summary>
     private sealed class DocumentDrawOperation(Rect bounds, DocumentTexture texture, Affine matrix, int docWidth, int docHeight,
-        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset, double scale) : ICustomDrawOperation
+        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 

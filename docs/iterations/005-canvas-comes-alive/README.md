@@ -204,7 +204,41 @@ More native frames at Kamvas 13 / 150 %:
 - Feathering a selection by a radius; quick mask; layer masks; adjustment layers.
 - Copy/paste with other applications (the clipboard is DoodleNook's own). *Place image* imports files instead.
 
+## Measured performance
+
+Measured by `PerformanceTests` (engine only, Release build, a 4-core 2.3 GHz Xeon container on Linux).
+The figures cover brush work plus recompositing every visible layer under the brush; they exclude drawing to the screen.
+The test documents have broad paint on every layer, with Multiply, 70 % opacity and clipping mixed in.
+The pen stroke is a fast 2000 px curve sent as 200 events of 2 samples, as a 200 Hz pen delivers it; a 200 Hz pen sends an event every 5 ms.
+The Windows CI run repeats the measurement (artifact *test-results*, `tests/DoodleNook.Engine.Tests/out/performance.json`).
+
+| Picture | Layers | 6 px pencil | 24 px ink | 120 px hard | 300 px soft |
+|---|---|---|---|---|---|
+| 1920 × 1080 | 1 | 0.08 ms | 0.10 ms | 0.19 ms | 0.51 ms |
+| 1920 × 1080 | 6 | 0.04 ms | 0.06 ms | 0.42 ms | 1.4 ms |
+| 2560 × 1440 | 12 | 0.06 ms | 0.11 ms | 0.91 ms | 3.3 ms |
+
+Average milliseconds per pen event. Worst single events stayed under 1.7 ms, except with the 300 px soft brush in layered pictures: those spiked to between 8 and 41 ms, varying from run to run.
+
+| Picture | Layers | Recomposite everything | Undo/redo a large stroke | Save .dnk | Open .dnk | File size |
+|---|---|---|---|---|---|---|
+| 1920 × 1080 | 1 | 9 ms | 8 ms | 0.2 s | 0.07 s | 0.7 MB |
+| 1920 × 1080 | 6 | 67 ms | 65 ms | 0.5 s | 0.17 s | 3.0 MB |
+| 2560 × 1440 | 12 | 235 ms | 170 ms | 1.4 s | 0.7 s | 8.6 MB |
+
+Saving and opening compress and decode the layers on all cores. Before that change, the 12-layer save took 3.5 s.
+
 ## Known limitations (expect these in the playtest)
+
+- **Performance concerns:**
+  - Dragging a layer's opacity, or toggling visibility or blend mode, recomposites the whole layer each step: about 67 ms with 6 layers at 1080p and 235 ms with 12 layers at 1440p. The slider gets sluggish in big, many-layer pictures.
+  - Very large soft brushes in layered pictures have occasional slow events (above).
+  - Saving runs on the interface thread, so a big picture freezes the window for up to about 1.5 s while saving.
+- **Data safety:**
+  - There is no autosave or crash recovery yet. Unsaved work is lost if the app or PC crashes.
+  - Closing, New and Open ask before discarding changes.
+  - Saves are written to a temporary file first, so a failed save never damages the previous file.
+  - Exports never change the open picture.
 
 - **Narrow windows.** Painting's and Editing's options bars need about 1150 px. In a narrower window the end of the bar is cut off; the mouse wheel over the bar scrolls it sideways.
 - **Smaller screens.** On the Kamvas 13 at 150 %, Painting's dock shows Colour and Brushes first, so Layers starts lower down. Scroll the dock, or close a section by clicking its title. DoodleNook remembers that.
@@ -246,7 +280,7 @@ Rules enforced by tests: the engine references nothing but .NET; the input contr
 
 | What | How | Result |
 |---|---|---|
-| Engine | 128 tests. Mission 004's stroke, pressure, coordinate and undo tests are kept. New: layers (properties, blend modes against the W3C formulas, clipping, lock/alpha lock, merge, reorder), history limits, selections and modes, fill tolerance, gradient, shapes, pixel-perfect lines, symmetry, airbrush build-up, grain, chisel, transforms and resampling, crop/resize/rotate, adjustments with preview, .dnk round trip, version and damage checks, atomic saves, and a multi-tool end-to-end scenario | Pass (Linux; Windows CI) |
+| Engine | 129 tests (including the performance measurement). Mission 004's stroke, pressure, coordinate and undo tests are kept. New: layers (properties, blend modes against the W3C formulas, clipping, lock/alpha lock, merge, reorder), history limits, selections and modes, fill tolerance, gradient, shapes, pixel-perfect lines, symmetry, airbrush build-up, grain, chisel, transforms and resampling, crop/resize/rotate, adjustments with preview, .dnk round trip, version and damage checks, atomic saves, and a multi-tool end-to-end scenario | Pass (Linux; Windows CI) |
 | App | 71 tests. Input controller: every tool through synthetic pen/mouse input. Files and settings, including workspace states. **The real window driven headlessly**: each workspace's chrome, switching by buttons and Alt+1..5, per-workspace memory, 40 rapid switches keeping document, history and pixels, quick palette, layers panel (add, hide, duplicate, merge, select, rename, label), Ctrl+T transform and Esc, image size dialog, adjustment preview and cancel, menus, status bar, pixel art zoom, palette column, a narrow window scrolling the options bar. Workflows: sketch → paint on a new layer → save .dnk → reopen; open PNG → select → paste → transform → grayscale → export (Ctrl+S refuses to flatten into the PNG); single-layer PNG saves back; new sprite → pixel tools → move → exact PNG. Screenshots of all five workspaces | Pass (Linux; Windows CI) |
 | Packaged app on Windows | CI extracts the ZIP and runs `DoodleNook.exe --smoke-test`. It draws pen and mouse strokes, erases, undoes and redoes; adds a layer and paints on it in Painting; selects, flips and inverts in Editing; saves and reopens a .dnk; exports PNG, JPEG and WebP; draws a sprite in Pixel Art and exports it exactly; visits Pure Sketch and returns with Tab; and saves a frame of each workspace | See the CI result in the report |
 | Real app on Linux | The same smoke test under a virtual X display | Pass (24 checks) |
