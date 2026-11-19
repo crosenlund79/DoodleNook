@@ -32,6 +32,10 @@ internal sealed unsafe class DocumentTexture
     /// <summary>True if the last frame was drawn from a GPU texture.</summary>
     public bool LastFrameUsedGpu { get; private set; }
 
+    /// <summary>Frames drawn from the GPU texture / straight from memory (for diagnostics and the smoke test).</summary>
+    public long GpuFrames { get; private set; }
+    public long SoftwareFrames { get; private set; }
+
     /// <summary>Total pixels uploaded to the GPU since start (for diagnostics).</summary>
     public long UploadedPixels { get; private set; }
 
@@ -85,6 +89,7 @@ internal sealed unsafe class DocumentTexture
             {
                 canvas.DrawImage(image, src, dest, sampling, null);
                 LastFrameUsedGpu = true;
+                GpuFrames++;
                 return;
             }
         }
@@ -98,6 +103,7 @@ internal sealed unsafe class DocumentTexture
             _dirty = PixelRect.Empty;
         }
         LastFrameUsedGpu = false;
+        SoftwareFrames++;
     }
 
     private SKImage? PrepareGpu(GRContext gr)

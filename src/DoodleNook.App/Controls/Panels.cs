@@ -61,9 +61,9 @@ internal static class Ui
 public sealed class BrushPanel : StackPanel
 {
     private readonly EditorSession _session;
-    private readonly WrapPanel _tiles = new() { ItemWidth = 124, ItemHeight = 50 };
-    private readonly DnSlider _hardness = new() { Minimum = 0, Maximum = 1, TrackWidth = 150 };
-    private readonly DnSlider _smoothing = new() { Minimum = 0, Maximum = 1, TrackWidth = 150 };
+    private readonly WrapPanel _tiles = new() { ItemWidth = 124, ItemHeight = 54 };
+    private readonly DnSlider _hardness = new() { Minimum = 0, Maximum = 1, TrackWidth = 116 };
+    private readonly DnSlider _smoothing = new() { Minimum = 0, Maximum = 1, TrackWidth = 116 };
     private readonly TextBlock _hardnessText = new() { Classes = { "num" }, MinWidth = 38, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _smoothingText = new() { Classes = { "num" }, MinWidth = 38, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _pSize = Ui.Button("pressure", "Size", "Pen pressure controls the size");
@@ -165,7 +165,7 @@ public sealed class BrushPanel : StackPanel
                 var tile = new Button
                 {
                     Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                    Height = 46,
+                    Height = 50,
                     Width = 120,
                     Padding = new Thickness(0),
                     HorizontalContentAlignment = HorizontalAlignment.Stretch,

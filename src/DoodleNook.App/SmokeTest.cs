@@ -147,6 +147,8 @@ internal static class SmokeTest
         // 6. Let the window render the result, then capture it.
         await Task.Delay(800);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
+        report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
         double scaling = window.RenderScaling;
         var size = new PixelSize((int)Math.Round(window.ClientSize.Width * scaling), (int)Math.Round(window.ClientSize.Height * scaling));
         using (var rtb = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling)))
@@ -154,7 +156,6 @@ internal static class SmokeTest
             rtb.Render(window);
             rtb.Save(Path.Combine(dir, "smoke-window.png"), new PngBitmapEncoderOptions());
         }
-        report["rendererUsedGpu"] = canvas.UsesGpu;
         report["uploadedPixels"] = canvas.UploadedPixels;
         Check("screenshot written", File.Exists(Path.Combine(dir, "smoke-window.png")));
         return all;

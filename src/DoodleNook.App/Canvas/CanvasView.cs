@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.Rendering;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using DoodleNook.App.Diagnostics;
@@ -20,7 +21,7 @@ namespace DoodleNook.App.Canvas;
 /// and translates Avalonia pointer events (mouse, pen with coalesced samples, touch) into <see cref="PointerInput"/>
 /// for the <see cref="CanvasInputController"/>. It never edits pixels itself.
 /// </summary>
-public sealed class CanvasView : Control
+public sealed class CanvasView : Control, ICustomHitTest
 {
     private readonly DocumentTexture _texture = new();
     private readonly List<PointerInput> _inputs = new(64);
@@ -33,7 +34,7 @@ public sealed class CanvasView : Control
     public CanvasView()
     {
         ClipToBounds = true;
-        Focusable = false;
+        Focusable = true; // so keyboard focus can rest here instead of in a text box
         View = new ViewTransform(1, 1);
         View.Changed += () =>
         {
@@ -54,6 +55,12 @@ public sealed class CanvasView : Control
 
     public bool UsesGpu => _texture.LastFrameUsedGpu;
     public long UploadedPixels => _texture.UploadedPixels;
+    public long GpuFrames => _texture.GpuFrames;
+    public long SoftwareFrames => _texture.SoftwareFrames;
+
+    /// <summary>The whole canvas area takes pointer input, even where nothing hit-testable is drawn (e.g. zoomed in so
+    /// the picture fills the view).</summary>
+    public bool HitTest(Point point) => new Rect(Bounds.Size).Contains(point);
 
     public double RenderScaling => TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
 

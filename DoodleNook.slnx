@@ -4,6 +4,7 @@
     <Project Path="src/DoodleNook.Engine/DoodleNook.Engine.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DoodleNook.App.Tests/DoodleNook.App.Tests.csproj" />
     <Project Path="tests/DoodleNook.Engine.Tests/DoodleNook.Engine.Tests.csproj" />
   </Folder>
 </Solution>

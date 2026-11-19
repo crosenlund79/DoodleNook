@@ -79,7 +79,7 @@ jobs:
           Write-Host "Smoke test passed: the packaged DoodleNook.exe started, drew, saved and reopened a PNG."
 
       - name: Upload DoodleNook-win-x64
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           # GitHub delivers an artifact as a .zip, so the verified app folder is uploaded directly:
           # downloading "DoodleNook-win-x64" gives DoodleNook-win-x64.zip with DoodleNook.exe at its top level.
@@ -89,7 +89,7 @@ jobs:
 
       - name: Upload test and smoke-test results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |

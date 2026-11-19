@@ -51,6 +51,12 @@ public partial class MainWindow : Window
         ColourFlyout.Opening += (_, _) => { FgFlyout.Content = null; ColourFlyout.Content = _colourPanel; };
         FgFlyout.Opening += (_, _) => { ColourFlyout.Content = null; FgFlyout.Content = _colourPanel; };
         MenuFlyout.Content = BuildMenu();
+        // Opening a pop-over must not park keyboard focus in a text box (that would swallow B, E, [ ], …).
+        foreach (var f in new[] { ColourFlyout, FgFlyout, BrushFlyout, MenuFlyout })
+            f.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
+            {
+                if (FocusManager?.GetFocusedElement() is TextBox) Canvas.Focus();
+            }, DispatcherPriority.Input);
 
         Canvas.Attach(Session);
         _diagnostics = new DiagnosticsView(Canvas, Session, () => ToggleDiagnostics());
