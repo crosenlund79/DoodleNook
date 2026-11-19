@@ -76,6 +76,9 @@ public static class DnkFile
             ActiveLayer = doc.ActiveIndex,
             Palette = new PaletteInfo { Name = doc.Palette.Name, Colors = doc.Palette.Colors.Select(c => c.ToHex()).ToList() },
         };
+        // Layers are independent: compress them on all cores, then write them in order.
+        var encoded = new byte[doc.Layers.Count][];
+        Parallel.For(0, doc.Layers.Count, i => encoded[i] = PngCodec.Encode(doc.Layers[i].Image));
         for (int i = 0; i < doc.Layers.Count; i++)
         {
             var l = doc.Layers[i];
@@ -94,7 +97,7 @@ public static class DnkFile
             });
             var entry = zip.CreateEntry(file, CompressionLevel.NoCompression); // PNG is already compressed
             using var es = entry.Open();
-            es.Write(PngCodec.Encode(l.Image));
+            es.Write(encoded[i]);
         }
 
         var doc_ = zip.CreateEntry("document.json", CompressionLevel.Optimal);
@@ -140,22 +143,37 @@ public static class DnkFile
             if (manifest.Version < 1) throw new DnkFormatException("Unknown project format version.");
             if (!RasterImage.IsSupportedSize(manifest.Width, manifest.Height)) throw new DnkFormatException("The canvas size in this project is not supported.");
 
-            var layers = new List<(LayerProperties, RasterImage)>();
-            foreach (var info in manifest.Layers)
+            // Read the compressed layers in order (ZIP streams are sequential), then decode them on all cores.
+            var raw = new byte[manifest.Layers.Count][];
+            for (int i = 0; i < raw.Length; i++)
             {
+                var info = manifest.Layers[i];
                 var entry = zip.GetEntry(info.File ?? "") ?? throw new DnkFormatException($"Layer \"{info.Name}\" is missing from the project.");
-                RasterImage image;
+                using var es = entry.Open();
+                using var buffer = new MemoryStream();
+                es.CopyTo(buffer);
+                raw[i] = buffer.ToArray();
+            }
+            var images = new RasterImage?[raw.Length];
+            var errors = new string?[raw.Length];
+            Parallel.For(0, raw.Length, i =>
+            {
                 try
                 {
-                    using var es = entry.Open();
-                    using var buffer = new MemoryStream();
-                    es.CopyTo(buffer);
-                    image = PngCodec.Decode(buffer.ToArray());
+                    images[i] = PngCodec.Decode(raw[i]);
                 }
                 catch (InvalidDataException ex)
                 {
-                    throw new DnkFormatException($"Layer \"{info.Name}\" is damaged: {ex.Message}");
+                    errors[i] = ex.Message;
                 }
+            });
+
+            var layers = new List<(LayerProperties, RasterImage)>();
+            for (int i = 0; i < raw.Length; i++)
+            {
+                var info = manifest.Layers[i];
+                if (errors[i] is { } error) throw new DnkFormatException($"Layer \"{info.Name}\" is damaged: {error}");
+                var image = images[i]!;
                 if (image.Width != manifest.Width || image.Height != manifest.Height)
                     throw new DnkFormatException($"Layer \"{info.Name}\" has the wrong size.");
                 layers.Add((new LayerProperties(
