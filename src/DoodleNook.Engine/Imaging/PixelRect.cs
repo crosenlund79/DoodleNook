@@ -32,5 +32,13 @@ public readonly record struct PixelRect(int X, int Y, int Width, int Height)
 
     public bool Contains(int x, int y) => x >= X && y >= Y && x < Right && y < Bottom;
 
+    public bool Contains(PixelRect other) => !other.IsEmpty && other.X >= X && other.Y >= Y && other.Right <= Right && other.Bottom <= Bottom;
+
+    public bool IntersectsWith(PixelRect other) => !Intersect(other).IsEmpty;
+
+    public PixelRect Inflate(int amount) => IsEmpty ? this : FromEdges(X - amount, Y - amount, Right + amount, Bottom + amount);
+
+    public PixelRect Offset(int dx, int dy) => new(X + dx, Y + dy, Width, Height);
+
     public override string ToString() => IsEmpty ? "(empty)" : $"({X},{Y} {Width}×{Height})";
 }

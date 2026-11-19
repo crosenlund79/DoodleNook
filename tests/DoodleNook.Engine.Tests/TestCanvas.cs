@@ -47,11 +47,11 @@ internal static class TestCanvas
         }).ToArray();
     }
 
-    public static byte Alpha(Document doc, int x, int y) => Pixel.A(doc.Layer[x, y]);
+    public static byte Alpha(Document doc, int x, int y) => Pixel.A(doc.ActiveLayer.Image[x, y]);
 
     /// <summary>Number of pixels in column x with any paint.</summary>
     public static int ColumnCoverage(Document doc, int x) =>
-        Enumerable.Range(0, doc.Height).Count(y => Pixel.A(doc.Layer[x, y]) > 0);
+        Enumerable.Range(0, doc.Height).Count(y => Pixel.A(doc.ActiveLayer.Image[x, y]) > 0);
 
-    public static uint[] Snapshot(Document doc) => (uint[])doc.Layer.Pixels.Clone();
+    public static uint[] Snapshot(Document doc) => (uint[])doc.ActiveLayer.Image.Pixels.Clone();
 }

@@ -45,6 +45,14 @@ public sealed class RasterImage
     public static bool IsSupportedSize(int width, int height) =>
         width >= 1 && height >= 1 && width <= MaxDimension && height <= MaxDimension && (long)width * height <= MaxPixels;
 
+    /// <summary>Wraps existing pixels (no copy). The array must hold width × height pixels.</summary>
+    public static RasterImage FromPixels(int width, int height, uint[] pixels)
+    {
+        Validate(width, height);
+        if (pixels.Length != width * height) throw new ArgumentException("Pixel count mismatch.", nameof(pixels));
+        return new RasterImage(width, height, pixels);
+    }
+
     public uint this[int x, int y]
     {
         get => Pixels[y * Width + x];
@@ -56,6 +64,55 @@ public sealed class RasterImage
     public void Fill(uint value) => Array.Fill(Pixels, value);
 
     public RasterImage Clone() => new(Width, Height, (uint[])Pixels.Clone());
+
+    /// <summary>Pixel at (x, y), or transparent outside the image.</summary>
+    public uint GetOrTransparent(int x, int y) => (uint)x < (uint)Width && (uint)y < (uint)Height ? Pixels[y * Width + x] : 0u;
+
+    /// <summary>A new image holding a copy of <paramref name="region"/> (which may extend outside: those pixels are transparent).</summary>
+    public RasterImage Crop(PixelRect region)
+    {
+        var result = new RasterImage(region.Width, region.Height);
+        var src = region.Intersect(Bounds);
+        for (int y = src.Y; y < src.Bottom; y++)
+            Array.Copy(Pixels, y * Width + src.X, result.Pixels, (y - region.Y) * region.Width + (src.X - region.X), src.Width);
+        return result;
+    }
+
+    /// <summary>Copies <paramref name="source"/> into this image with its top-left corner at (x, y), clipped. No blending.</summary>
+    public void Paste(RasterImage source, int x, int y)
+    {
+        var dst = new PixelRect(x, y, source.Width, source.Height).Intersect(Bounds);
+        for (int yy = dst.Y; yy < dst.Bottom; yy++)
+            Array.Copy(source.Pixels, (yy - y) * source.Width + (dst.X - x), Pixels, yy * Width + dst.X, dst.Width);
+    }
+
+    /// <summary>The smallest rectangle containing every non-transparent pixel (empty if the image is blank).</summary>
+    public PixelRect ContentBounds() => ContentBounds(Bounds);
+
+    public PixelRect ContentBounds(PixelRect within)
+    {
+        within = within.Intersect(Bounds);
+        int l = int.MaxValue, t = int.MaxValue, r = -1, b = -1;
+        for (int y = within.Y; y < within.Bottom; y++)
+        {
+            int row = y * Width;
+            int first = -1, last = -1;
+            for (int x = within.X; x < within.Right; x++)
+            {
+                if (Pixels[row + x] == 0) continue;
+                if (first < 0) first = x;
+                last = x;
+            }
+            if (first < 0) continue;
+            if (first < l) l = first;
+            if (last > r) r = last;
+            if (y < t) t = y;
+            b = y;
+        }
+        return r < 0 ? PixelRect.Empty : PixelRect.FromEdges(l, t, r + 1, b + 1);
+    }
+
+    public bool IsBlank() => Array.TrueForAll(Pixels, p => p == 0);
 
     /// <summary>Copies a region (clipped to the image) into <paramref name="destination"/>, tightly packed.</summary>
     public void CopyRegion(PixelRect region, Span<uint> destination)

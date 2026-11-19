@@ -100,15 +100,15 @@ public class PixelTests
 public class ViewTransformTests
 {
     [Theory]
-    [InlineData(1.0, 0, 0, false)]
-    [InlineData(0.37, 120.5, -33, false)]
-    [InlineData(4.0, -800, 20, true)]
-    [InlineData(12.5, 3, 7, true)]
-    public void View_and_document_coordinates_round_trip(double scale, double ox, double oy, bool flip)
+    [InlineData(1.0, 0, 0, 0, false)]
+    [InlineData(0.37, 120.5, -33, 30, false)]
+    [InlineData(4.0, -800, 20, -75, true)]
+    [InlineData(12.5, 3, 7, 180, true)]
+    public void View_and_document_coordinates_round_trip(double scale, double cx, double cy, double rotation, bool flip)
     {
         var v = new ViewTransform(1920, 1080);
-        v.Set(scale, ox, oy);
-        if (flip) v.ToggleFlip(1000);
+        v.Set(scale, cx, cy, rotation);
+        if (flip) v.ToggleFlip(1000, 800);
         foreach (var (x, y) in new[] { (0.0, 0.0), (17.25, 900.5), (1919.9, 1079.9) })
         {
             var (vx, vy) = v.DocumentToView(x, y);
@@ -119,20 +119,39 @@ public class ViewTransformTests
     }
 
     [Fact]
-    public void Zooming_keeps_the_point_under_the_cursor_still()
+    public void Zooming_and_rotating_keep_the_point_under_the_cursor_still()
     {
         var v = new ViewTransform(2000, 1000);
-        v.Set(0.5, 40, 60);
+        v.Set(0.5, 400, 300, 10);
         var before = v.ViewToDocument(300, 200);
         v.ZoomAround(300, 200, 3.0);
         var after = v.ViewToDocument(300, 200);
         Assert.Equal(before.X, after.X, 9);
         Assert.Equal(before.Y, after.Y, 9);
         Assert.Equal(3.0, v.Scale);
+
+        v.RotateAround(300, 200, 45);
+        var rotated = v.ViewToDocument(300, 200);
+        Assert.Equal(before.X, rotated.X, 9);
+        Assert.Equal(before.Y, rotated.Y, 9);
+        Assert.Equal(45, v.Rotation, 9);
     }
 
     [Fact]
-    public void Fit_centres_the_whole_document()
+    public void Rotation_turns_the_view_but_not_the_document()
+    {
+        var v = new ViewTransform(100, 50);
+        v.Set(1, 200, 200, 90);
+        // The document's top edge now runs downwards on screen (clockwise rotation).
+        var (ax, ay) = v.DocumentToView(0, 0);
+        var (bx, by) = v.DocumentToView(100, 0);
+        Assert.Equal(ax, bx, 9);
+        Assert.Equal(100, by - ay, 9);
+        Assert.Equal(-90, ViewTransform.NormalizeAngle(270), 9);
+    }
+
+    [Fact]
+    public void Fit_centres_the_whole_document_even_when_rotated()
     {
         var v = new ViewTransform(1600, 1000);
         v.Fit(800, 800, margin: 20, maxScale: 1);
@@ -142,6 +161,10 @@ public class ViewTransformTests
         Assert.Equal(20, l, 6);
         Assert.Equal(800 - 20, r, 6);
         Assert.Equal(800 - b, t, 6);
+
+        v.Set(1, 0, 0, 90);
+        v.Fit(800, 800, 0, 10);
+        Assert.Equal(0.5, v.Scale, 9); // the 1600 px side now runs vertically
     }
 
     [Fact]
@@ -156,12 +179,12 @@ public class ViewTransformTests
     public void Flip_mirrors_the_view_around_the_viewport_centre()
     {
         var v = new ViewTransform(100, 100);
-        v.Set(2, 50, 0); // document spans view x 50..250
-        v.ToggleFlip(400);
+        v.Set(2, 150, 100); // document spans view x 50..250
+        v.ToggleFlip(400, 200);
         Assert.True(v.FlipHorizontal);
         Assert.Equal(350, v.DocumentToView(0, 0).X, 9);  // left edge now on the right
         Assert.Equal(150, v.DocumentToView(100, 0).X, 9);
-        v.ToggleFlip(400);
+        v.ToggleFlip(400, 200);
         Assert.Equal(50, v.DocumentToView(0, 0).X, 9);
     }
 
@@ -174,28 +197,35 @@ public class ViewTransformTests
     public void Zoom_steps(double current, int dir, double expected) =>
         Assert.Equal(expected, ViewTransform.NextStep(current, dir));
 
+    [Theory]
+    [InlineData(1.0, 1, 2)]
+    [InlineData(3.0, 1, 4)]
+    [InlineData(8.0, 1, 12)]
+    [InlineData(4.0, -1, 3)]
+    [InlineData(1.0, -1, 0.75)]
+    public void Integer_zoom_steps_for_pixel_art(double current, int dir, double expected) =>
+        Assert.Equal(expected, ViewTransform.NextIntegerStep(current, dir));
+
     [Fact]
-    public void Drawing_lands_on_the_same_pixels_at_any_zoom_or_flip()
+    public void Drawing_lands_on_the_same_pixels_at_any_zoom_rotation_or_flip()
     {
-        // The same document-space gesture, entered through views with different zoom/pan/flip,
-        // must produce identical pixels: the view only changes what you see.
         uint[]? reference = null;
-        foreach (var (scale, flip) in new[] { (1.0, false), (0.25, false), (3.0, true), (7.5, false), (0.6, true) })
+        foreach (var (scale, rot, flip) in new[] { (1.0, 0.0, false), (0.25, 30.0, false), (3.0, -90.0, true), (7.5, 12.5, false), (0.6, 180.0, true) })
         {
             var view = new ViewTransform(300, 200);
-            view.Set(scale, 37, -12);
-            if (flip) view.ToggleFlip(640);
+            view.Set(scale, 237, -12, rot);
+            if (flip) view.ToggleFlip(640, 480);
             var docPoints = new[] { (20.0, 30.0), (150.25, 120.5), (280.0, 40.0) };
             var samples = docPoints.Select(p =>
             {
-                var (vx, vy) = view.DocumentToView(p.Item1, p.Item2); // where the pen would be on screen
-                var (dx, dy) = view.ViewToDocument(vx, vy);           // what the canvas maps it back to
+                var (vx, vy) = view.DocumentToView(p.Item1, p.Item2);
+                var (dx, dy) = view.ViewToDocument(vx, vy);
                 return new StrokeSample(dx, dy, 0.8f);
             }).ToArray();
             var doc = new Document(300, 200);
             Stroke(doc, Paint(Hard(9, pressureSize: true)), samples);
             if (reference is null) reference = Snapshot(doc);
-            else Assert.Equal(reference, doc.Layer.Pixels);
+            else Assert.Equal(reference, doc.ActiveLayer.Image.Pixels);
         }
     }
 }

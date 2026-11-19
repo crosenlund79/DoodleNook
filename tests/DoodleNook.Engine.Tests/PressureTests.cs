@@ -123,7 +123,7 @@ public class PressureTests
         var b = new Document(200, 60);
         Stroke(a, Paint(SizeBrush), S(20, 30, 1f), S(180, 30, 1f));
         Stroke(b, Paint(SizeBrush with { PressureSize = false }), S(20, 30), S(180, 30));
-        Assert.Equal(b.Layer.Pixels, a.Layer.Pixels);
+        Assert.Equal(b.ActiveLayer.Image.Pixels, a.ActiveLayer.Image.Pixels);
     }
 
     [Fact]

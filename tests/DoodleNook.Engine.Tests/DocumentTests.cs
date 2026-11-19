@@ -17,10 +17,10 @@ public class DocumentTests
 
         Assert.Equal(1, doc.History.UndoCount);
         Assert.Equal("Brush stroke", doc.History.NextUndoName);
-        Assert.False(doc.Undo().IsEmpty);
-        Assert.Equal(blank, doc.Layer.Pixels);
-        Assert.False(doc.Redo().IsEmpty);
-        Assert.Equal(painted, doc.Layer.Pixels);
+        Assert.True(doc.Undo());
+        Assert.Equal(blank, doc.ActiveLayer.Image.Pixels);
+        Assert.True(doc.Redo());
+        Assert.Equal(painted, doc.ActiveLayer.Image.Pixels);
     }
 
     [Fact]
@@ -35,16 +35,16 @@ public class DocumentTests
         Stroke(doc, Erase(Hard(20)), S(20, 20), S(130, 130));
         var s3 = Snapshot(doc);
 
-        doc.Undo(); Assert.Equal(s2, doc.Layer.Pixels);
-        doc.Undo(); Assert.Equal(s1, doc.Layer.Pixels);
-        doc.Undo(); Assert.Equal(s0, doc.Layer.Pixels);
+        doc.Undo(); Assert.Equal(s2, doc.ActiveLayer.Image.Pixels);
+        doc.Undo(); Assert.Equal(s1, doc.ActiveLayer.Image.Pixels);
+        doc.Undo(); Assert.Equal(s0, doc.ActiveLayer.Image.Pixels);
         Assert.False(doc.CanUndo);
-        Assert.True(doc.Undo().IsEmpty);
-        doc.Redo(); Assert.Equal(s1, doc.Layer.Pixels);
-        doc.Redo(); Assert.Equal(s2, doc.Layer.Pixels);
-        doc.Redo(); Assert.Equal(s3, doc.Layer.Pixels);
+        Assert.False(doc.Undo());
+        doc.Redo(); Assert.Equal(s1, doc.ActiveLayer.Image.Pixels);
+        doc.Redo(); Assert.Equal(s2, doc.ActiveLayer.Image.Pixels);
+        doc.Redo(); Assert.Equal(s3, doc.ActiveLayer.Image.Pixels);
         Assert.False(doc.CanRedo);
-        Assert.True(doc.Redo().IsEmpty);
+        Assert.False(doc.Redo());
     }
 
     [Fact]
@@ -116,16 +116,16 @@ public class DocumentTests
     public void Clear_is_undoable_and_a_no_op_on_an_empty_canvas()
     {
         var doc = new Document(100, 100);
-        Assert.True(doc.Clear().IsEmpty);
+        Assert.False(doc.Clear());
         Assert.False(doc.CanUndo);
 
         Stroke(doc, Paint(Hard(20)), S(10, 10), S(90, 90));
         var painted = Snapshot(doc);
-        Assert.False(doc.Clear().IsEmpty);
-        Assert.All(doc.Layer.Pixels, p => Assert.Equal(Pixel.Transparent, p));
-        Assert.Equal("Clear canvas", doc.History.NextUndoName);
+        Assert.True(doc.Clear());
+        Assert.All(doc.ActiveLayer.Image.Pixels, p => Assert.Equal(Pixel.Transparent, p));
+        Assert.Equal("Clear layer", doc.History.NextUndoName);
         doc.Undo();
-        Assert.Equal(painted, doc.Layer.Pixels);
+        Assert.Equal(painted, doc.ActiveLayer.Image.Pixels);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class DocumentTests
     {
         var doc = new Document(100, 100);
         var areas = new List<PixelRect>();
-        doc.PixelsChanged += areas.Add;
+        doc.ProjectionChanged += areas.Add;
         Stroke(doc, Paint(Hard(10)), S(20, 20), S(40, 20));
         Assert.NotEmpty(areas);
         var union = areas.Aggregate(PixelRect.Empty, (a, b) => a.Union(b));
@@ -168,7 +168,7 @@ public class DocumentTests
         var noBg = new Document(30, 30);
         Stroke(noBg, Paint(Hard(6, opacity: 0.5)), S(15, 15));
         var flat2 = noBg.Flatten();
-        Assert.Equal(noBg.Layer.Pixels, flat2.Pixels);
+        Assert.Equal(noBg.ActiveLayer.Image.Pixels, flat2.Pixels);
         Assert.Equal(Pixel.Transparent, flat2[0, 0]);
     }
 

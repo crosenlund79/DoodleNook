@@ -14,7 +14,7 @@ public class StrokeTests
         Stroke(doc, Paint(Hard(10)), S(32, 32));
 
         Assert.Equal(255, Alpha(doc, 32, 32));
-        Assert.Equal(Pixel.Opaque(Ink), doc.Layer[32, 32]);
+        Assert.Equal(Pixel.Opaque(Ink), doc.ActiveLayer.Image[32, 32]);
         // Pixel centres 4.5 px left and right of the centre must match (symmetry).
         Assert.Equal(Alpha(doc, 27, 32), Alpha(doc, 36, 32));
         Assert.Equal(Alpha(doc, 32, 27), Alpha(doc, 32, 36));
@@ -172,7 +172,7 @@ public class StrokeTests
         var brush = Hard(20, pressureSize: true);
         Stroke(a, Paint(brush), S(10, 30, 5f), S(double.NaN, 30), S(110, 30, 7f), S(double.PositiveInfinity, 1));
         Stroke(b, Paint(brush), S(10, 30, 1f), S(110, 30, 1f));
-        Assert.Equal(b.Layer.Pixels, a.Layer.Pixels);
+        Assert.Equal(b.ActiveLayer.Image.Pixels, a.ActiveLayer.Image.Pixels);
 
         var c = new Document(120, 60);
         Stroke(c, Paint(brush), S(10, 30, -3f), S(110, 30, -1f));
@@ -216,7 +216,7 @@ public class StrokeTests
         engine.Begin(Paint(Hard(10), new ColorRgb(200, 0, 0)), S(10, 10));
         engine.Add(S(90, 90));
         engine.Cancel();
-        Assert.Equal(before, doc.Layer.Pixels);
+        Assert.Equal(before, doc.ActiveLayer.Image.Pixels);
         Assert.Equal(1, doc.History.UndoCount);
     }
 
@@ -228,12 +228,12 @@ public class StrokeTests
         var painted = Snapshot(doc);
         Stroke(doc, Erase(Hard(20)), S(10, 30), S(90, 30));
 
-        Assert.Equal(Pixel.Transparent, doc.Layer[50, 30]);
+        Assert.Equal(Pixel.Transparent, doc.ActiveLayer.Image[50, 30]);
         Assert.Equal(255, Alpha(doc, 50, 12)); // outside the eraser stroke
         doc.Undo();
-        Assert.Equal(painted, doc.Layer.Pixels);
+        Assert.Equal(painted, doc.ActiveLayer.Image.Pixels);
         doc.Redo();
-        Assert.Equal(Pixel.Transparent, doc.Layer[50, 30]);
+        Assert.Equal(Pixel.Transparent, doc.ActiveLayer.Image[50, 30]);
     }
 
     [Fact]
@@ -260,11 +260,11 @@ public class StrokeTests
         var doc = new Document(60, 30);
         var c = new ColorRgb(200, 100, 50);
         Stroke(doc, Paint(Hard(10), c), S(5, 15), S(55, 15));
-        Assert.Equal(Pixel.Pack(255, 200, 100, 50), doc.Layer[30, 15]);
+        Assert.Equal(Pixel.Pack(255, 200, 100, 50), doc.ActiveLayer.Image[30, 15]);
 
         var half = new Document(60, 30);
         Stroke(half, Paint(Hard(10, opacity: 0.5), c), S(5, 15), S(55, 15));
-        Assert.Equal(Pixel.FromStraight(200, 100, 50, 128), half.Layer[30, 15]);
+        Assert.Equal(Pixel.FromStraight(200, 100, 50, 128), half.ActiveLayer.Image[30, 15]);
     }
 
     [Fact]

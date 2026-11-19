@@ -4,42 +4,45 @@ using DoodleNook.Engine.Imaging;
 namespace DoodleNook.Engine.Painting;
 
 /// <summary>
-/// Turns input samples into paint on a <see cref="Document"/>.
+/// Turns input samples into paint on a layer of a <see cref="Document"/>.
 ///
 /// How a stroke is built (independently written; the ideas are the usual ones in painting apps):
 /// <list type="number">
 /// <item>Samples are optionally smoothed, then joined by straight segments. Pressure is interpolated along each segment.</item>
-/// <item>Round "dabs" are placed along the path at a spacing relative to the current diameter, small enough that the
-/// stroke edge stays smooth (the scallop between dabs stays under about 0.1 px).</item>
+/// <item>Round or flattened "dabs" are placed along the path at a spacing relative to the current diameter, small enough
+/// that the stroke edge stays smooth (the scallop between dabs stays under about 0.1 px).</item>
 /// <item>Dabs are not painted directly. Each dab raises a per-stroke coverage mask to its own coverage (a maximum, not a
-/// sum). That is why a stroke never darkens where it overlaps or crosses itself.</item>
-/// <item>Only the area touched since the last update is recomposited: original pixels + colour × coverage × opacity
-/// (or the original pixels reduced by coverage, for the eraser).</item>
-/// <item>When the stroke ends, the tiles it changed are stored as a single undo step.</item>
+/// sum), so a stroke never darkens where it crosses itself. Build-up brushes (airbrush) add to the mask instead.</item>
+/// <item>Grainy brushes multiply coverage by a fixed paper texture; light pressure lets more grain show.</item>
+/// <item>Only the touched area is recomposited: original pixels + colour × coverage × opacity × selection
+/// (or reduced, for the eraser). Transparency-locked layers keep their alpha.</item>
+/// <item>When the stroke ends, the changed tiles are stored as a single undo step.</item>
 /// </list>
 /// </summary>
 public sealed class StrokeEngine
 {
     private const int T = Document.TileSize;
     private const double MinSpacing = 0.25;
+    private const double SprayIntervalMs = 25;
 
     private readonly Document _doc;
     private readonly Dictionary<int, float[]> _mask = new();
-    private readonly Dictionary<int, uint[]> _before = new();
     private readonly Stack<float[]> _maskPool = new();
     private readonly uint[] _paintLut = new uint[256];
 
+    private LayerEdit? _edit;
     private StrokeStyle _style;
     private BrushSettings _brush = new();
     private bool _active;
 
-    private double _x, _y;          // last processed (possibly smoothed) position
-    private float _p;               // pressure at that position
-    private double _smX, _smY;      // smoothing filter state
+    private double _x, _y;
+    private float _p;
+    private double _smX, _smY;
     private StrokeSample _lastRaw;
     private double _distanceToNextDab;
     private double _distanceSinceDab;
     private float _lastDabPressure;
+    private double _sprayMs;
     private PixelRect _pending = PixelRect.Empty;
 
     public StrokeEngine(Document document)
@@ -50,28 +53,31 @@ public sealed class StrokeEngine
     public Document Document => _doc;
     public bool IsActive => _active;
 
-    /// <summary>Number of dabs placed in the current (or last) stroke.</summary>
+    /// <summary>The layer being painted by the current (or last) stroke.</summary>
+    public Layer? TargetLayer { get; private set; }
+
     public int DabCount { get; private set; }
-
-    /// <summary>Diameter of the most recent dab, in document pixels (for diagnostics and the brush cursor).</summary>
     public double LastDabDiameter { get; private set; }
-
-    /// <summary>Area touched by the current (or last) stroke.</summary>
     public PixelRect StrokeBounds { get; private set; } = PixelRect.Empty;
 
-    /// <summary>Starts a stroke and paints its first dab immediately. Returns the changed area.</summary>
-    public PixelRect Begin(StrokeStyle style, StrokeSample first)
+    /// <summary>Starts a stroke on the active layer (or <paramref name="layer"/>) and paints its first dab immediately.
+    /// Returns the changed area. Locked layers are left alone (the stroke does not start).</summary>
+    public PixelRect Begin(StrokeStyle style, StrokeSample first, Layer? layer = null)
     {
         if (_active) End();
-        if (!first.IsFinite) return PixelRect.Empty;
+        layer ??= _doc.ActiveLayer;
+        if (!first.IsFinite || layer.Locked) return PixelRect.Empty;
 
         _style = style;
         _brush = style.Brush.Normalized();
         BuildPaintLut();
+        _edit = _doc.BeginEdit(layer, style.Mode == PaintMode.Erase ? "Erase" : "Brush stroke");
+        TargetLayer = layer;
         _active = true;
         DabCount = 0;
         StrokeBounds = PixelRect.Empty;
         _pending = PixelRect.Empty;
+        _sprayMs = 0;
 
         float p = PressureCurve.Sanitize(first.Pressure);
         _x = _smX = first.X;
@@ -83,7 +89,6 @@ public sealed class StrokeEngine
         return Flush();
     }
 
-    /// <summary>Adds one sample. Returns the changed area.</summary>
     public PixelRect Add(StrokeSample sample)
     {
         if (!_active) return PixelRect.Empty;
@@ -99,20 +104,28 @@ public sealed class StrokeEngine
         return Flush();
     }
 
+    /// <summary>Airbrush: keeps adding paint at the current position while time passes (call regularly while the pen rests).</summary>
+    public PixelRect Spray(double elapsedMs)
+    {
+        if (!_active || !_brush.Spray || elapsedMs <= 0) return PixelRect.Empty;
+        _sprayMs += elapsedMs;
+        while (_sprayMs >= SprayIntervalMs)
+        {
+            _sprayMs -= SprayIntervalMs;
+            Dab(_x, _y, _p);
+        }
+        return Flush();
+    }
+
     /// <summary>Finishes the stroke and records it as one undo step (only if it changed any pixel).</summary>
     public PixelRect End()
     {
         if (!_active) return PixelRect.Empty;
-
-        // Catch up with the pen if smoothing held the line back, so the stroke ends where the pen lifted.
         if (_brush.Smoothing > 0 && (_x != _lastRaw.X || _y != _lastRaw.Y))
             MoveTo(_lastRaw.X, _lastRaw.Y, _lastRaw.Pressure);
-
-        // A final dab exactly at the end point gives every stroke a clean, round end.
-        if (_distanceSinceDab > 0.01) Dab(_x, _y, _p);
-
+        if (_distanceSinceDab > 0.01 && !_brush.BuildUp) Dab(_x, _y, _p);
         var changed = Flush();
-        CommitHistory();
+        _edit!.Commit();
         Reset();
         return changed;
     }
@@ -121,15 +134,9 @@ public sealed class StrokeEngine
     public PixelRect Cancel()
     {
         if (!_active) return PixelRect.Empty;
-        var area = PixelRect.Empty;
-        foreach (var (key, before) in _before)
-        {
-            var rect = TileRectFromKey(key);
-            WriteTile(rect, before);
-            area = area.Union(rect);
-        }
+        var area = StrokeBounds;
+        _edit!.Cancel();
         Reset();
-        _doc.NotifyPixelsChanged(area);
         return area;
     }
 
@@ -139,8 +146,9 @@ public sealed class StrokeEngine
     {
         if (!s.IsFinite) return;
         float p = PressureCurve.Sanitize(s.Pressure);
-        if (s.X == _lastRaw.X && s.Y == _lastRaw.Y && p == _lastRaw.Pressure) return; // duplicate event
+        if (s.X == _lastRaw.X && s.Y == _lastRaw.Y && p == _lastRaw.Pressure) return;
         _lastRaw = s with { Pressure = p };
+        _sprayMs = 0;
 
         double tx = s.X, ty = s.Y;
         if (_brush.Smoothing > 0)
@@ -160,7 +168,6 @@ public sealed class StrokeEngine
         double len = Math.Sqrt(dx * dx + dy * dy);
         if (len < 1e-9)
         {
-            // Pressing harder without moving grows the dot, like a real pen.
             if (p > _lastDabPressure + 0.02f)
             {
                 Dab(x, y, p);
@@ -186,14 +193,15 @@ public sealed class StrokeEngine
     }
 
     /// <summary>
-    /// Distance between dabs for a diameter: at most 10 % of the diameter, and close enough that the scallops between
-    /// neighbouring dabs stay below ~0.1 px (s² / 8r ≤ 0.1, relaxed for soft edges).
+    /// Distance between dabs for a diameter: at most 10 % of the (narrowest) diameter, and close enough that the
+    /// scallops between neighbouring dabs stay below ~0.1 px.
     /// </summary>
     internal double Spacing(double diameter)
     {
-        double r = Math.Max(diameter * 0.5, 0.5);
+        double d = diameter * _brush.Roundness;
+        double r = Math.Max(d * 0.5, 0.5);
         double fall = EdgeWidth(r);
-        double s = Math.Min(0.1 * diameter, Math.Sqrt(0.8 * r * fall));
+        double s = Math.Min(0.1 * d, Math.Sqrt(0.8 * r * fall));
         return Math.Max(MinSpacing, s);
     }
 
@@ -208,22 +216,60 @@ public sealed class StrokeEngine
         _lastDabPressure = pressure;
         _distanceSinceDab = 0;
         DabCount++;
+        float mapped = _style.Curve.Map(pressure);
+        if (_brush.BuildUp) alpha *= (float)_brush.Flow;
 
+        double angle = _brush.Angle;
+        Stamp(cx, cy, diameter, alpha, mapped, angle);
+        int w = _doc.Width, h = _doc.Height;
+        switch (_style.Symmetry)
+        {
+            case Symmetry.Vertical:
+                Stamp(w - cx, cy, diameter, alpha, mapped, -angle);
+                break;
+            case Symmetry.Horizontal:
+                Stamp(cx, h - cy, diameter, alpha, mapped, -angle);
+                break;
+            case Symmetry.Both:
+                Stamp(w - cx, cy, diameter, alpha, mapped, -angle);
+                Stamp(cx, h - cy, diameter, alpha, mapped, -angle);
+                Stamp(w - cx, h - cy, diameter, alpha, mapped, angle);
+                break;
+        }
+    }
+
+    private void Stamp(double cx, double cy, double diameter, float alpha, float mappedPressure, double angleDeg)
+    {
         double r = diameter * 0.5;
         if (r < 0.5)
         {
-            // Below one pixel, keep the dab one pixel wide but fade it by area, so thin tapers fade instead of breaking up.
             alpha *= (float)(4 * r * r);
             r = 0.5;
         }
         if (alpha <= 0) return;
 
+        double roundness = _brush.Roundness;
+        bool elliptic = roundness < 0.999;
+        double cosA = 1, sinA = 0;
+        if (elliptic)
+        {
+            double a = angleDeg * Math.PI / 180;
+            cosA = Math.Cos(a);
+            sinA = Math.Sin(a);
+        }
+        double invRound = 1 / roundness;
+
         double fall = EdgeWidth(r);
         bool linear = fall <= 1.0001;
-        double outer = r + 0.5;            // coverage is 0 beyond this distance
-        double inner = outer - fall;       // coverage is 1 within this distance
+        double outer = r + 0.5;
+        double inner = outer - fall;
         double outer2 = outer * outer;
         double inner2 = inner > 0 ? inner * inner : -1;
+        bool grain = _brush.Grain > 0;
+        float grainAmount = (float)_brush.Grain;
+        float level = 0.35f + 0.65f * mappedPressure;
+        float g0 = 1 - level - 0.18f, g1 = 1 - level + 0.18f;
+        bool buildUp = _brush.BuildUp;
 
         var box = PixelRect.FromBounds(cx - outer, cy - outer, cx + outer, cy + outer).Intersect(_doc.Bounds);
         if (box.IsEmpty) return;
@@ -233,19 +279,23 @@ public sealed class StrokeEngine
         {
             for (int tx = tx0; tx <= tx1; tx++)
             {
-                int key = ty * _doc.TilesX + tx;
-                CaptureBefore(key, tx, ty);
-                var m = MaskTile(key);
+                _edit!.BeforeTile(tx, ty);
+                var m = MaskTile(_edit.TileKey(tx, ty));
                 var part = box.Intersect(new PixelRect(tx * T, ty * T, T, T));
                 for (int y = part.Y; y < part.Bottom; y++)
                 {
                     double fy = y + 0.5 - cy;
-                    double fy2 = fy * fy;
                     int row = (y - ty * T) * T - tx * T;
                     for (int x = part.X; x < part.Right; x++)
                     {
                         double fx = x + 0.5 - cx;
-                        double d2 = fx * fx + fy2;
+                        double ux = fx, uy = fy;
+                        if (elliptic)
+                        {
+                            ux = fx * cosA + fy * sinA;
+                            uy = (-fx * sinA + fy * cosA) * invRound;
+                        }
+                        double d2 = ux * ux + uy * uy;
                         if (d2 >= outer2) continue;
                         float cov;
                         if (d2 <= inner2) cov = alpha;
@@ -259,8 +309,16 @@ public sealed class StrokeEngine
                                 cov = (float)(t * alpha);
                             }
                         }
+                        if (grain)
+                        {
+                            float g = PaperGrain.Sample(x, y, _brush.GrainScale);
+                            float f = g <= g0 ? 0 : g >= g1 ? 1 : (g - g0) / (g1 - g0);
+                            cov *= 1 - grainAmount * (1 - f);
+                            if (cov <= 0) continue;
+                        }
                         ref float slot = ref m[row + x];
-                        if (cov > slot) slot = cov;
+                        if (buildUp) slot += (1 - slot) * cov;
+                        else if (cov > slot) slot = cov;
                     }
                 }
             }
@@ -285,20 +343,25 @@ public sealed class StrokeEngine
     {
         var area = _pending;
         _pending = PixelRect.Empty;
-        if (area.IsEmpty) return area;
+        if (area.IsEmpty || _edit is null) return PixelRect.Empty;
 
-        var layer = _doc.Layer.Pixels;
+        var layer = _edit.Layer;
+        var pixels = layer.Image.Pixels;
         int w = _doc.Width;
         float opacity = (float)_brush.Opacity * 255f;
         bool erase = _style.Mode == PaintMode.Erase;
+        bool alphaLock = layer.AlphaLocked;
+        var selection = _doc.Selection;
+        var color = _style.Color;
 
         int tx0 = area.X / T, ty0 = area.Y / T, tx1 = (area.Right - 1) / T, ty1 = (area.Bottom - 1) / T;
         for (int ty = ty0; ty <= ty1; ty++)
         {
             for (int tx = tx0; tx <= tx1; tx++)
             {
-                int key = ty * _doc.TilesX + tx;
-                if (!_mask.TryGetValue(key, out var m) || !_before.TryGetValue(key, out var before)) continue;
+                int key = _edit.TileKey(tx, ty);
+                if (!_mask.TryGetValue(key, out var m)) continue;
+                var before = _edit.BeforeTile(tx, ty);
                 var part = area.Intersect(new PixelRect(tx * T, ty * T, T, T));
                 for (int y = part.Y; y < part.Bottom; y++)
                 {
@@ -310,28 +373,38 @@ public sealed class StrokeEngine
                         uint baseline = before[local + x];
                         if (cov <= 0f)
                         {
-                            layer[dst + x] = baseline;
+                            pixels[dst + x] = baseline;
                             continue;
                         }
-                        int a = (int)(cov * opacity + 0.5f);
+                        float c = cov * opacity;
+                        if (selection is not null) c = c * selection.Data[dst + x] / 255f;
+                        int a = (int)(c + 0.5f);
+                        if (a <= 0)
+                        {
+                            pixels[dst + x] = baseline;
+                            continue;
+                        }
                         if (a > 255) a = 255;
-                        layer[dst + x] = erase ? Reduce(baseline, (byte)(255 - a)) : Pixel.Over(_paintLut[a], baseline);
+                        if (erase) pixels[dst + x] = alphaLock ? baseline : Blending.Fade(baseline, 255 - a);
+                        else if (alphaLock) pixels[dst + x] = Tint(baseline, color, a);
+                        else pixels[dst + x] = Pixel.Over(_paintLut[a], baseline);
                     }
                 }
             }
         }
-        _doc.NotifyPixelsChanged(area);
+        _edit.Changed(area);
         return area;
     }
 
-    private static uint Reduce(uint p, byte keep)
+    /// <summary>Paints colour into existing pixels without changing their transparency (transparency lock).</summary>
+    private static uint Tint(uint baseline, ColorRgb c, int a)
     {
-        if (keep == 255 || p == 0) return p;
-        if (keep == 0) return 0;
-        return Pixel.Pack(Pixel.Mul(Pixel.A(p), keep), Pixel.Mul(Pixel.R(p), keep), Pixel.Mul(Pixel.G(p), keep), Pixel.Mul(Pixel.B(p), keep));
+        byte ba = Pixel.A(baseline);
+        if (ba == 0) return baseline;
+        var (r, g, b, _) = Pixel.ToStraight(baseline);
+        int nr = r + (c.R - r) * a / 255, ng = g + (c.G - g) * a / 255, nb = b + (c.B - b) * a / 255;
+        return Pixel.FromStraight((byte)nr, (byte)ng, (byte)nb, ba);
     }
-
-    // ------------------------------------------------------------------ tiles and history
 
     private float[] MaskTile(int key)
     {
@@ -343,53 +416,6 @@ public sealed class StrokeEngine
         return tile;
     }
 
-    private void CaptureBefore(int key, int tx, int ty)
-    {
-        if (_before.ContainsKey(key)) return;
-        var copy = new uint[T * T];
-        var rect = _doc.TileRect(tx, ty);
-        var src = _doc.Layer.Pixels;
-        for (int y = 0; y < rect.Height; y++)
-            Array.Copy(src, (rect.Y + y) * _doc.Width + rect.X, copy, y * T, rect.Width);
-        _before[key] = copy;
-    }
-
-    private PixelRect TileRectFromKey(int key) => _doc.TileRect(key % _doc.TilesX, key / _doc.TilesX);
-
-    private void WriteTile(PixelRect rect, uint[] tile)
-    {
-        var dst = _doc.Layer.Pixels;
-        for (int y = 0; y < rect.Height; y++)
-            Array.Copy(tile, y * T, dst, (rect.Y + y) * _doc.Width + rect.X, rect.Width);
-    }
-
-    private void CommitHistory()
-    {
-        var patches = new List<TilePatch>();
-        var layer = _doc.Layer.Pixels;
-        foreach (var (key, before) in _before.OrderBy(kv => kv.Key))
-        {
-            var rect = TileRectFromKey(key);
-            bool changed = false;
-            for (int y = 0; y < rect.Height && !changed; y++)
-            {
-                int row = (rect.Y + y) * _doc.Width + rect.X;
-                for (int x = 0; x < rect.Width; x++)
-                {
-                    if (layer[row + x] != before[y * T + x]) { changed = true; break; }
-                }
-            }
-            if (!changed) continue;
-            var packed = new uint[rect.Area];
-            for (int y = 0; y < rect.Height; y++)
-                Array.Copy(before, y * T, packed, y * rect.Width, rect.Width);
-            patches.Add(new TilePatch(rect, packed));
-        }
-        if (patches.Count == 0) return; // no-op stroke: nothing to undo
-        var name = _style.Mode == PaintMode.Erase ? "Erase" : "Brush stroke";
-        _doc.Commit(_doc.History.Create(name, patches));
-    }
-
     private void Reset()
     {
         foreach (var tile in _mask.Values)
@@ -398,7 +424,7 @@ public sealed class StrokeEngine
             if (_maskPool.Count < 256) _maskPool.Push(tile);
         }
         _mask.Clear();
-        _before.Clear();
+        _edit = null;
         _pending = PixelRect.Empty;
         _active = false;
     }
