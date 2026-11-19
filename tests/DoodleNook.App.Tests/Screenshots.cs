@@ -8,13 +8,15 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using DoodleNook.App.Editor;
 using DoodleNook.App.Input;
+using DoodleNook.App.Shell;
 using DoodleNook.Engine.Imaging;
+using SkiaSharp;
 
 namespace DoodleNook.App.Tests;
 
 /// <summary>
 /// Captures real frames of the native app (headless Skia rendering, same code and styles as on Windows; only the
-/// text rasteriser differs) for the Mission 004 documentation. Files go to tests/DoodleNook.App.Tests/out/screenshots.
+/// text rasteriser differs) for the documentation. Files go to tests/DoodleNook.App.Tests/out/screenshots.
 /// </summary>
 public class Screenshots
 {
@@ -137,76 +139,195 @@ public class Screenshots
         s.SetForeground(ColorRgb.Parse("#3B2F2A"));
     }
 
+    /// <summary>The documentation scene as a layered picture: colour washes, ink lines and a pencil sketch on separate layers.</summary>
+    internal static void DrawLayeredScene(MainWindow w)
+    {
+        var s = w.Session;
+        var doc = s.Document;
+        doc.SetLayerProperties(doc.ActiveLayer, doc.ActiveLayer.Properties with { Name = "Colour" });
+        DrawDoodle(w);
+        var lines = s.AddLayer();
+        doc.SetLayerProperties(lines, lines.Properties with { Name = "Doodles" });
+        s.ApplyPreset("ink"); s.SetSize(7); s.SetForeground(ColorRgb.Parse("#3B2F2A"));
+        var input = w.Canvas.Input!;
+        void Line(double x0, double y0, double x1, double y1)
+        {
+            PointerInput At(double t, bool down = true)
+            {
+                var (vx, vy) = w.Canvas.View.DocumentToView(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+                return new PointerInput(9, PointerKind.Pen, vx, vy, (float)(0.3 + 0.7 * Math.Sin(Math.PI * t)), down);
+            }
+            input.Press(At(0));
+            for (int i = 1; i <= 20; i++) input.Move([At(i / 20.0)]);
+            input.Release(At(1, false) with { Pressure = 0 });
+        }
+        for (int k = 0; k < 5; k++) Line(300 + k * 40, 700, 330 + k * 40, 640); // a little fence
+        Line(280, 690, 520, 690);
+        s.ApplyPreset("pencil");
+    }
+
+    /// <summary>A 24 × 24 mug sprite drawn with the pixel tools (as in the Mission 003 Pixel Art mock-up).</summary>
+    internal static void DrawSprite(MainWindow w)
+    {
+        var s = w.Session;
+        s.ReplaceDocument(new Engine.Documents.Document(24, 24, null, "Sprite"), null);
+        void Px(string hex, params (int X0, int Y0, int X1, int Y1)[] rects)
+        {
+            s.SetForeground(ColorRgb.Parse(hex));
+            foreach (var (x0, y0, x1, y1) in rects)
+                for (int y = y0; y <= y1; y++)
+                {
+                    s.BeginPixelStroke(x0, y, erase: false);
+                    s.ContinuePixelStroke(x1, y);
+                    s.EndStroke();
+                }
+        }
+        var before = s.Pixel;
+        s.SetPixelOptions(before with { PixelPerfect = false, Size = 1 });
+        Px("#2E2A3B", (3, 8, 14, 8), (3, 9, 3, 19), (14, 9, 14, 19), (4, 19, 13, 19), (15, 11, 17, 11), (17, 12, 17, 16), (15, 16, 16, 16));
+        Px("#6B4231", (4, 9, 13, 9));
+        Px("#5F8FA8", (4, 10, 13, 18));
+        Px("#8FB8CC", (4, 10, 4, 18));
+        Px("#3F6A80", (12, 10, 13, 18), (5, 18, 11, 18));
+        Px("#E88A9A", (7, 12, 7, 12), (9, 12, 9, 12), (7, 13, 9, 13), (8, 14, 8, 14));
+        Px("#4A3F5C", (2, 20, 15, 20));
+        Px("#7A6E8E", (6, 3, 6, 4), (5, 5, 5, 5), (6, 6, 6, 6), (10, 3, 10, 4), (9, 5, 9, 5), (10, 6, 10, 6));
+        s.SetPixelOptions(before);
+        s.Document.MarkSaved();
+    }
+
+    private static void HideFlyouts(MainWindow w)
+    {
+        UiKit.HideOpenFlyouts();
+        WindowTests.Pump();
+    }
+
+    /// <summary>Stacks the Mission 003 mock-up (top) and the native app (bottom) into one comparison image.</summary>
+    private static void Compare(string mockup, string native, string name)
+    {
+        var mockPath = Path.Combine(DocsRoot, "docs", "design", "003-workspace-playground", "screenshots", mockup);
+        var nativePath = Path.Combine(OutDir, native);
+        if (!File.Exists(mockPath) || !File.Exists(nativePath)) return;
+        using var a = SKBitmap.Decode(mockPath);
+        using var b = SKBitmap.Decode(nativePath);
+        const int width = 1600;
+        int ha = (int)Math.Round(a.Height * (double)width / a.Width), hb = (int)Math.Round(b.Height * (double)width / b.Width);
+        using var surface = SKSurface.Create(new SKImageInfo(width, ha + hb + 12));
+        var c = surface.Canvas;
+        c.Clear(new SKColor(0x18, 0x15, 0x13));
+        using var paint = new SKPaint { IsAntialias = true };
+        var sampling = new SKSamplingOptions(SKCubicResampler.Mitchell);
+        using (var ia = SKImage.FromBitmap(a)) c.DrawImage(ia, new SKRect(0, 0, width, ha), sampling, paint);
+        using (var ib = SKImage.FromBitmap(b)) c.DrawImage(ib, new SKRect(0, ha + 12, width, ha + 12 + hb), sampling, paint);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        File.WriteAllBytes(Path.Combine(OutDir, name + ".png"), data.ToArray());
+    }
+
+    private static string DocsRoot
+    {
+        get
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DoodleNook.slnx"))) dir = dir.Parent;
+            return dir?.FullName ?? ".";
+        }
+    }
+
+    private static MainWindow SceneWindow(double width, double height, double scaling, WorkspaceKind ws)
+    {
+        var w = WindowTests.Open(width, height, ws);
+        w.SetRenderScaling(scaling);
+        WindowTests.Pump();
+        w.Canvas.FitToView(enlarge: false);
+        DrawLayeredScene(w);
+        w.Session.Document.MarkSaved();
+        w.Session.SelectTool(w.Workspace.DefaultTool);
+        return w;
+    }
+
     [AvaloniaFact]
     public void Capture_documentation_screenshots()
     {
-        // Kamvas 13 at Windows 150 %: 1280 × 720 logical pixels (full screen, F11).
-        var w = WindowTests.Open(1280, 720);
-        w.SetRenderScaling(1.5);
-        WindowTests.Pump();
-        w.Canvas.FitToView(enlarge: false);
-        DrawDoodle(w);
-        // Show the brush cursor over the canvas.
-        var hover = WindowTests.DocToWindow(w, 1000, 760);
-        w.MouseMove(hover);
-        Save(w, "01-quick-sketch-kamvas13-150");
-
-        Click(w, w.PresetChip);
-        Save(w, "02-brush-popover");
-        w.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
-        ((Flyout)w.PresetChip.Flyout!).Hide();
-
-        Click(w, w.ColourChip);
-        Save(w, "03-colour-popover");
-        ((Flyout)w.ColourChip.Flyout!).Hide();
-
-        Click(w, w.MenuButton);
-        Save(w, "04-menu");
-        ((Flyout)w.MenuButton.Flyout!).Hide();
-
-        w.KeyPress(Key.F12, RawInputModifiers.None, PhysicalKey.F12, null);
-        // A pen-like stroke so the diagnostics have something to show.
-        var input = w.Canvas.Input!;
-        var (ax, ay) = w.Canvas.View.DocumentToView(1300, 300);
-        input.Press(new PointerInput(5, PointerKind.Pen, ax, ay, 0.15f, true));
-        for (int i = 1; i <= 60; i++)
+        foreach (var (name, width, height, scaling) in new[] { ("desktop27", 2560.0, 1440.0, 1.0), ("kamvas13-150", 1280.0, 720.0, 1.5) })
         {
-            var (x, y) = w.Canvas.View.DocumentToView(1300 + i * 6, 300 + 40 * Math.Sin(i / 9.0));
-            input.Move([new PointerInput(5, PointerKind.Pen, x, y, (float)(0.15 + 0.8 * Math.Sin(Math.PI * i / 60.0)), true)]);
+            // A — Pure Sketch, with the quick palette open at the pen.
+            var a = SceneWindow(width, height, scaling, WorkspaceKind.PureSketch);
+            a.MouseMove(WindowTests.DocToWindow(a, 1000, 700));
+            Save(a, $"{name}-A-pure-sketch");
+            a.Radial.Open(a.Canvas.Bounds.Width * 0.55, a.Canvas.Bounds.Height * 0.5);
+            Save(a, $"{name}-A-quick-palette");
+            a.Close();
+
+            // B — Quick Sketch (and its layers pop-over).
+            var b = SceneWindow(width, height, scaling, WorkspaceKind.QuickSketch);
+            b.MouseMove(WindowTests.DocToWindow(b, 1000, 760));
+            Save(b, $"{name}-B-quick-sketch");
+            Click(b, WindowTests.Find<Button>(b, "LayersChip"));
+            Save(b, $"{name}-B-layers-popover");
+            HideFlyouts(b);
+            b.Close();
+
+            // C — Painting.
+            var c = SceneWindow(width, height, scaling, WorkspaceKind.Painting);
+            c.MouseMove(WindowTests.DocToWindow(c, 1000, 760));
+            Save(c, $"{name}-C-painting");
+            c.Close();
+
+            // D — Editing, with a selection being transformed.
+            var d = SceneWindow(width, height, scaling, WorkspaceKind.Editing);
+            d.Session.Document.SetActiveLayer(d.Session.Document.Layers[0]);
+            d.Session.ApplySelection(Engine.Operations.Selections.Rectangle(d.Session.Document, 1300, 120, 1760, 380), "Rectangle select");
+            d.Session.BeginTransform();
+            d.Session.ActiveTransform!.Rotate(-12);
+            WindowTests.Pump();
+            Save(d, $"{name}-D-editing");
+            d.Session.CancelTransform();
+            d.Close();
+
+            // E — Pixel Art.
+            var e = WindowTests.Open(width, height, WorkspaceKind.PixelArt);
+            e.SetRenderScaling(scaling);
+            WindowTests.Pump();
+            DrawSprite(e);
+            WindowTests.Pump();
+            e.Canvas.FitToView();
+            e.MouseMove(WindowTests.DocToWindow(e, 18.5, 6.5));
+            Save(e, $"{name}-E-pixel-art");
+            e.Close();
         }
-        input.Release(new PointerInput(5, PointerKind.Pen, ax + 300, ay, 0f, false));
-        w.Session.Undo();
-        Save(w, "05-pen-diagnostics");
-        w.KeyPress(Key.F12, RawInputModifiers.None, PhysicalKey.F12, null);
 
-        w.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
-        w.MouseMove(new Point(-10, -10));
-        w.Canvas.Input!.Leave();
-        Save(w, "06-canvas-only-tab");
-        w.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+        foreach (var ws in new[] { "A-pure-sketch", "B-quick-sketch", "C-painting", "D-editing", "E-pixel-art" })
+        {
+            Compare($"desktop27-{ws}.png", $"desktop27-{ws}.png", $"compare-desktop27-{ws}");
+            Compare($"kamvas13-150-{ws}.png", $"kamvas13-150-{ws}.png", $"compare-kamvas13-150-{ws}");
+        }
+        Compare("experiment-A-quick-palette-at-pen.png", "kamvas13-150-A-quick-palette.png", "compare-quick-palette");
 
-        w.KeyPress(Key.E, RawInputModifiers.None, PhysicalKey.E, "e");
-        w.MouseMove(WindowTests.DocToWindow(w, 700, 640));
-        Save(w, "07-eraser");
-        w.KeyPress(Key.B, RawInputModifiers.None, PhysicalKey.B, "b");
-        w.Close();
+        // Dialogs and pop-overs at Kamvas 13 / 150 %.
+        var p = SceneWindow(1280, 720, 1.5, WorkspaceKind.Painting);
+        Click(p, WindowTests.Find<Button>(p, "OptionsPresetChip"));
+        Save(p, "popover-brushes");
+        HideFlyouts(p);
+        Click(p, WindowTests.Find<Button>(p, "MenuFile"));
+        Save(p, "menu-file");
+        HideFlyouts(p);
+        _ = p.ImageSizeAsync();
+        Save(p, "dialog-image-size");
+        p.Dialogs.Close(null);
+        WindowTests.Pump();
+        _ = p.AdjustAsync(Dialogs.AdjustKind.HueSaturation);
+        Save(p, "dialog-hue-saturation");
+        p.Dialogs.Close(null);
+        WindowTests.Pump();
+        _ = p.ExportAsync(Files.ExportFormat.Jpeg);
+        Save(p, "dialog-export-jpeg");
+        p.Dialogs.Close(null);
+        WindowTests.Pump();
+        p.ToggleDiagnostics();
+        Save(p, "pen-diagnostics");
+        p.Close();
 
-        // A 27-inch 2560 × 1440 desktop monitor at 100 %.
-        var d = WindowTests.Open(2560, 1440);
-        d.Canvas.FitToView(enlarge: false);
-        DrawDoodle(d);
-        d.MouseMove(WindowTests.DocToWindow(d, 1000, 760));
-        Save(d, "08-desktop-2560x1440");
-        d.Close();
-
-        // The New picture dialog and the unsaved-changes question.
-        var n = WindowTests.Open(1280, 720);
-        n.SetRenderScaling(1.5);
-        _ = n.NewAsync();
-        Save(n, "09-new-picture-dialog");
-        n.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
-        n.Close();
-
-        Assert.True(File.Exists(Path.Combine(OutDir, "01-quick-sketch-kamvas13-150.png")));
+        Assert.True(File.Exists(Path.Combine(OutDir, "desktop27-C-painting.png")));
     }
 }

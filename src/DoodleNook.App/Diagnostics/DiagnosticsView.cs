@@ -29,7 +29,7 @@ public sealed class DiagnosticsView : StackPanel
         _canvas = canvas;
         _session = session;
         Spacing = 8;
-        Children.Add(Ui.Header("Pen diagnostics", close));
+        Children.Add(Shell.UiKit.Header("Pen diagnostics", close));
         foreach (var name in new[] { "Input", "Pressure", "Brush size", "Tilt", "Buttons", "Events", "Last gap", "Engine", "Renderer", "Display", "Windows pen" })
         {
             int row = _grid.RowDefinitions.Count;

@@ -29,7 +29,7 @@ public class InputControllerTests
         return new PointerInput(id, kind, x, y, p, primary, secondary, middle, eraser, alt);
     }
 
-    private byte Alpha(int x, int y) => Pixel.A(_session.Document.Layer[x, y]);
+    private byte Alpha(int x, int y) => Pixel.A(_session.Document.ActiveLayer.Image[x, y]);
 
     private int Column(int x) => Enumerable.Range(0, 300).Count(y => Alpha(x, y) > 0);
 
@@ -91,7 +91,7 @@ public class InputControllerTests
     {
         Stroke(At(50, 100), At(350, 100));
         Stroke(At(200, 60, eraser: true), At(200, 140, eraser: true));
-        Assert.Equal(Pixel.Transparent, _session.Document.Layer[200, 100]);
+        Assert.Equal(Pixel.Transparent, _session.Document.ActiveLayer.Image[200, 100]);
         Assert.Equal(ToolKind.Brush, _session.Tool);
     }
 
@@ -101,17 +101,17 @@ public class InputControllerTests
         Stroke(At(50, 100), At(350, 100));
         _session.SelectTool(ToolKind.Eraser);
         Stroke(At(200, 60), At(200, 140));
-        Assert.Equal(Pixel.Transparent, _session.Document.Layer[200, 100]);
+        Assert.Equal(Pixel.Transparent, _session.Document.ActiveLayer.Image[200, 100]);
         Assert.True(Alpha(100, 100) > 0);
     }
 
     [Fact]
     public void Space_or_hand_tool_pans_instead_of_painting()
     {
-        double before = _view.OffsetX;
+        double before = _view.DocumentToView(0, 0).X;
         _input.SpaceHeld = true;
         Stroke(At(50, 100), At(150, 100));
-        Assert.Equal(before + 200, _view.OffsetX, 6); // 100 document px at 2× zoom
+        Assert.Equal(before + 200, _view.DocumentToView(0, 0).X, 6); // 100 document px at 2× zoom
         Assert.False(_session.Document.CanUndo);
 
         _input.SpaceHeld = false;
@@ -123,9 +123,9 @@ public class InputControllerTests
     [Fact]
     public void Middle_button_and_touch_pan()
     {
-        double y0 = _view.OffsetY;
+        double y0 = _view.DocumentToView(0, 0).Y;
         Stroke(At(10, 10, PointerKind.Mouse, primary: false, middle: true), At(10, 30, PointerKind.Mouse, primary: false, middle: true));
-        Assert.Equal(y0 + 40, _view.OffsetY, 6);
+        Assert.Equal(y0 + 40, _view.DocumentToView(0, 0).Y, 6);
         Stroke(At(10, 10, PointerKind.Touch), At(10, 20, PointerKind.Touch));
         Assert.False(_session.Document.CanUndo, "a finger must never paint");
     }
@@ -187,6 +187,198 @@ public class InputControllerTests
         _input.Release(At(300, 100, p: 0f, primary: false));
         Assert.True(Column(250) < Column(150));
         Assert.True(Alpha(290, 100) > 0);
+    }
+
+    // ------------------------------------------------------------------ Mission 005 tools
+
+    private void Drag(ToolKind tool, (double X, double Y) from, (double X, double Y) to, bool shift = false)
+    {
+        _session.SelectTool(tool);
+        var a = At(from.X, from.Y, PointerKind.Mouse) with { Shift = shift };
+        var m = At((from.X + to.X) / 2, (from.Y + to.Y) / 2, PointerKind.Mouse) with { Shift = shift };
+        var b = At(to.X, to.Y, PointerKind.Mouse) with { Shift = shift };
+        Assert.True(_input.Press(a));
+        _input.Move([m]);
+        _input.Move([b]);
+        _input.Release(b with { Primary = false });
+    }
+
+    private void Click(ToolKind tool, double x, double y)
+    {
+        _session.SelectTool(tool);
+        _input.Press(At(x, y, PointerKind.Mouse));
+        _input.Release(At(x, y, PointerKind.Mouse, primary: false));
+    }
+
+    [Fact]
+    public void Rectangle_select_shift_adds_and_a_click_deselects()
+    {
+        Drag(ToolKind.RectSelect, (20, 20), (100, 80));
+        var sel = _session.Document.Selection!;
+        Assert.Equal(new PixelRect(20, 20, 80, 60), sel.Bounds);
+        Drag(ToolKind.RectSelect, (200, 200), (250, 250), shift: true);
+        Assert.Equal(255, _session.Document.Selection![30, 30]);
+        Assert.Equal(255, _session.Document.Selection![220, 220]);
+        Click(ToolKind.RectSelect, 300, 100);
+        Assert.Null(_session.Document.Selection);
+        Assert.Equal(3, _session.Document.History.UndoCount); // selections are undoable steps
+    }
+
+    [Fact]
+    public void Painting_stays_inside_the_selection()
+    {
+        Drag(ToolKind.RectSelect, (0, 0), (200, 300));
+        _session.SelectTool(ToolKind.Brush);
+        Stroke(At(50, 100), At(350, 100));
+        Assert.True(Alpha(150, 100) > 0);
+        Assert.Equal(0, Alpha(250, 100));
+    }
+
+    [Fact]
+    public void Lasso_and_magic_wand_select_what_they_should()
+    {
+        _session.SelectTool(ToolKind.Lasso);
+        Assert.True(_input.Press(At(50, 50, PointerKind.Mouse)));
+        _input.Move([At(150, 50, PointerKind.Mouse)]);
+        _input.Move([At(150, 150, PointerKind.Mouse)]);
+        _input.Move([At(50, 150, PointerKind.Mouse)]);
+        _input.Release(At(50, 150, PointerKind.Mouse, primary: false));
+        Assert.True(_session.Document.Selection![100, 100] > 200);
+        Assert.Equal(0, _session.Document.Selection![200, 200]);
+
+        _session.Deselect();
+        _session.SetForeground(new ColorRgb(200, 0, 0));
+        _session.SetSize(30);
+        _session.SelectTool(ToolKind.Brush);
+        Stroke(At(50, 200), At(350, 200));
+        _session.SetSelectionOptions(_session.Selection with { WandTolerance = 10, WandContiguous = true });
+        Click(ToolKind.MagicWand, 200, 200);
+        var wand = _session.Document.Selection!;
+        Assert.True(wand[200, 200] > 0);
+        Assert.Equal(0, wand[200, 50]);
+    }
+
+    [Fact]
+    public void Move_tool_moves_the_layer_by_whole_pixels_in_one_step()
+    {
+        _session.SetSize(10);
+        _session.SelectTool(ToolKind.Brush);
+        Stroke(At(50, 100), At(150, 100));
+        int before = _session.Document.History.UndoCount;
+        Drag(ToolKind.Move, (100, 100), (100, 160));
+        Assert.Equal(0, Alpha(100, 100));
+        Assert.True(Alpha(100, 160) > 0);
+        Assert.Equal(before + 1, _session.Document.History.UndoCount);
+        _session.Undo();
+        Assert.True(Alpha(100, 100) > 0);
+    }
+
+    [Fact]
+    public void Gradient_shape_fill_and_crop_tools_work_through_input()
+    {
+        var layer = _session.Document.ActiveLayer;
+        _session.SetForeground(new ColorRgb(0, 0, 255));
+        _session.SetBackground(new ColorRgb(255, 0, 0));
+        Drag(ToolKind.Gradient, (0, 150), (400, 150));
+        Assert.True(Pixel.B(layer.Image[5, 10]) > 200 && Pixel.R(layer.Image[395, 10]) > 200);
+        Assert.Equal("Gradient", _session.Document.History.NextUndoName);
+
+        var top = _session.AddLayer();
+        _session.SetShapeOptions(new Engine.Operations.ShapeOptions(Engine.Operations.ShapeKind.Rectangle, Filled: true));
+        Drag(ToolKind.Shape, (100, 100), (200, 200));
+        Assert.Equal(255, Pixel.A(top.Image[150, 150]));
+        Assert.Equal(0, Pixel.A(top.Image[250, 150]));
+
+        var third = _session.AddLayer();
+        _session.SetForeground(new ColorRgb(0, 200, 0));
+        Click(ToolKind.Fill, 10, 10); // an empty layer: the bucket fills all of it
+        Assert.Equal(255, Pixel.A(third.Image[300, 280]));
+
+        Drag(ToolKind.Crop, (50, 40), (250, 140));
+        Assert.Equal(new PixelRect(50, 40, 200, 100), _input.PendingCrop);
+        Assert.True(_input.ApplyCrop());
+        Assert.Equal(200, _session.Document.Width);
+        Assert.Equal(100, _session.Document.Height);
+        _session.Undo();
+        Assert.Equal(400, _session.Document.Width);
+    }
+
+    [Fact]
+    public void Free_transform_drags_and_commits_as_one_step()
+    {
+        _session.SelectTool(ToolKind.Brush);
+        Stroke(At(50, 100), At(150, 100));
+        Assert.True(_session.BeginTransform());
+        _input.RefreshTransformFrame();
+        Assert.NotNull(_input.Overlay.TransformFrame);
+        Assert.True(_input.Press(At(100, 100, PointerKind.Mouse)));
+        Assert.Equal(Gesture.Transform, _input.Gesture);
+        _input.Move([At(100, 140, PointerKind.Mouse)]);
+        _input.Release(At(100, 140, PointerKind.Mouse, primary: false));
+        Assert.True(_session.CommitTransform());
+        Assert.True(Alpha(100, 140) > 0);
+        Assert.Equal(0, Alpha(100, 100));
+        _session.Undo();
+        Assert.True(Alpha(100, 100) > 0);
+    }
+
+    [Fact]
+    public void Right_click_tap_asks_for_the_quick_palette()
+    {
+        (double X, double Y)? requested = null;
+        _input.RadialRequested += (x, y) => requested = (x, y);
+        var p = At(120, 90, PointerKind.Mouse, primary: false, secondary: true);
+        Assert.True(_input.Press(p));
+        _input.Release(p with { Secondary = false });
+        Assert.NotNull(requested);
+        Assert.Equal(p.X, requested!.Value.X, 6);
+        Assert.False(_session.Document.CanUndo);
+    }
+
+    [Fact]
+    public void Pixel_pencil_paints_exact_pixels_and_right_button_can_paint_the_background()
+    {
+        _session.ReplaceDocument(new Document(32, 32), null);
+        _view.SetDocumentSize(32, 32);
+        _view.Set(8, 16, 16);
+        _session.SetPixelMode(true);
+        _session.SetForeground(new ColorRgb(10, 20, 30));
+        _session.SetBackground(new ColorRgb(250, 240, 230));
+        Drag(ToolKind.PixelPencil, (2.5, 2.5), (10.5, 2.5));
+        var img = _session.Document.ActiveLayer.Image;
+        Assert.All(Enumerable.Range(2, 9), x => Assert.Equal(Pixel.Opaque(new ColorRgb(10, 20, 30)), img[x, 2]));
+        Assert.Equal(Pixel.Transparent, img[2, 3]);
+
+        _input.PixelRightPaintsBackground = true;
+        var a = At(5.5, 8.5, PointerKind.Mouse, primary: false, secondary: true);
+        Assert.True(_input.Press(a));
+        _input.Release(a with { Secondary = false });
+        Assert.Equal(Pixel.Opaque(new ColorRgb(250, 240, 230)), _session.Document.ActiveLayer.Image[5, 8]);
+    }
+
+    [Fact]
+    public void Locked_layers_refuse_paint_and_say_why()
+    {
+        string? message = null;
+        _session.Message += m => message = m;
+        _session.SetLayerProperty(_session.Document.ActiveLayer, p => p with { Locked = true });
+        _session.SelectTool(ToolKind.Brush);
+        Assert.False(_input.Press(At(50, 100)));
+        Assert.False(_session.IsStrokeActive);
+        Assert.NotNull(message);
+        Assert.Equal(0, Alpha(50, 100));
+    }
+
+    [Fact]
+    public void Holding_r_and_dragging_rotates_the_view_not_the_picture()
+    {
+        _input.Viewport = (800, 600);
+        _input.RotateHeld = true;
+        Assert.True(_input.Press(new PointerInput(1, PointerKind.Mouse, 700, 300, 0.5f, Primary: true)));
+        _input.Move([new PointerInput(1, PointerKind.Mouse, 400, 50, 0.5f, Primary: true)]);
+        _input.Release(new PointerInput(1, PointerKind.Mouse, 400, 50, 0.5f, Primary: false));
+        Assert.NotEqual(0, _view.Rotation);
+        Assert.False(_session.Document.CanUndo);
     }
 }
 

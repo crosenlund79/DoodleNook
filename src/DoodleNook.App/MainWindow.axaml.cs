@@ -5,36 +5,44 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using DoodleNook.App.Canvas;
 using DoodleNook.App.Controls;
 using DoodleNook.App.Dialogs;
 using DoodleNook.App.Diagnostics;
 using DoodleNook.App.Editor;
-using DoodleNook.App.Files;
 using DoodleNook.App.Platform;
 using DoodleNook.App.Settings;
+using DoodleNook.App.Shell;
 using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Imaging;
-using DoodleNook.Engine.Painting;
 
 namespace DoodleNook.App;
 
+/// <summary>
+/// The DoodleNook window: one document, one canvas and five workspaces (Pure Sketch, Quick Sketch, Painting, Editing,
+/// Pixel Art) that only change the tools and panels around the canvas. This file sets the window up and owns the
+/// overlays; the workspace layouts, commands, files, keyboard and menus are in the other MainWindow.*.cs files.
+/// </summary>
 public partial class MainWindow : Window
 {
     private readonly AppSettings _settings;
     private readonly DialogHost _dialogs;
-    private readonly BrushPanel _brushPanel;
-    private readonly ColourPanel _colourPanel;
     private readonly DiagnosticsView _diagnostics;
-    private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(1.6) };
+    private readonly DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(1.8) };
     private readonly bool _persistSettings;
+    private readonly Border _toast;
+    private readonly TextBlock _toastText = new() { Classes = { "num" } };
+    private readonly Avalonia.Controls.Shapes.Ellipse _toastDot = new() { Width = 12, Height = 12, Stroke = new SolidColorBrush(Color.Parse("#66000000")), StrokeThickness = 1, IsVisible = false };
+    private readonly Border _diagnosticsPanel;
+    private readonly Border _viewChip;
+    private readonly Button _showUi;
+    private readonly Button _corner;
+    private readonly PixelPreview _pixelPreview;
+    private readonly RadialPalette _radial;
     private Document? _watchedDocument;
-    private bool _uiHidden;
     private bool _closeConfirmed;
     private WindowState _stateBeforeFullScreen = WindowState.Normal;
-    private string? _previewKey;
 
     public MainWindow()
     {
@@ -45,33 +53,94 @@ public partial class MainWindow : Window
         if (_persistSettings) RestorePlacement();
 
         _dialogs = new DialogHost(DialogLayer, DialogCard);
-        _brushPanel = new BrushPanel(Session, () => BrushFlyout.Hide());
-        _colourPanel = new ColourPanel(Session, () => { ColourFlyout.Hide(); FgFlyout.Hide(); });
-        BrushFlyout.Content = _brushPanel;
-        ColourFlyout.Opening += (_, _) => { FgFlyout.Content = null; ColourFlyout.Content = _colourPanel; };
-        FgFlyout.Opening += (_, _) => { ColourFlyout.Content = null; FgFlyout.Content = _colourPanel; };
-        MenuFlyout.Content = BuildMenu();
-        // Opening a pop-over must not park keyboard focus in a text box (that would swallow B, E, [ ], …).
-        foreach (var f in new[] { ColourFlyout, FgFlyout, BrushFlyout, MenuFlyout })
-            f.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
-            {
-                if (FocusManager?.GetFocusedElement() is TextBox) Canvas.Focus();
-            }, DispatcherPriority.Input);
 
+        // ---- the shared canvas and its overlays (the same controls in every workspace)
+        Canvas = new CanvasView { Name = "Canvas" };
+        CanvasHost.Children.Add(Canvas);
         Canvas.Attach(Session);
-        _diagnostics = new DiagnosticsView(Canvas, Session, () => ToggleDiagnostics());
-        DiagnosticsPanel.Child = _diagnostics;
 
-        WireToolbar();
-        Session.StateChanged += Refresh;
+        _viewChip = new Border { Classes = { "float" }, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12), Padding = new Thickness(2), Name = "ViewChip" };
+        _viewChip.Child = new ViewControls(this);
+        CanvasHost.Children.Add(_viewChip);
+
+        _pixelPreview = new PixelPreview(this) { Name = "PixelPreview", IsVisible = false };
+        CanvasHost.Children.Add(_pixelPreview);
+
+        _corner = Menus.MenuButton(new DnIcon { Kind = "radial" }, PureMenu, "Workspace menu", 260);
+        _corner.Classes.Add("sq");
+        _corner.Name = "PureMenuButton";
+        _corner.HorizontalAlignment = HorizontalAlignment.Left;
+        _corner.VerticalAlignment = VerticalAlignment.Top;
+        _corner.Margin = new Thickness(14);
+        _corner.Width = 40;
+        _corner.Height = 40;
+        _corner.CornerRadius = new CornerRadius(20);
+        _corner.Background = (IBrush)this.FindResource("DnFloat")!;
+        _corner.BorderBrush = new SolidColorBrush(DnColors.Line);
+        _corner.BorderThickness = new Thickness(1);
+        _corner.Opacity = 0.75;
+        CanvasHost.Children.Add(_corner);
+
+        _showUi = UiKit.Button("expand", "Show interface (Tab)", null, () => SetUiHidden(false));
+        _showUi.Name = "ShowUiButton";
+        _showUi.IsVisible = false;
+        _showUi.HorizontalAlignment = HorizontalAlignment.Left;
+        _showUi.VerticalAlignment = VerticalAlignment.Top;
+        _showUi.Margin = new Thickness(14);
+        _showUi.Padding = new Thickness(12, 0);
+        _showUi.CornerRadius = new CornerRadius(999);
+        _showUi.Background = (IBrush)this.FindResource("DnFloat")!;
+        _showUi.BorderBrush = new SolidColorBrush(DnColors.Line);
+        _showUi.BorderThickness = new Thickness(1);
+        CanvasHost.Children.Add(_showUi);
+
+        _toast = new Border
+        {
+            Classes = { "float" }, CornerRadius = new CornerRadius(999), Padding = new Thickness(14, 6), IsVisible = false, IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(14), Name = "Toast",
+            Transitions = [new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromSeconds(0.35) }],
+            Child = UiKit.Row(8, _toastDot, _toastText),
+        };
+        CanvasHost.Children.Add(_toast);
+
+        _diagnosticsPanel = new Border
+        {
+            Classes = { "float" }, IsVisible = false, Padding = new Thickness(12, 10), Width = 300,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(14, 60, 0, 0), Name = "DiagnosticsPanel",
+        };
+        _diagnostics = new DiagnosticsView(Canvas, Session, () => ToggleDiagnostics());
+        _diagnosticsPanel.Child = _diagnostics;
+        CanvasHost.Children.Add(_diagnosticsPanel);
+
+        _radial = new RadialPalette(this) { Name = "RadialPalette" };
+        CanvasHost.Children.Add(_radial);
+
+        // ---- events
+        UiKit.FlyoutOpened += OnFlyoutOpened;
+        Closed += (_, _) => UiKit.FlyoutOpened -= OnFlyoutOpened;
+        Session.StateChanged += RefreshTitle;
         Session.DocumentReplaced += WatchDocument;
+        Session.Message += m => ShowToast(m);
         WatchDocument();
-        Canvas.ViewChanged += UpdateZoomLabel;
-        Canvas.GestureStarted += _ => HideFlyouts();
+        Canvas.GestureStarted += _ =>
+        {
+            HideFlyouts();
+            _radial.Close();
+        };
+        Canvas.Input!.RadialRequested += (x, y) =>
+        {
+            HideFlyouts();
+            _radial.Open(x, y);
+        };
+        DockSplitter.DragCompleted += (_, _) =>
+        {
+            var col = MainGrid.ColumnDefinitions[3];
+            if (col.Width.IsAbsolute) WsState.DockWidth = Math.Round(RightHost.Bounds.Width);
+        };
         _toastTimer.Tick += (_, _) =>
         {
             _toastTimer.Stop();
-            Toast.Opacity = 0;
+            _toast.Opacity = 0;
         };
 
         AddHandler(KeyDownEvent, OnKeyDownTunnel, RoutingStrategies.Tunnel);
@@ -82,342 +151,80 @@ public partial class MainWindow : Window
         {
             if (OperatingSystem.IsWindows() && TryGetPlatformHandle() is { } handle)
                 PenSetupStatus = WindowsPen.Configure(handle.Handle);
-            UpdateZoomLabel();
         };
-        ScalingChanged += (_, _) => UpdateZoomLabel();
-        Refresh();
+
+        Workspace = Workspaces.Get(_settings.LastWorkspace);
+        _previousWorkspace = Workspace.Kind == WorkspaceKind.PureSketch ? WorkspaceKind.QuickSketch : Workspace.Kind;
+        ApplyWorkspace();
+        RefreshTitle();
     }
 
     public EditorSession Session { get; } = new();
 
-    private Flyout MenuFlyout => (Flyout)MenuButton.Flyout!;
-    private Flyout BrushFlyout => (Flyout)PresetChip.Flyout!;
-    private Flyout ColourFlyout => (Flyout)ColourChip.Flyout!;
-    private Flyout FgFlyout => (Flyout)FgChip.Flyout!;
+    /// <summary>The one canvas all workspaces share.</summary>
+    public CanvasView Canvas { get; }
 
     /// <summary>What happened when the window turned off Windows' pen gestures (shown in diagnostics).</summary>
     public string PenSetupStatus { get; private set; } = "not applied";
+
+    internal DialogHost Dialogs => _dialogs;
+
+    internal RadialPalette Radial => _radial;
+
+    internal AppSettings Settings => _settings;
 
     internal static bool IsHeadless => Application.Current?.ApplicationLifetime is null
         || AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Avalonia.Headless");
 
     public static string Version =>
-        typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.4";
-
-    // ================================================================== toolbar wiring
-
-    private void WireToolbar()
-    {
-        BrushTool.Click += (_, _) => Session.SelectTool(ToolKind.Brush);
-        EraserTool.Click += (_, _) => Session.SelectTool(ToolKind.Eraser);
-        PickerTool.Click += (_, _) => Session.SelectTool(ToolKind.Eyedropper);
-        HandTool.Click += (_, _) => Session.SelectTool(ToolKind.Hand);
-        EraseButton.Click += (_, _) => Session.ToggleEraser();
-        UndoButton.Click += (_, _) => Undo();
-        RedoButton.Click += (_, _) => Redo();
-        SizeSlider.UserChanged += (_, v) => Session.SetSize(v);
-        OpacitySlider.UserChanged += (_, v) => Session.SetOpacity(v);
-        BgChip.Click += (_, _) => Session.SwapColors();
-        HideUiButton.Click += (_, _) => SetUiHidden(true);
-        ShowUiButton.Click += (_, _) => SetUiHidden(false);
-        ZoomInButton.Click += (_, _) => Canvas.ZoomStep(+1);
-        ZoomOutButton.Click += (_, _) => Canvas.ZoomStep(-1);
-        ZoomText.Click += (_, _) => Canvas.ZoomToActualPixels();
-        FitButton.Click += (_, _) => Canvas.FitToView();
-        FlipButton.Click += (_, _) => ToggleFlipView();
-    }
-
-    private void ToggleFlipView()
-    {
-        Canvas.ToggleFlip();
-        FlipButton.Classes.Set("on", Canvas.View.FlipHorizontal);
-        ShowToast(Canvas.View.FlipHorizontal ? "View flipped (the picture itself is unchanged)" : "View back to normal");
-    }
+        typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.5";
 
     private void WatchDocument()
     {
-        if (_watchedDocument is not null) _watchedDocument.HistoryChanged -= Refresh;
+        if (_watchedDocument is not null) _watchedDocument.HistoryChanged -= RefreshTitle;
         _watchedDocument = Session.Document;
-        _watchedDocument.HistoryChanged += Refresh;
-        Refresh();
+        _watchedDocument.HistoryChanged += RefreshTitle;
+        RefreshTitle();
     }
 
-    /// <summary>Brings every toolbar control in line with the session state.</summary>
-    private void Refresh()
+    private void RefreshTitle() => Title = $"{Session.DisplayName}{(Session.Document.IsDirty ? " •" : "")} — DoodleNook";
+
+    private void OnFlyoutOpened(Flyout flyout)
     {
-        var s = Session;
-        Title = $"{s.DisplayName}{(s.Document.IsDirty ? " •" : "")} — DoodleNook";
-
-        BrushTool.Classes.Set("on", s.Tool == ToolKind.Brush);
-        EraserTool.Classes.Set("on", s.Tool == ToolKind.Eraser);
-        PickerTool.Classes.Set("on", s.Tool == ToolKind.Eyedropper);
-        HandTool.Classes.Set("on", s.Tool == ToolKind.Hand);
-        EraseButton.Classes.Set("on", s.Tool == ToolKind.Eraser);
-
-        var paint = s.CurrentPaintSettings;
-        SizeSlider.Value = paint.Size;
-        SizeText.Text = $"{paint.Size:0} px";
-        OpacityGroup.IsVisible = s.PaintTool == ToolKind.Brush;
-        OpacitySlider.Value = paint.Opacity;
-        OpacityText.Text = $"{paint.Opacity * 100:0}%";
-        ToolTip.SetTip(PresetChip, s.PaintTool == ToolKind.Eraser ? "Eraser settings" : $"Brush: {EditorSession.Presets.FirstOrDefault(p => p.Id == s.BrushPresetId)?.Name} — presets and settings");
-
-        string key = $"{s.PaintTool}|{paint}";
-        if (key != _previewKey)
+        if (flyout.Target is not { } target || !ReferenceEquals(TopLevel.GetTopLevel(target), this)) return;
+        // Opening a pop-over must not park keyboard focus in a text box (that would swallow B, E, [ ], …).
+        Dispatcher.UIThread.Post(() =>
         {
-            _previewKey = key;
-            PresetPreview.Source = BrushPreview.Render(paint, new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B), 44, 22);
-        }
-
-        var fg = Ui.Brush(s.Foreground);
-        ColourDot.Fill = fg;
-        FgSwatch.Background = fg;
-        BgSwatch.Background = Ui.Brush(s.Background);
-        UndoButton.IsEnabled = s.Document.CanUndo;
-        RedoButton.IsEnabled = s.Document.CanRedo;
-        ToolTip.SetTip(UndoButton, s.Document.History.NextUndoName is { } u ? $"Undo {u.ToLowerInvariant()} (Ctrl+Z)" : "Undo (Ctrl+Z)");
-        ToolTip.SetTip(RedoButton, s.Document.History.NextRedoName is { } r ? $"Redo {r.ToLowerInvariant()} (Ctrl+Shift+Z)" : "Redo (Ctrl+Shift+Z)");
-        FlipButton.Classes.Set("on", Canvas.View.FlipHorizontal);
-        UpdateZoomLabel();
+            if (FocusManager?.GetFocusedElement() is TextBox) Canvas.Focus();
+        }, DispatcherPriority.Input);
     }
 
-    private void UpdateZoomLabel()
-    {
-        double z = Canvas.ActualZoom * 100;
-        ZoomLabel.Text = z < 10 ? $"{z:0.#}%" : $"{z:0}%";
-    }
+    internal void HideFlyouts() => UiKit.HideOpenFlyouts();
 
-    // ================================================================== commands
-
-    private void Undo()
-    {
-        var name = Session.Document.History.NextUndoName;
-        if (Session.Undo()) ShowToast($"Undid {name?.ToLowerInvariant()}");
-    }
-
-    private void Redo()
-    {
-        var name = Session.Document.History.NextRedoName;
-        if (Session.Redo()) ShowToast($"Redid {name?.ToLowerInvariant()}");
-    }
-
-    private void ClearCanvas()
-    {
-        if (Session.ClearCanvas()) ShowToast("Canvas cleared — Ctrl+Z brings it back");
-    }
-
-    private void SetUiHidden(bool hidden)
-    {
-        _uiHidden = hidden;
-        QuickBar.IsVisible = !hidden;
-        ToolRail.IsVisible = !hidden;
-        ViewChip.IsVisible = !hidden;
-        ShowUiButton.IsVisible = hidden;
-        HideFlyouts();
-        UpdateToastPosition();
-    }
-
-    private void ToggleFullScreen()
-    {
-        if (WindowState == WindowState.FullScreen) WindowState = _stateBeforeFullScreen;
-        else
-        {
-            _stateBeforeFullScreen = WindowState;
-            WindowState = WindowState.FullScreen;
-            ShowToast("Full screen — F11 or Esc to leave");
-        }
-    }
-
-    private void ToggleDiagnostics()
-    {
-        DiagnosticsPanel.IsVisible = !DiagnosticsPanel.IsVisible;
-        _diagnostics.SetActive(DiagnosticsPanel.IsVisible);
-        UpdateToastPosition();
-    }
-
-    private void HideFlyouts()
-    {
-        MenuFlyout.Hide();
-        BrushFlyout.Hide();
-        ColourFlyout.Hide();
-        FgFlyout.Hide();
-    }
+    // ================================================================== toast
 
     public void ShowToast(string text, ColorRgb? dot = null)
     {
-        ToastText.Text = text;
-        ToastDot.IsVisible = dot.HasValue;
-        if (dot is { } c) ToastDot.Fill = Ui.Brush(c);
-        UpdateToastPosition();
-        Toast.IsVisible = true;
-        Toast.Opacity = 1;
+        _toastText.Text = text;
+        _toastDot.IsVisible = dot.HasValue;
+        if (dot is { } c) _toastDot.Fill = UiKit.Brush(c);
+        UpdateOverlayPositions();
+        _toast.IsVisible = true;
+        _toast.Opacity = 1;
         _toastTimer.Stop();
         _toastTimer.Start();
     }
 
-    private void UpdateToastPosition()
+    /// <summary>The last toast text (tests and smoke test).</summary>
+    internal string? LastToast => _toastText.Text;
+
+    private void UpdateOverlayPositions()
     {
         double left = 14;
-        if (_uiHidden) left += 220;
-        Toast.Margin = new Thickness(left, 14, 0, 0);
-        DiagnosticsPanel.Margin = new Thickness(14, _uiHidden ? 64 : 60, 0, 0);
-    }
-
-    // ================================================================== files
-
-    private static readonly FilePickerFileType PngType = new("PNG image")
-    {
-        Patterns = ["*.png"],
-        MimeTypes = ["image/png"],
-        AppleUniformTypeIdentifiers = ["public.png"],
-    };
-
-    private async Task<bool> ConfirmDiscardAsync(string beforeWhat)
-    {
-        if (Session.IsStrokeActive) Session.EndStroke();
-        if (!Session.Document.IsDirty) return true;
-        Canvas.InterruptGesture();
-        var choice = await _dialogs.AskSaveChangesAsync(Session.DisplayName, beforeWhat);
-        if (choice is null) return false;
-        if (choice == "save") return await SaveAsync();
-        return true;
-    }
-
-    public async Task NewAsync()
-    {
-        if (!await ConfirmDiscardAsync("starting a new picture")) return;
-        var doc = Session.Document;
-        var r = await _dialogs.AskNewDocumentAsync(doc.Width, doc.Height, doc.Background is not null || Session.FilePath is null);
-        if (r is not { } n) return;
-        Session.ReplaceDocument(new Document(n.Width, n.Height, n.Background), null);
-        ShowToast($"New picture · {n.Width} × {n.Height}");
-    }
-
-    public async Task OpenAsync()
-    {
-        if (!await ConfirmDiscardAsync("opening another picture")) return;
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open a picture",
-            AllowMultiple = false,
-            FileTypeFilter = [PngType, FilePickerFileTypes.ImageAll],
-        });
-        if (files.Count == 0) return;
-        var file = files[0];
-        if (file.TryGetLocalPath() is { } path)
-        {
-            await OpenPathAsync(path);
-            return;
-        }
-        try
-        {
-            await using var stream = await file.OpenReadAsync();
-            Session.ReplaceDocument(PngFile.Open(stream), null);
-            ShowToast($"Opened {file.Name}");
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.ShowMessageAsync("Couldn't open the picture", $"{file.Name}: {ex.Message}");
-        }
-    }
-
-    /// <summary>Opens a picture from a path (menu, command line or smoke test).</summary>
-    public async Task<bool> OpenPathAsync(string path)
-    {
-        try
-        {
-            var doc = PngFile.Open(path);
-            Session.ReplaceDocument(doc, path);
-            ShowToast($"Opened {Path.GetFileName(path)} · {doc.Width} × {doc.Height}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.ShowMessageAsync("Couldn't open the picture", $"{Path.GetFileName(path)}: {ex.Message}");
-            return false;
-        }
-    }
-
-    public async Task<bool> SaveAsync()
-    {
-        var path = Session.FilePath;
-        if (path is null || !path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return await SaveAsAsync();
-        return await SaveToPathAsync(path);
-    }
-
-    public async Task<bool> SaveAsAsync()
-    {
-        if (Session.IsStrokeActive) Session.EndStroke();
-        var suggested = Path.ChangeExtension(Session.DisplayName, ".png");
-        IStorageFolder? folder = null;
-        if (Session.FilePath is { } current && Path.GetDirectoryName(current) is { } dir)
-            folder = await StorageProvider.TryGetFolderFromPathAsync(dir);
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Save picture as PNG",
-            SuggestedFileName = suggested,
-            SuggestedStartLocation = folder,
-            DefaultExtension = "png",
-            FileTypeChoices = [PngType],
-            ShowOverwritePrompt = true,
-        });
-        if (file is null) return false; // cancelled: nothing changes
-        if (file.TryGetLocalPath() is { } path)
-        {
-            if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
-            return await SaveToPathAsync(path);
-        }
-        try
-        {
-            await using var stream = await file.OpenWriteAsync();
-            PngFile.Encode(Session.Document.Flatten(), stream);
-            Session.Document.MarkSaved();
-            ShowToast($"Saved {file.Name}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.ShowMessageAsync("Couldn't save", ex.Message);
-            return false;
-        }
-    }
-
-    public async Task<bool> SaveToPathAsync(string path)
-    {
-        if (Session.IsStrokeActive) Session.EndStroke();
-        try
-        {
-            PngFile.Save(Session.Document, path);
-            Session.MarkSaved(path);
-            ShowToast($"Saved {Path.GetFileName(path)}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            await _dialogs.ShowMessageAsync("Couldn't save", $"{Path.GetFileName(path)}: {ex.Message}");
-            return false;
-        }
-    }
-
-    private async void OnClosing(object? sender, WindowClosingEventArgs e)
-    {
-        if (!_closeConfirmed && Program.Options.SmokeTestDirectory is null && Session.Document.IsDirty)
-        {
-            e.Cancel = true;
-            if (_dialogs.IsOpen) return;
-            if (await ConfirmDiscardAsync("closing DoodleNook"))
-            {
-                _closeConfirmed = true;
-                Close();
-            }
-            return;
-        }
-        if (_persistSettings)
-        {
-            _settings.CaptureFrom(Session);
-            CapturePlacement();
-            _settings.Save();
-        }
+        if (Workspace.Kind == WorkspaceKind.PureSketch) left = 14 + 54;
+        else if (UiHidden) left = 14 + 200;
+        _toast.Margin = new Thickness(left, 14, 0, 0);
+        _diagnosticsPanel.Margin = new Thickness(14, 64, 0, 0);
     }
 
     // ================================================================== window placement
@@ -462,221 +269,26 @@ public partial class MainWindow : Window
         }
     }
 
-    // ================================================================== keyboard
-
-    private bool IsTyping => FocusManager?.GetFocusedElement() is TextBox;
-
-    private void OnKeyDownTunnel(object? sender, KeyEventArgs e)
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (_dialogs.IsOpen)
+        if (!_closeConfirmed && Program.Options.SmokeTestDirectory is null && Session.Document.IsDirty)
         {
-            if (_dialogs.HandleKey(e)) e.Handled = true;
-            return;
-        }
-        if (IsTyping)
-        {
-            if (e.Key == Key.Escape)
+            e.Cancel = true;
+            if (_dialogs.IsOpen) return;
+            if (await ConfirmDiscardAsync("closing DoodleNook"))
             {
-                Canvas.Focus();
-                e.Handled = true;
+                _closeConfirmed = true;
+                Close();
             }
             return;
         }
-
-        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
-        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-        bool handled = true;
-        var input = Canvas.Input!;
-
-        switch (e.Key)
+        if (_persistSettings)
         {
-            case Key.Z when ctrl && shift:
-            case Key.Y when ctrl:
-                Redo();
-                break;
-            case Key.Z when ctrl:
-                Undo();
-                break;
-            case Key.N when ctrl:
-                _ = NewAsync();
-                break;
-            case Key.O when ctrl:
-                _ = OpenAsync();
-                break;
-            case Key.S when ctrl && shift:
-                _ = SaveAsAsync();
-                break;
-            case Key.S when ctrl:
-                _ = SaveAsync();
-                break;
-            case Key.D0 or Key.NumPad0 when ctrl:
-                Canvas.FitToView();
-                break;
-            case Key.D1 or Key.NumPad1 when ctrl:
-                Canvas.ZoomToActualPixels();
-                break;
-            case Key.OemPlus or Key.Add when ctrl:
-                Canvas.ZoomStep(+1);
-                break;
-            case Key.OemMinus or Key.Subtract when ctrl:
-                Canvas.ZoomStep(-1);
-                break;
-            case Key.B when !ctrl:
-                Session.SelectTool(ToolKind.Brush);
-                break;
-            case Key.E when !ctrl:
-                Session.SelectTool(ToolKind.Eraser);
-                break;
-            case Key.I when !ctrl:
-                Session.SelectTool(ToolKind.Eyedropper);
-                break;
-            case Key.H when !ctrl:
-                Session.SelectTool(ToolKind.Hand);
-                break;
-            case Key.X when !ctrl:
-                Session.SwapColors();
-                break;
-            case Key.D when !ctrl:
-                Session.ResetColors();
-                ShowToast("Default colours");
-                break;
-            case Key.OemOpenBrackets:
-                Session.StepSize(-1);
-                ShowToast($"Size {Session.CurrentPaintSettings.Size:0} px");
-                break;
-            case Key.OemCloseBrackets:
-                Session.StepSize(+1);
-                ShowToast($"Size {Session.CurrentPaintSettings.Size:0} px");
-                break;
-            case Key.Tab:
-                SetUiHidden(!_uiHidden);
-                break;
-            case Key.F11:
-                ToggleFullScreen();
-                break;
-            case Key.F12:
-                ToggleDiagnostics();
-                break;
-            case Key.Escape when WindowState == WindowState.FullScreen:
-                ToggleFullScreen();
-                break;
-            case Key.Delete when !ctrl:
-                ClearCanvas();
-                break;
-            case Key.Space:
-                if (!input.SpaceHeld)
-                {
-                    input.SpaceHeld = true;
-                    Canvas.RefreshCursor();
-                }
-                break;
-            case Key.LeftAlt or Key.RightAlt:
-                input.AltHeld = true;
-                Canvas.RefreshCursor();
-                break;
-            default:
-                // Non-US keyboards: accept the characters themselves for the brush-size keys.
-                if (e.KeySymbol == "[") Session.StepSize(-1);
-                else if (e.KeySymbol == "]") Session.StepSize(+1);
-                else handled = false;
-                break;
-        }
-        if (handled) e.Handled = true;
-    }
-
-    private void OnKeyUpTunnel(object? sender, KeyEventArgs e)
-    {
-        var input = Canvas.Input!;
-        if (e.Key == Key.Space)
-        {
-            input.SpaceHeld = false;
-            Canvas.RefreshCursor();
-            e.Handled = true;
-        }
-        else if (e.Key is Key.LeftAlt or Key.RightAlt)
-        {
-            input.AltHeld = false;
-            Canvas.RefreshCursor();
-            e.Handled = true; // keep Alt from activating the window menu
+            CaptureWorkspaceState();
+            _settings.CaptureFrom(Session);
+            _settings.LastWorkspace = Workspace.Kind;
+            CapturePlacement();
+            _settings.Save();
         }
     }
-
-    // ================================================================== menu
-
-    private Control BuildMenu()
-    {
-        var stack = new StackPanel { Spacing = 1, Width = 262 };
-        var brand = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(8, 2, 8, 8) };
-        brand.Children.Add(new BrandMark());
-        brand.Children.Add(new TextBlock { Text = "DoodleNook", Classes = { "brand" }, VerticalAlignment = VerticalAlignment.Center });
-        brand.Children.Add(new TextBlock { Text = Version, Classes = { "dim" }, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 });
-        stack.Children.Add(brand);
-
-        void Item(string icon, string label, string? shortcut, Action action)
-        {
-            var b = new Button
-            {
-                Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Content = Ui.Content(icon, label, shortcut),
-            };
-            b.Classes.Add("menu");
-            b.Click += (_, _) =>
-            {
-                MenuFlyout.Hide();
-                action();
-            };
-            stack.Children.Add(b);
-        }
-
-        Item("new", "New picture…", "Ctrl+N", () => _ = NewAsync());
-        Item("open", "Open…", "Ctrl+O", () => _ = OpenAsync());
-        Item("save", "Save", "Ctrl+S", () => _ = SaveAsync());
-        Item("saveas", "Save as…", "Ctrl+Shift+S", () => _ = SaveAsAsync());
-        stack.Children.Add(Ui.HSep());
-        Item("trash", "Clear canvas", "Delete", ClearCanvas);
-        stack.Children.Add(Ui.HSep());
-        Item("fit", "Fit on screen", "Ctrl+0", () => Canvas.FitToView());
-        Item("zoom", "Actual pixels (100%)", "Ctrl+1", Canvas.ZoomToActualPixels);
-        Item("flip", "Flip view", null, ToggleFlipView);
-        Item("fullscreen", "Full screen", "F11", ToggleFullScreen);
-        Item("expand", "Hide interface", "Tab", () => SetUiHidden(true));
-        stack.Children.Add(Ui.HSep());
-        Item("pulse", "Pen diagnostics", "F12", ToggleDiagnostics);
-        Item("keyboard", "Keyboard shortcuts", null, () => _ = ShowShortcutsAsync());
-        Item("info", "About DoodleNook", null, () => _ = ShowAboutAsync());
-        stack.Children.Add(Ui.HSep());
-        Item("exit", "Exit", "Alt+F4", Close);
-        return stack;
-    }
-
-    private Task ShowShortcutsAsync()
-    {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowSpacing = 4, ColumnSpacing = 16 };
-        (string Keys, string What)[] rows =
-        [
-            ("B / E", "Brush / Eraser"), ("I · hold Alt", "Eyedropper / quick pick"), ("H · hold Space", "Hand / pan"),
-            ("[ and ]", "Smaller / larger brush"), ("Right-drag", "Resize brush on the canvas"), ("X / D", "Swap / default colours"),
-            ("Ctrl+Z / Ctrl+Shift+Z", "Undo / Redo (also Ctrl+Y)"), ("Wheel", "Zoom at the cursor"), ("Middle-drag", "Pan"),
-            ("Ctrl+0 / Ctrl+1", "Fit / actual pixels"), ("Ctrl+N / O / S", "New / Open / Save"), ("Tab · F11", "Hide interface · full screen"),
-            ("Delete", "Clear canvas (undoable)"), ("F12", "Pen diagnostics"),
-        ];
-        for (int i = 0; i < rows.Length; i++)
-        {
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var k = new TextBlock { Text = rows[i].Keys, FontWeight = FontWeight.SemiBold };
-            var w = new TextBlock { Text = rows[i].What, Classes = { "dim" } };
-            Grid.SetRow(k, i);
-            Grid.SetRow(w, i);
-            Grid.SetColumn(w, 1);
-            grid.Children.Add(k);
-            grid.Children.Add(w);
-        }
-        return _dialogs.ShowAsync("Keyboard shortcuts", grid, [("ok", "Close", true)], "ok", "ok");
-    }
-
-    private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} — Mission 004 “The Missing Ink”.\nA cosy place to sketch: one round brush, an eraser, undo and PNG files.\n\n" +
-                        "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
-                        "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
-        [("ok", "Close", true)], "ok", "ok");
 }

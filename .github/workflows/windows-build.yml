@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive" ]
   workflow_dispatch:
 
 permissions:
@@ -76,7 +76,7 @@ jobs:
           if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish its smoke test within 3 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, drew, saved and reopened a PNG."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all five workspaces, saved and reopened a .dnk and exported PNG/JPEG/WebP."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7
@@ -95,4 +95,5 @@ jobs:
           path: |
             TestResults/
             smoke-test/
+            tests/DoodleNook.App.Tests/out/screenshots/
           if-no-files-found: ignore

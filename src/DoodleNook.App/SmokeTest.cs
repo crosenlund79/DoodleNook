@@ -6,14 +6,15 @@ using Avalonia.Threading;
 using DoodleNook.App.Editor;
 using DoodleNook.App.Files;
 using DoodleNook.App.Input;
+using DoodleNook.App.Shell;
 using DoodleNook.Engine.Imaging;
 
 namespace DoodleNook.App;
 
 /// <summary>
 /// "DoodleNook.exe --smoke-test &lt;folder&gt;": starts the real application window, drives it through its own input
-/// path (pen-like and mouse strokes, eraser, undo/redo, save and reopen a PNG), saves a screenshot of the window and a
-/// JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
+/// path (pen-like and mouse strokes, eraser, undo/redo, layers, every workspace, a transform, pixel art, saving and
+/// reopening a .dnk, PNG/JPEG/WebP export), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
 /// proves the packaged app starts and works, not how the pen feels.
 /// </summary>
 internal static class SmokeTest
@@ -79,6 +80,7 @@ internal static class SmokeTest
         report["screens"] = window.Screens.All.Select(s => $"{s.Bounds.Width}x{s.Bounds.Height} @ {s.Scaling * 100:0}%").ToArray();
         report["document"] = $"{doc.Width} x {doc.Height}";
         report["penWindowSetup"] = window.PenSetupStatus;
+        report["startWorkspace"] = window.Workspace.Name;
         Check("window opened with a canvas", canvas.Bounds.Width > 100 && canvas.Bounds.Height > 100, $"{canvas.Bounds.Width:0} x {canvas.Bounds.Height:0}");
 
         (double X, double Y) V(double x, double y) => canvas.View.DocumentToView(x, y);
@@ -87,10 +89,34 @@ internal static class SmokeTest
             var (x, y) = V(dx, dy);
             return new PointerInput(7, PointerKind.Pen, x, y, p, Primary: down);
         }
+        PointerInput Mouse(double dx, double dy, bool down = true)
+        {
+            var (x, y) = V(dx, dy);
+            return new PointerInput(1, PointerKind.Mouse, x, y, 0.5f, Primary: down);
+        }
+        void Drag(double x0, double y0, double x1, double y1)
+        {
+            input.Press(Mouse(x0, y0));
+            input.Move([Mouse((x0 + x1) / 2, (y0 + y1) / 2), Mouse(x1, y1)]);
+            input.Release(Mouse(x1, y1, down: false));
+        }
+        async Task Shot(string name)
+        {
+            await Task.Delay(500);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            double scaling = window.RenderScaling;
+            var size = new PixelSize((int)Math.Round(window.ClientSize.Width * scaling), (int)Math.Round(window.ClientSize.Height * scaling));
+            using var rtb = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling));
+            rtb.Render(window);
+            rtb.Save(Path.Combine(dir, name), new PngBitmapEncoderOptions());
+        }
 
-        // 1. A pen stroke with a pressure swell, sent in coalesced batches like Windows Ink delivers them.
+        // 1. Quick Sketch: a pen stroke with a pressure swell, sent in coalesced batches like Windows Ink delivers them.
+        window.SetWorkspace(WorkspaceKind.QuickSketch);
         session.SelectTool(ToolKind.Brush);
+        session.ApplyPreset("ink");
         session.SetSize(24);
+        var sketch = doc.ActiveLayer;
         var sw = Stopwatch.StartNew();
         input.Press(Pen(300, 300, 0.1f));
         var batch = new List<PointerInput>();
@@ -108,59 +134,101 @@ internal static class SmokeTest
         input.Release(Pen(1500, 300, 0f, down: false));
         sw.Stop();
         report["penStroke400SamplesMs"] = Math.Round(sw.Elapsed.TotalMilliseconds, 2);
-        Check("pen stroke paints pixels", Pixel.A(doc.Layer[900, 700]) > 0 || Pixel.A(doc.Layer[900, 699]) > 0);
+        Check("pen stroke paints pixels", Pixel.A(sketch.Image[900, 700]) > 0 || Pixel.A(sketch.Image[900, 699]) > 0);
         Check("pen stroke is one undo step", doc.History.UndoCount == 1);
-        Check("light pressure gives a thinner line", Width(doc, 330) < Width(doc, 900), $"{Width(doc, 330)} vs {Width(doc, 900)} px");
+        Check("light pressure gives a thinner line", Width(sketch, doc.Height, 330) < Width(sketch, doc.Height, 900), $"{Width(sketch, doc.Height, 330)} vs {Width(sketch, doc.Height, 900)} px");
 
-        // 2. A mouse stroke (constant pressure).
-        var mouseStart = V(200, 900);
-        var mouseEnd = V(1700, 900);
-        input.Press(new PointerInput(1, PointerKind.Mouse, mouseStart.X, mouseStart.Y, 0.5f, Primary: true));
-        input.Move([new PointerInput(1, PointerKind.Mouse, mouseEnd.X, mouseEnd.Y, 0.5f, Primary: true)]);
-        input.Release(new PointerInput(1, PointerKind.Mouse, mouseEnd.X, mouseEnd.Y, 0.5f, Primary: false));
-        Check("mouse stroke paints a continuous line", Enumerable.Range(220, 1460).All(x => Pixel.A(doc.Layer[x, 900]) > 0));
-
-        // 3. Eraser across the mouse line.
-        uint beforeErase = doc.Layer[950, 900];
+        // 2. A mouse stroke (constant pressure), the eraser, undo and redo.
+        input.Press(Mouse(200, 900));
+        input.Move([Mouse(1700, 900)]);
+        input.Release(Mouse(1700, 900, down: false));
+        Check("mouse stroke paints a continuous line", Enumerable.Range(220, 1460).All(x => Pixel.A(sketch.Image[x, 900]) > 0));
+        uint beforeErase = sketch.Image[950, 900];
         session.SelectTool(ToolKind.Eraser);
         input.Press(Pen(950, 800, 1f));
         input.Move([Pen(950, 1000, 1f)]);
         input.Release(Pen(950, 1000, 0f, down: false));
-        Check("eraser makes pixels transparent", doc.Layer[950, 900] == Pixel.Transparent);
-
-        // 4. Undo / redo.
+        Check("eraser makes pixels transparent", sketch.Image[950, 900] == Pixel.Transparent);
         session.Undo();
-        Check("undo restores erased pixels", doc.Layer[950, 900] == beforeErase && beforeErase != Pixel.Transparent);
+        Check("undo restores erased pixels", sketch.Image[950, 900] == beforeErase && beforeErase != Pixel.Transparent);
         session.Redo();
-        Check("redo erases again", doc.Layer[950, 900] == Pixel.Transparent);
-        Check("history has three steps", doc.History.UndoCount == 3);
-        session.SelectTool(ToolKind.Brush);
+        Check("redo erases again", sketch.Image[950, 900] == Pixel.Transparent);
+        await Shot("smoke-B-quick-sketch.png");
 
-        // 5. Save as PNG and reopen.
-        var path = Path.Combine(dir, "smoke-drawing.png");
-        bool saved = await window.SaveToPathAsync(path);
-        Check("PNG saved", saved && File.Exists(path), File.Exists(path) ? new FileInfo(path).Length : 0);
+        // 3. Painting: a new layer, a different brush, colour on top of the sketch.
+        window.SetWorkspace(WorkspaceKind.Painting);
+        Check("switching workspace keeps the same document", ReferenceEquals(doc, session.Document));
+        var colour = session.AddLayer();
+        session.ApplyPreset("chalk");
+        session.SetForeground(ColorRgb.Parse("#5F8FA8"));
+        session.SetSize(60);
+        input.Press(Pen(400, 500, 0.8f));
+        input.Move([Pen(800, 520, 0.9f), Pen(1200, 540, 0.9f)]);
+        input.Release(Pen(1200, 540, 0f, down: false));
+        Check("painting goes on the new layer", Pixel.A(colour.Image[800, 520]) > 0 && doc.Layers.Count == 2);
+        await Shot("smoke-C-painting.png");
+
+        // 4. Editing: select, free transform, adjust.
+        window.SetWorkspace(WorkspaceKind.Editing);
+        session.SelectTool(ToolKind.RectSelect);
+        Drag(300, 400, 1300, 650);
+        Check("rectangle selection", doc.Selection is { IsEmpty: false } sel && sel.Bounds.Width > 900, doc.Selection?.Bounds.ToString());
+        window.FlipSelection(true);
+        Check("flip selection is one undo step", doc.History.NextUndoName is not null);
+        window.ApplyAdjustment(new Engine.Operations.Invert());
+        session.Deselect();
+        await Shot("smoke-D-editing.png");
+
+        // 5. Save as .dnk (layers kept) and reopen.
+        var dnk = Path.Combine(dir, "smoke-picture.dnk");
+        bool saved = await window.SaveToPathAsync(dnk);
+        Check(".dnk saved", saved && File.Exists(dnk), File.Exists(dnk) ? new FileInfo(dnk).Length : 0);
         Check("document is clean after saving", !doc.IsDirty);
-        var reopened = PngFile.Open(path);
-        Check("reopened PNG matches the picture", reopened.Layer.Pixels.AsSpan().SequenceEqual(doc.Flatten().Pixels));
+        var flat = doc.Flatten();
+        bool opened = await window.OpenPathAsync(dnk);
+        var reopened = session.Document;
+        Check(".dnk reopens with its layers", opened && reopened.Layers.Count == 2 && reopened.Layers[1].Name == colour.Name);
+        Check("reopened picture matches", reopened.Flatten().Pixels.AsSpan().SequenceEqual(flat.Pixels));
 
-        // 6. Let the window render the result, then capture it.
-        await Task.Delay(800);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        // 6. Exports (flattened copies).
+        foreach (var f in new[] { ExportFormat.Png, ExportFormat.Jpeg, ExportFormat.WebP })
+        {
+            var path = Path.Combine(dir, "smoke-export" + ImageFiles.Extension(f));
+            window.ExportToPath(path, f);
+            bool ok = File.Exists(path) && ImageFiles.Decode(path) is { } img && img.Width == reopened.Width;
+            Check($"export {ImageFiles.DisplayName(f)}", ok, File.Exists(path) ? new FileInfo(path).Length : 0);
+        }
+
+        // 7. Pixel Art: a small sprite with the pixel pencil.
+        window.SetWorkspace(WorkspaceKind.PixelArt);
+        session.ReplaceDocument(new Engine.Documents.Document(24, 24, null, "Sprite"), null);
+        session.SelectTool(ToolKind.PixelPencil);
+        session.SetForeground(ColorRgb.Parse("#2E2A3B"));
+        Drag(3.5, 3.5, 20.5, 3.5);
+        var sprite = session.Document.ActiveLayer.Image;
+        Check("pixel pencil draws exact opaque pixels", Enumerable.Range(3, 18).All(x => sprite[x, 3] == Pixel.Opaque(ColorRgb.Parse("#2E2A3B"))) && sprite[3, 4] == Pixel.Transparent);
+        Check("pixel art zoom is a whole number", Math.Abs(canvas.ActualZoom - Math.Round(canvas.ActualZoom)) < 1e-6, canvas.ActualZoom);
+        await Shot("smoke-E-pixel-art.png");
+        var spritePng = Path.Combine(dir, "smoke-sprite.png");
+        window.ExportToPath(spritePng, ExportFormat.Png);
+        var back = ImageFiles.Decode(spritePng);
+        Check("sprite PNG keeps exact pixels and transparency", back.Pixels.AsSpan().SequenceEqual(session.Document.Flatten().Pixels));
+
+        // 8. Pure Sketch.
+        window.SetWorkspace(WorkspaceKind.PureSketch);
+        await Shot("smoke-A-pure-sketch.png");
+        window.ReturnFromPureSketch();
+        Check("Tab from Pure Sketch returns to the previous workspace", window.Workspace.Kind == WorkspaceKind.PixelArt);
+
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
-        double scaling = window.RenderScaling;
-        var size = new PixelSize((int)Math.Round(window.ClientSize.Width * scaling), (int)Math.Round(window.ClientSize.Height * scaling));
-        using (var rtb = new RenderTargetBitmap(size, new Vector(96 * scaling, 96 * scaling)))
-        {
-            rtb.Render(window);
-            rtb.Save(Path.Combine(dir, "smoke-window.png"), new PngBitmapEncoderOptions());
-        }
         report["uploadedPixels"] = canvas.UploadedPixels;
-        Check("screenshot written", File.Exists(Path.Combine(dir, "smoke-window.png")));
+        await Shot("smoke-window.png");
+        Check("screenshots written", File.Exists(Path.Combine(dir, "smoke-window.png")) && File.Exists(Path.Combine(dir, "smoke-C-painting.png")));
+        window.SetWorkspace(WorkspaceKind.QuickSketch);
         return all;
     }
 
-    private static int Width(Engine.Documents.Document doc, int x) =>
-        Enumerable.Range(0, doc.Height).Count(y => Pixel.A(doc.Layer[x, y]) > 0);
+    private static int Width(Engine.Documents.Layer layer, int height, int x) =>
+        Enumerable.Range(0, height).Count(y => Pixel.A(layer.Image[x, y]) > 0);
 }

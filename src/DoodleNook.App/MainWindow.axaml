@@ -1,167 +1,29 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:c="using:DoodleNook.App.Controls"
-        xmlns:canvas="using:DoodleNook.App.Canvas"
         x:Class="DoodleNook.App.MainWindow"
         Title="DoodleNook"
         Icon="/Assets/DoodleNook.ico"
         Width="1280" Height="800" MinWidth="760" MinHeight="480"
         WindowStartupLocation="CenterScreen">
-  <Grid RowDefinitions="Auto,*">
-
-    <!-- ============ Quick Sketch bar (Mission 003, workspace B) ============ -->
-    <Border x:Name="QuickBar" Grid.Row="0" Height="{StaticResource DnBarHeight}"
-            Background="{DynamicResource DnUi}" BorderBrush="{DynamicResource DnLine}" BorderThickness="0,0,0,1">
-      <DockPanel Margin="6,0,4,0" LastChildFill="False">
-        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6">
-          <Button x:Name="MenuButton" Theme="{StaticResource DnButton}" Classes="sq" ToolTip.Tip="Menu">
-            <c:DnIcon Kind="menu" />
-            <Button.Flyout>
-              <Flyout Placement="BottomEdgeAlignedLeft" VerticalOffset="6" />
-            </Button.Flyout>
-          </Button>
-          <Border Classes="sep" />
-          <Button x:Name="PresetChip" Theme="{StaticResource DnChip}" ToolTip.Tip="Brush presets and settings">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Image x:Name="PresetPreview" Width="44" Height="22" />
-              <c:DnIcon Kind="chevd" />
-            </StackPanel>
-            <Button.Flyout>
-              <Flyout Placement="BottomEdgeAlignedLeft" VerticalOffset="6" />
-            </Button.Flyout>
-          </Button>
-          <StackPanel Orientation="Horizontal" Spacing="0" ToolTip.Tip="Brush size ([ and ])">
-            <TextBlock Classes="dim" Text="Size" VerticalAlignment="Center" Margin="0,0,0,0" />
-            <c:DnSlider x:Name="SizeSlider" Minimum="1" Maximum="500" IsLogarithmic="True" />
-            <TextBlock x:Name="SizeText" Classes="num" MinWidth="44" VerticalAlignment="Center" />
-          </StackPanel>
-          <StackPanel x:Name="OpacityGroup" Orientation="Horizontal" Spacing="0" ToolTip.Tip="Brush opacity: a stroke never gets darker than this, even where it crosses itself">
-            <TextBlock Classes="dim" Text="Opacity" VerticalAlignment="Center" />
-            <c:DnSlider x:Name="OpacitySlider" Minimum="0.05" Maximum="1" />
-            <TextBlock x:Name="OpacityText" Classes="num" MinWidth="40" VerticalAlignment="Center" />
-          </StackPanel>
-          <Border Classes="sep" />
-          <Button x:Name="ColourChip" Theme="{StaticResource DnButton}" Classes="sq" ToolTip.Tip="Colour">
-            <Ellipse x:Name="ColourDot" Width="30" Height="30" Stroke="{DynamicResource DnText}" StrokeThickness="2" />
-            <Button.Flyout>
-              <Flyout Placement="BottomEdgeAlignedLeft" VerticalOffset="6" />
-            </Button.Flyout>
-          </Button>
-          <Button x:Name="EraseButton" Theme="{StaticResource DnButton}" Classes="solid" ToolTip.Tip="Eraser (E)">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <c:DnIcon Kind="eraser" />
-              <TextBlock Text="Erase" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
-          <Button x:Name="UndoButton" Theme="{StaticResource DnButton}" Classes="sq" ToolTip.Tip="Undo (Ctrl+Z)">
-            <c:DnIcon Kind="undo" />
-          </Button>
-          <Button x:Name="RedoButton" Theme="{StaticResource DnButton}" Classes="sq" ToolTip.Tip="Redo (Ctrl+Shift+Z)">
-            <c:DnIcon Kind="redo" />
-          </Button>
-        </StackPanel>
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
-          <Button x:Name="HideUiButton" Theme="{StaticResource DnButton}" Classes="sq ghost" ToolTip.Tip="Hide the interface (Tab)">
-            <c:DnIcon Kind="expand" />
-          </Button>
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
-      <!-- ============ Tool rail ============ -->
-      <Border x:Name="ToolRail" Grid.Column="0" Width="50" Background="{DynamicResource DnUi}"
-              BorderBrush="{DynamicResource DnLine}" BorderThickness="0,0,1,0">
-        <DockPanel Margin="0,7">
-          <Panel DockPanel.Dock="Bottom" Width="36" Height="36" Margin="0,0,0,2">
-            <Button x:Name="BgChip" Theme="{StaticResource DnButton}" Width="22" Height="22" MinWidth="0" Padding="0"
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom" CornerRadius="5" ToolTip.Tip="Swap colours (X) · reset (D)">
-              <Border x:Name="BgSwatch" Width="22" Height="22" CornerRadius="5" BorderThickness="2" BorderBrush="{DynamicResource DnText}" />
-            </Button>
-            <Button x:Name="FgChip" Theme="{StaticResource DnButton}" Width="22" Height="22" MinWidth="0" Padding="0"
-                    HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="5" ToolTip.Tip="Colour">
-              <Border x:Name="FgSwatch" Width="22" Height="22" CornerRadius="5" BorderThickness="2" BorderBrush="{DynamicResource DnText}" />
-              <Button.Flyout>
-                <Flyout Placement="RightEdgeAlignedBottom" HorizontalOffset="10" />
-              </Button.Flyout>
-            </Button>
-          </Panel>
-          <StackPanel Spacing="3" HorizontalAlignment="Center">
-            <Button x:Name="BrushTool" Theme="{StaticResource DnButton}" Classes="sq tool" ToolTip.Tip="Brush (B)">
-              <c:DnIcon Kind="brush" />
-            </Button>
-            <Button x:Name="EraserTool" Theme="{StaticResource DnButton}" Classes="sq tool" ToolTip.Tip="Eraser (E)">
-              <c:DnIcon Kind="eraser" />
-            </Button>
-            <Button x:Name="PickerTool" Theme="{StaticResource DnButton}" Classes="sq tool" ToolTip.Tip="Eyedropper (I) · hold Alt for a quick pick">
-              <c:DnIcon Kind="eyedropper" />
-            </Button>
-            <Button x:Name="HandTool" Theme="{StaticResource DnButton}" Classes="sq tool" ToolTip.Tip="Hand (H) · hold Space to pan">
-              <c:DnIcon Kind="hand" />
-            </Button>
-          </StackPanel>
-        </DockPanel>
-      </Border>
-
-      <!-- ============ Canvas and floating chips ============ -->
-      <Panel x:Name="CanvasHost" Grid.Column="1" Background="{DynamicResource DnSurround}">
-        <canvas:CanvasView x:Name="Canvas" />
-
-        <Border x:Name="ViewChip" Classes="float" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12" Padding="2">
-          <StackPanel Orientation="Horizontal" Spacing="2">
-            <Button x:Name="ZoomOutButton" Theme="{StaticResource DnButton}" Classes="sq" Width="30" Height="30" MinWidth="30" ToolTip.Tip="Zoom out (Ctrl+−)">
-              <c:DnIcon Kind="minus" />
-            </Button>
-            <Button x:Name="ZoomText" Theme="{StaticResource DnButton}" Height="30" MinWidth="52" Padding="4,0" Foreground="{DynamicResource DnText2}" ToolTip.Tip="Actual pixels, 100% (Ctrl+1)">
-              <TextBlock x:Name="ZoomLabel" Classes="num" Text="100%" />
-            </Button>
-            <Button x:Name="ZoomInButton" Theme="{StaticResource DnButton}" Classes="sq" Width="30" Height="30" MinWidth="30" ToolTip.Tip="Zoom in (Ctrl++)">
-              <c:DnIcon Kind="plus" />
-            </Button>
-            <Button x:Name="FitButton" Theme="{StaticResource DnButton}" Height="30" ToolTip.Tip="Fit on screen (Ctrl+0)">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <c:DnIcon Kind="fit" />
-                <TextBlock Text="Fit" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button x:Name="FlipButton" Theme="{StaticResource DnButton}" Height="30" ToolTip.Tip="Flip the view (your picture is not changed)">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <c:DnIcon Kind="flip" />
-                <TextBlock Text="Flip" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-          </StackPanel>
-        </Border>
-
-        <Button x:Name="ShowUiButton" Theme="{StaticResource DnButton}" IsVisible="False"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14" Padding="12,0" CornerRadius="999"
-                Background="{DynamicResource DnFloat}" BorderBrush="{DynamicResource DnLine}">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <c:DnIcon Kind="expand" />
-            <TextBlock Text="Show interface (Tab)" VerticalAlignment="Center" />
-          </StackPanel>
-        </Button>
-
-        <Border x:Name="Toast" Classes="float" CornerRadius="999" Padding="14,6" IsVisible="False" IsHitTestVisible="False"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14">
-          <Border.Transitions>
-            <Transitions>
-              <DoubleTransition Property="Opacity" Duration="0:0:0.35" />
-            </Transitions>
-          </Border.Transitions>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Ellipse x:Name="ToastDot" Width="12" Height="12" Stroke="#66000000" StrokeThickness="1" IsVisible="False" />
-            <TextBlock x:Name="ToastText" Classes="num" />
-          </StackPanel>
-        </Border>
-
-        <Border x:Name="DiagnosticsPanel" Classes="float" IsVisible="False" Padding="12,10" Width="300"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,60,0,0" IsHitTestVisible="True" />
-      </Panel>
+  <!--
+    The five workspaces share this one window, one document and one canvas. The bars, docks and overlays are
+    built in code (MainWindow.Workspaces.cs) and swapped into these hosts when the workspace changes; the
+    document is never reloaded.
+  -->
+  <Grid x:Name="Root" RowDefinitions="Auto,Auto,*,Auto">
+    <Border x:Name="TopHost" Grid.Row="0" />
+    <Border x:Name="OptionsHost" Grid.Row="1" />
+    <Grid x:Name="MainGrid" Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto">
+      <Border x:Name="ToolHost" Grid.Column="0" />
+      <Panel x:Name="CanvasHost" Grid.Column="1" Background="{DynamicResource DnSurround}" ClipToBounds="True" />
+      <GridSplitter x:Name="DockSplitter" Grid.Column="2" Width="5" ResizeDirection="Columns" Background="Transparent"
+                    ToolTip.Tip="Drag to make the panels wider or narrower" />
+      <Border x:Name="RightHost" Grid.Column="3" />
     </Grid>
+    <Border x:Name="BottomHost" Grid.Row="3" />
 
     <!-- ============ Dialogs ============ -->
-    <Panel x:Name="DialogLayer" Grid.RowSpan="2" IsVisible="False" Background="{DynamicResource DnScrim}">
+    <Panel x:Name="DialogLayer" Grid.RowSpan="4" IsVisible="False" Background="{DynamicResource DnScrim}">
       <Border x:Name="DialogCard" HorizontalAlignment="Center" VerticalAlignment="Center"
               Background="{DynamicResource DnUi2}" BorderBrush="{DynamicResource DnLine}" BorderThickness="1"
               CornerRadius="14" Padding="20,18" BoxShadow="{StaticResource DnPopShadow}" />

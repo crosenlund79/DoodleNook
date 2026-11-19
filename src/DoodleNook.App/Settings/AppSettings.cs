@@ -1,13 +1,17 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DoodleNook.App.Editor;
+using DoodleNook.App.Shell;
 using DoodleNook.Engine.Imaging;
+using DoodleNook.Engine.Operations;
 using DoodleNook.Engine.Painting;
 
 namespace DoodleNook.App.Settings;
 
 /// <summary>
-/// Remembers brush settings, colours and the window position between sessions, in
-/// %APPDATA%\DoodleNook\settings.json. Purely local; a missing or broken file just means defaults.
+/// Remembers brush settings, colours, swatches, tool options, the last workspace, each workspace's interface
+/// arrangement and the window position between sessions, in %APPDATA%\DoodleNook\settings.json. Purely local;
+/// a missing or broken file just means defaults.
 /// </summary>
 public sealed class AppSettings
 {
@@ -18,6 +22,17 @@ public sealed class AppSettings
     public string? Foreground { get; set; }
     public string? Background { get; set; }
     public List<string>? RecentColors { get; set; }
+    public List<string>? Swatches { get; set; }
+
+    public FillOptions? Fill { get; set; }
+    public GradientOptions? Gradient { get; set; }
+    public ShapeOptions? Shape { get; set; }
+    public SelectionToolOptions? Selection { get; set; }
+    public PixelToolOptions? Pixel { get; set; }
+    public Interpolation TransformInterpolation { get; set; } = Interpolation.Bilinear;
+
+    public WorkspaceKind LastWorkspace { get; set; } = WorkspaceKind.QuickSketch;
+    public Dictionary<WorkspaceKind, WorkspaceState> Workspaces { get; set; } = new();
 
     public int? WindowX { get; set; }
     public int? WindowY { get; set; }
@@ -25,7 +40,11 @@ public sealed class AppSettings
     public double? WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
 
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DoodleNook", "settings.json");
@@ -58,14 +77,33 @@ public sealed class AppSettings
         }
     }
 
+    public WorkspaceState StateFor(WorkspaceKind kind)
+    {
+        if (!Workspaces.TryGetValue(kind, out var state))
+        {
+            state = new WorkspaceState();
+            if (kind == WorkspaceKind.Painting || kind == WorkspaceKind.Editing) state.DockWidth = 264;
+            Workspaces[kind] = state;
+        }
+        return state;
+    }
+
     public void ApplyTo(EditorSession session)
     {
+        if (Fill is not null) session.SetFillOptions(Fill with { Tolerance = Math.Clamp(Fill.Tolerance, 0, 255), Opacity = Math.Clamp(Fill.Opacity, 0.01, 1) });
+        if (Gradient is not null) session.SetGradientOptions(Gradient with { Opacity = Math.Clamp(Gradient.Opacity, 0.01, 1) });
+        if (Shape is not null) session.SetShapeOptions(Shape with { Width = Math.Clamp(Shape.Width, 1, 200), Opacity = Math.Clamp(Shape.Opacity, 0.01, 1) });
+        if (Selection is not null) session.SetSelectionOptions(Selection with { WandTolerance = Math.Clamp(Selection.WandTolerance, 0, 255) });
+        if (Pixel is not null) session.SetPixelOptions(Pixel with { Size = Math.Clamp(Pixel.Size, 1, 64) });
+        session.SetTransformInterpolation(TransformInterpolation);
         if (Brush is null || Eraser is null) return;
         var fg = ColorRgb.TryParse(Foreground, out var f) ? f : EditorSession.DefaultForeground;
         var bg = ColorRgb.TryParse(Background, out var b) ? b : EditorSession.DefaultBackground;
-        var recent = RecentColors?.Select(s => ColorRgb.TryParse(s, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>();
-        session.RestoreSettings(Brush, Eraser, BrushPreset ?? "pencil", PressureFeel, fg, bg, recent);
+        session.RestoreSettings(Brush, Eraser, BrushPreset ?? "pencil", PressureFeel, fg, bg, Parse(RecentColors), Parse(Swatches));
     }
+
+    private static IEnumerable<ColorRgb>? Parse(List<string>? list) =>
+        list?.Select(s => ColorRgb.TryParse(s, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>();
 
     public void CaptureFrom(EditorSession session)
     {
@@ -76,5 +114,12 @@ public sealed class AppSettings
         Foreground = session.Foreground.ToHex();
         Background = session.Background.ToHex();
         RecentColors = session.RecentColors.Select(c => c.ToHex()).ToList();
+        Swatches = session.Swatches.Select(c => c.ToHex()).ToList();
+        Fill = session.Fill;
+        Gradient = session.Gradient;
+        Shape = session.Shape;
+        Selection = session.Selection;
+        Pixel = session.Pixel;
+        TransformInterpolation = session.TransformInterpolation;
     }
 }

@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using DoodleNook.App.Controls;
+using DoodleNook.App.Shell;
 using DoodleNook.Engine.Imaging;
 
 namespace DoodleNook.App.Dialogs;
@@ -30,7 +31,7 @@ public sealed class DialogHost
     public bool IsOpen => _pending is not null;
 
     /// <summary>Shows a dialog and returns the id of the button pressed (null if cancelled with Esc).</summary>
-    public Task<string?> ShowAsync(string title, Control body, (string Id, string Label, bool Primary)[] buttons, string? defaultId, string? cancelId)
+    public Task<string?> ShowAsync(string title, Control body, (string Id, string Label, bool Primary)[] buttons, string? defaultId, string? cancelId, double width = 380)
     {
         _pending?.TrySetResult(_cancelResult);
         var tcs = new TaskCompletionSource<string?>();
@@ -38,7 +39,7 @@ public sealed class DialogHost
         _defaultResult = defaultId;
         _cancelResult = cancelId;
 
-        var stack = new StackPanel { Spacing = 14, Width = 380 };
+        var stack = new StackPanel { Spacing = 14, Width = width };
         var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9 };
         head.Children.Add(new BrandMark());
         head.Children.Add(new TextBlock { Text = title, FontFamily = (FontFamily)Application.Current!.FindResource("DnBrandFont")!, FontSize = 18, VerticalAlignment = VerticalAlignment.Center });
@@ -48,7 +49,7 @@ public sealed class DialogHost
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 0, 0) };
         foreach (var (id, label, primary) in buttons)
         {
-            var b = Ui.Button(null, label);
+            var b = UiKit.Button(null, label);
             b.Padding = new Thickness(14, 0);
             if (primary)
             {
@@ -108,16 +109,19 @@ public sealed class DialogHost
         ShowAsync(title, Text(message), [("ok", "OK", true)], "ok", "ok");
 
     /// <summary>The New picture dialog. Returns the size and background, or null when cancelled.</summary>
-    public async Task<(int Width, int Height, ColorRgb? Background)?> AskNewDocumentAsync(int width, int height, bool white)
+    public async Task<(int Width, int Height, ColorRgb? Background)?> AskNewDocumentAsync(int width, int height, bool white, bool pixelArt = false)
     {
         var w = new TextBox { Text = width.ToString(), Width = 90 };
         var h = new TextBox { Text = height.ToString(), Width = 90 };
         var error = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#FF8A7A")), IsVisible = false, TextWrapping = TextWrapping.Wrap };
 
         var presets = new WrapPanel();
-        foreach (var (label, pw, ph) in new[] { ("Screen 1920 × 1080", 1920, 1080), ("Large 2560 × 1440", 2560, 1440), ("Square 2048", 2048, 2048), ("A4 portrait 2480 × 3508", 2480, 3508) })
+        var sizes = pixelArt
+            ? new[] { ("16 × 16", 16, 16), ("24 × 24", 24, 24), ("32 × 32", 32, 32), ("48 × 48", 48, 48), ("64 × 64", 64, 64), ("128 × 128", 128, 128), ("256 × 144", 256, 144) }
+            : new[] { ("Screen 1920 × 1080", 1920, 1080), ("Large 2560 × 1440", 2560, 1440), ("Square 2048", 2048, 2048), ("A4 portrait 2480 × 3508", 2480, 3508) };
+        foreach (var (label, pw, ph) in sizes)
         {
-            var b = Ui.Button(null, label);
+            var b = UiKit.Button(null, label);
             b.Height = 30;
             b.Margin = new Thickness(0, 0, 6, 6);
             b.Background = new SolidColorBrush(DnColors.Ui3);
@@ -130,8 +134,8 @@ public sealed class DialogHost
         }
 
         bool useWhite = white;
-        var whiteBtn = Ui.Button(null, "White");
-        var clearBtn = Ui.Button(null, "Transparent");
+        var whiteBtn = UiKit.Button(null, "White");
+        var clearBtn = UiKit.Button(null, "Transparent");
         void Mark()
         {
             whiteBtn.Classes.Set("on", useWhite);

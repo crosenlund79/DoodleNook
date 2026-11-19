@@ -46,7 +46,7 @@ public static class BrushPreview
         for (int i = 1; i <= n; i++) engine.Add(At(i));
         engine.End();
         // 96 DPI on purpose: the Image controls showing previews have a fixed size and scale the 2× bitmap down.
-        return ToBitmap(doc.Layer);
+        return ToBitmap(doc.Layers[0].Image);
     }
 
     public static WriteableBitmap ToBitmap(RasterImage image)
