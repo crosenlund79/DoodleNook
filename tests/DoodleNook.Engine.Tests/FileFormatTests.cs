@@ -121,8 +121,11 @@ public sealed class FileFormatTests : IDisposable
         {
             using (File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
-                // The target is in use: the save must fail without corrupting it (Windows file locking).
-                Assert.ThrowsAny<IOException>(() => DnkFile.Save(new Document(10, 10), path));
+                // The target is in use: the save must fail without corrupting it (Windows file locking reports
+                // this as IOException or UnauthorizedAccessException, depending on how the file is held).
+                var ex = Assert.ThrowsAny<Exception>(() => DnkFile.Save(new Document(10, 10), path));
+                Assert.True(ex is IOException or UnauthorizedAccessException, ex.GetType().Name);
+                Assert.Single(Directory.GetFiles(_dir)); // no temporary file left behind
             }
         }
         Assert.Equal(before, File.ReadAllBytes(path));
