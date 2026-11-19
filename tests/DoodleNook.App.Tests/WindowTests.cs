@@ -700,6 +700,19 @@ public class WindowTests
     }
 
     [AvaloniaFact]
+    public void A_narrow_window_can_scroll_the_options_bar_with_the_wheel()
+    {
+        var w = Open(900, 700, WorkspaceKind.Painting);
+        var scroll = Find<OptionsBar>(w, "OptionsBar").GetVisualDescendants().OfType<ScrollViewer>().First();
+        Assert.True(scroll.Extent.Width > scroll.Viewport.Width, "the options don't fit at 900 px");
+        var p = scroll.TranslatePoint(new Point(scroll.Bounds.Width / 2, scroll.Bounds.Height / 2), w)!.Value;
+        w.MouseWheel(p, new Vector(0, -3));
+        Pump();
+        Assert.True(scroll.Offset.X > 0, "the wheel should reveal the rest of the bar");
+        w.Close();
+    }
+
+    [AvaloniaFact]
     public void Editing_status_bar_shows_size_and_layer()
     {
         var w = Open(workspace: WorkspaceKind.Editing);

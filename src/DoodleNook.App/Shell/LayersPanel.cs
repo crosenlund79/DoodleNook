@@ -27,6 +27,8 @@ public sealed class LayersPanel : StackPanel
     private readonly ScrollViewer _scroll;
     private readonly DispatcherTimer _thumbTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly Dictionary<int, (int Revision, WriteableBitmap Bitmap)> _thumbs = new();
+    private readonly Dictionary<int, Image> _thumbImages = new();
+    private bool _dirty;
     private readonly List<Action> _footerRefresh = new();
     private Document? _watched;
     private LayerProperties? _opacityDragStart;
@@ -44,7 +46,7 @@ public sealed class LayersPanel : StackPanel
         _thumbTimer.Tick += (_, _) =>
         {
             _thumbTimer.Stop();
-            Rebuild();
+            RefreshThumbnails();
         };
         session.DocumentReplaced += Watch;
         session.StateChanged += RefreshFooter;
@@ -74,10 +76,35 @@ public sealed class LayersPanel : StackPanel
 
     // ------------------------------------------------------------------ rows
 
+    private bool Shown => TopLevel.GetTopLevel(this) is not null;
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_dirty) Rebuild();
+        else RefreshThumbnails();
+    }
+
+    /// <summary>Updates only the thumbnails whose layer changed (cheap; runs a moment after painting).</summary>
+    private void RefreshThumbnails()
+    {
+        if (!Shown) return;
+        var doc = _session.Document;
+        foreach (var layer in doc.Layers)
+            if (_thumbImages.TryGetValue(layer.Id, out var image)) image.Source = Thumbnail(doc, layer);
+    }
+
     public void Rebuild()
     {
+        if (!Shown)
+        {
+            _dirty = true; // a hidden panel (closed pop-over, other workspace) rebuilds when it is shown again
+            return;
+        }
+        _dirty = false;
         var doc = _session.Document;
         _rows.Children.Clear();
+        _thumbImages.Clear();
         for (int i = doc.Layers.Count - 1; i >= 0; i--) _rows.Children.Add(Row(doc, doc.Layers[i]));
         _rows.Children.Add(PaperRow(doc));
         RefreshFooter();
@@ -102,7 +129,7 @@ public sealed class LayersPanel : StackPanel
             Background = UiKit.CheckerBrush(),
             BorderBrush = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0)),
             BorderThickness = new Thickness(1),
-            Child = new Image { Source = Thumbnail(doc, layer), Stretch = Stretch.Uniform },
+            Child = _thumbImages[layer.Id] = new Image { Source = Thumbnail(doc, layer), Stretch = Stretch.Uniform },
         };
 
         var name = new TextBlock { Text = layer.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };

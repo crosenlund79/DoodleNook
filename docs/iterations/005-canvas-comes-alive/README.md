@@ -204,6 +204,20 @@ More native frames at Kamvas 13 / 150 %:
 - Feathering a selection by a radius; quick mask; layer masks; adjustment layers.
 - Copy/paste with other applications (the clipboard is DoodleNook's own). *Place image* imports files instead.
 
+## Known limitations (expect these in the playtest)
+
+- **Narrow windows.** Painting's and Editing's options bars need about 1150 px. In a narrower window the end of the bar is cut off; the mouse wheel over the bar scrolls it sideways.
+- **Smaller screens.** On the Kamvas 13 at 150 %, Painting's dock shows Colour and Brushes first, so Layers starts lower down. Scroll the dock, or close a section by clicking its title. DoodleNook remembers that.
+- **Memory.** Each layer is a full-size picture in memory (about 8 MB per layer at 1920 × 1080). Undo is kept in memory: 200 steps or 1 GB.
+- **Thumbnails** update about a third of a second after you stop painting. During a stroke the panels deliberately do no work, to keep the pen path light.
+- **The clipboard is DoodleNook's own**, so copy/paste does not exchange pictures with other programs. Use *Place image* to bring files in.
+- **Mission 004 limitations still apply:**
+  - pressure has 1024 steps (Windows Ink);
+  - there is no WinTab;
+  - tilt is not used by brushes;
+  - the brush cursor may trail the system pointer by a frame;
+  - the build is unsigned.
+
 ## Architecture
 
 ```
@@ -233,7 +247,7 @@ Rules enforced by tests: the engine references nothing but .NET; the input contr
 | What | How | Result |
 |---|---|---|
 | Engine | 128 tests. Mission 004's stroke, pressure, coordinate and undo tests are kept. New: layers (properties, blend modes against the W3C formulas, clipping, lock/alpha lock, merge, reorder), history limits, selections and modes, fill tolerance, gradient, shapes, pixel-perfect lines, symmetry, airbrush build-up, grain, chisel, transforms and resampling, crop/resize/rotate, adjustments with preview, .dnk round trip, version and damage checks, atomic saves, and a multi-tool end-to-end scenario | Pass (Linux; Windows CI) |
-| App | 70 tests. Input controller: every tool through synthetic pen/mouse input. Files and settings, including workspace states. **The real window driven headlessly**: each workspace's chrome, switching by buttons and Alt+1..5, per-workspace memory, 40 rapid switches keeping document, history and pixels, quick palette, layers panel (add, hide, duplicate, merge, select, rename, label), Ctrl+T transform and Esc, image size dialog, adjustment preview and cancel, menus, status bar, pixel art zoom, palette column. Workflows: sketch → paint on a new layer → save .dnk → reopen; open PNG → select → paste → transform → grayscale → export (Ctrl+S refuses to flatten into the PNG); single-layer PNG saves back; new sprite → pixel tools → move → exact PNG. Screenshots of all five workspaces | Pass (Linux; Windows CI) |
+| App | 71 tests. Input controller: every tool through synthetic pen/mouse input. Files and settings, including workspace states. **The real window driven headlessly**: each workspace's chrome, switching by buttons and Alt+1..5, per-workspace memory, 40 rapid switches keeping document, history and pixels, quick palette, layers panel (add, hide, duplicate, merge, select, rename, label), Ctrl+T transform and Esc, image size dialog, adjustment preview and cancel, menus, status bar, pixel art zoom, palette column, a narrow window scrolling the options bar. Workflows: sketch → paint on a new layer → save .dnk → reopen; open PNG → select → paste → transform → grayscale → export (Ctrl+S refuses to flatten into the PNG); single-layer PNG saves back; new sprite → pixel tools → move → exact PNG. Screenshots of all five workspaces | Pass (Linux; Windows CI) |
 | Packaged app on Windows | CI extracts the ZIP and runs `DoodleNook.exe --smoke-test`. It draws pen and mouse strokes, erases, undoes and redoes; adds a layer and paints on it in Painting; selects, flips and inverts in Editing; saves and reopens a .dnk; exports PNG, JPEG and WebP; draws a sprite in Pixel Art and exports it exactly; visits Pure Sketch and returns with Tab; and saves a frame of each workspace | See the CI result in the report |
 | Real app on Linux | The same smoke test under a virtual X display | Pass (24 checks) |
 | **Feel on the Kamvas 13** | Only you can test this | **Not yet tested** |

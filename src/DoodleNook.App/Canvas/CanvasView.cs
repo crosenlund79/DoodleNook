@@ -85,6 +85,9 @@ public sealed class CanvasView : Control, ICustomHitTest
     public event Action? ViewChanged;
     public event Action<Gesture>? GestureStarted;
 
+    /// <summary>True while a brush or pixel stroke is being drawn (panels skip their refreshes then).</summary>
+    public bool IsStroking => Input?.Gesture is Gesture.Paint or Gesture.PixelPaint;
+
     public bool UsesGpu => _texture.LastFrameUsedGpu;
     public long UploadedPixels => _texture.UploadedPixels;
     public long GpuFrames => _texture.GpuFrames;

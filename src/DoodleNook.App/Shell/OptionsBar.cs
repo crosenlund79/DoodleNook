@@ -354,10 +354,21 @@ public sealed class OptionsBar : Border
         BorderThickness = new Thickness(0, 0, 0, 1);
         Padding = new Thickness(6, 0);
         Child = _scroll;
+        // In a narrow window the options may not all fit: the mouse wheel scrolls the bar sideways.
+        _scroll.AddHandler(PointerWheelChangedEvent, (_, e) =>
+        {
+            double delta = Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y) ? e.Delta.X : e.Delta.Y;
+            double max = Math.Max(0, _scroll.Extent.Width - _scroll.Viewport.Width);
+            _scroll.Offset = new Vector(Math.Clamp(_scroll.Offset.X - delta * 48, 0, max), 0);
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         app.Session.StateChanged += Refresh;
         app.Session.DocumentReplaced += Watch;
         app.WorkspaceChanged += Refresh;
-        app.Canvas.Input!.OverlayChanged += Refresh;
+        app.Canvas.Input!.OverlayChanged += () =>
+        {
+            if (!app.Canvas.IsStroking) Refresh(); // the bar only changes for crops and transforms
+        };
         Watch();
     }
 

@@ -271,7 +271,10 @@ public sealed class StatusBar : Border
         Child = dock;
         app.Session.StateChanged += Refresh;
         app.Session.DocumentReplaced += Watch;
-        app.Canvas.PointerMovedOverCanvas += Refresh;
+        app.Canvas.PointerMovedOverCanvas += () =>
+        {
+            if (!app.Canvas.IsStroking) Refresh(); // nothing to report mid-stroke; keep the pen path light
+        };
         Watch();
     }
 
@@ -451,7 +454,10 @@ public sealed class QuickBar : Border
 
         s.StateChanged += Refresh;
         s.DocumentReplaced += Watch;
-        app.Canvas.Input!.OverlayChanged += RefreshContext;
+        app.Canvas.Input!.OverlayChanged += () =>
+        {
+            if (!app.Canvas.IsStroking) RefreshContext();
+        };
         Watch();
     }
 
