@@ -1,0 +1,15 @@
+<Project>
+  <!-- Shared settings for every DoodleNook project. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>0.4.0</Version>
+    <Product>DoodleNook</Product>
+    <Company>DoodleNook</Company>
+    <Copyright>DoodleNook contributors</Copyright>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>

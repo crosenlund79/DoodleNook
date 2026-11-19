@@ -1,0 +1,62 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    DoodleNook "warm dark" design tokens, taken from the approved Mission 003 Workspace Playground
+    (docs/design/003-workspace-playground, the CSS variables of the app at Standard density).
+  -->
+  <Color x:Key="DnUiColor">#24201D</Color>
+  <Color x:Key="DnUi2Color">#2C2724</Color>
+  <Color x:Key="DnUi3Color">#37312C</Color>
+  <Color x:Key="DnLineColor">#3E3732</Color>
+  <Color x:Key="DnTextColor">#EFE7DD</Color>
+  <Color x:Key="DnText2Color">#A99D91</Color>
+  <Color x:Key="DnAccentColor">#E9A94D</Color>
+  <Color x:Key="DnAccentInkColor">#22180C</Color>
+  <Color x:Key="DnAccentSoftColor">#2BE9A94D</Color>
+  <Color x:Key="DnSurroundColor">#181513</Color>
+
+  <SolidColorBrush x:Key="DnUi" Color="{StaticResource DnUiColor}" />
+  <SolidColorBrush x:Key="DnUi2" Color="{StaticResource DnUi2Color}" />
+  <SolidColorBrush x:Key="DnUi3" Color="{StaticResource DnUi3Color}" />
+  <SolidColorBrush x:Key="DnLine" Color="{StaticResource DnLineColor}" />
+  <SolidColorBrush x:Key="DnText" Color="{StaticResource DnTextColor}" />
+  <SolidColorBrush x:Key="DnText2" Color="{StaticResource DnText2Color}" />
+  <SolidColorBrush x:Key="DnAccent" Color="{StaticResource DnAccentColor}" />
+  <SolidColorBrush x:Key="DnAccentInk" Color="{StaticResource DnAccentInkColor}" />
+  <SolidColorBrush x:Key="DnAccentSoft" Color="{StaticResource DnAccentSoftColor}" />
+  <SolidColorBrush x:Key="DnSurround" Color="{StaticResource DnSurroundColor}" />
+  <!-- Playground: the UI colour at 90 % over the canvas -->
+  <SolidColorBrush x:Key="DnFloat" Color="#E624201D" />
+  <SolidColorBrush x:Key="DnScrim" Color="#8C0F0C0A" />
+
+  <!-- Standard density -->
+  <x:Double x:Key="DnButtonSize">36</x:Double>
+  <x:Double x:Key="DnBarHeight">40</x:Double>
+  <x:Double x:Key="DnFontSize">13</x:Double>
+  <x:Double x:Key="DnIconSize">19</x:Double>
+  <x:Double x:Key="DnSliderWidth">96</x:Double>
+  <x:Double x:Key="DnPopoverWidth">274</x:Double>
+  <CornerRadius x:Key="DnRadius">9</CornerRadius>
+  <CornerRadius x:Key="DnRadiusLarge">12</CornerRadius>
+
+  <BoxShadows x:Key="DnPopShadow">0 14 34 0 #80000000</BoxShadows>
+  <BoxShadows x:Key="DnPaperShadow">0 10 34 0 #80000000</BoxShadows>
+
+  <FontFamily x:Key="DnUiFont">fonts:Inter#Inter, $Default</FontFamily>
+  <FontFamily x:Key="DnBrandFont">avares://DoodleNook/Assets/Fonts#Varela Round</FontFamily>
+
+  <!-- Fluent theme overrides so the few stock controls we use (text boxes, tooltips) match. -->
+  <SolidColorBrush x:Key="ToolTipBackground" Color="{StaticResource DnUiColor}" />
+  <SolidColorBrush x:Key="ToolTipForeground" Color="{StaticResource DnTextColor}" />
+  <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{StaticResource DnLineColor}" />
+  <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource DnUiColor}" />
+  <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource DnUiColor}" />
+  <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource DnUiColor}" />
+  <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource DnTextColor}" />
+  <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{StaticResource DnTextColor}" />
+  <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource DnTextColor}" />
+  <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource DnLineColor}" />
+  <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource DnText2Color}" />
+  <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource DnAccentColor}" />
+  <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#66E9A94D" />
+</ResourceDictionary>

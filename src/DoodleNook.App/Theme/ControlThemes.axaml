@@ -1,0 +1,95 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- The playground's ".b" button: transparent, rounded, warm hover; ".on" = soft accent; ".tool.on"/".solid.on" = solid accent. -->
+  <ControlTheme x:Key="DnButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource DnText}" />
+    <Setter Property="Height" Value="{DynamicResource DnButtonSize}" />
+    <Setter Property="MinWidth" Value="{DynamicResource DnButtonSize}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource DnRadius}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}"
+                          CornerRadius="{TemplateBinding CornerRadius}"
+                          Padding="{TemplateBinding Padding}"
+                          Foreground="{TemplateBinding Foreground}"
+                          Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^.sq">
+      <Setter Property="Width" Value="{DynamicResource DnButtonSize}" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="^.ghost">
+      <Setter Property="Foreground" Value="{DynamicResource DnText2}" />
+    </Style>
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource DnUi3}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{DynamicResource DnLine}" />
+    </Style>
+    <Style Selector="^.on">
+      <Setter Property="Background" Value="{DynamicResource DnAccentSoft}" />
+      <Setter Property="Foreground" Value="{DynamicResource DnAccent}" />
+    </Style>
+    <Style Selector="^.tool.on, ^.solid.on">
+      <Setter Property="Background" Value="{DynamicResource DnAccent}" />
+      <Setter Property="Foreground" Value="{DynamicResource DnAccentInk}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.38" />
+    </Style>
+    <!-- Menu rows inside the app menu pop-over. -->
+    <Style Selector="^.menu">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="8,0,10,0" />
+    </Style>
+  </ControlTheme>
+
+  <!-- The playground's ".preset-chip": a filled chip showing the current brush. -->
+  <ControlTheme x:Key="DnChip" TargetType="Button" BasedOn="{StaticResource DnButton}">
+    <Setter Property="Background" Value="{DynamicResource DnUi3}" />
+    <Setter Property="Padding" Value="8,0" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource DnLine}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Pop-overs (flyouts): the playground's ".pop". -->
+  <ControlTheme x:Key="{x:Type FlyoutPresenter}" TargetType="FlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource DnUi2}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DnLine}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource DnRadiusLarge}" />
+    <Setter Property="Padding" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource DnText}" />
+    <Setter Property="FontSize" Value="{DynamicResource DnFontSize}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Border"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                BoxShadow="{DynamicResource DnPopShadow}"
+                Padding="{TemplateBinding Padding}">
+          <ContentPresenter Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

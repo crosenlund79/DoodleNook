@@ -1,0 +1,61 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector="Window">
+    <Setter Property="FontFamily" Value="{StaticResource DnUiFont}" />
+    <Setter Property="FontSize" Value="{StaticResource DnFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource DnText}" />
+    <Setter Property="Background" Value="{DynamicResource DnSurround}" />
+  </Style>
+
+  <Style Selector="TextBlock.dim">
+    <Setter Property="Foreground" Value="{DynamicResource DnText2}" />
+  </Style>
+  <Style Selector="TextBlock.num">
+    <Setter Property="FontFeatures" Value="+tnum" />
+  </Style>
+  <Style Selector="TextBlock.h">
+    <Setter Property="Foreground" Value="{DynamicResource DnText2}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="TextBlock.brand">
+    <Setter Property="FontFamily" Value="{StaticResource DnBrandFont}" />
+    <Setter Property="FontSize" Value="15" />
+  </Style>
+
+  <!-- The playground's ".sep": a 1px vertical divider in bars. -->
+  <Style Selector="Border.sep">
+    <Setter Property="Width" Value="1" />
+    <Setter Property="Margin" Value="2,6" />
+    <Setter Property="Background" Value="{DynamicResource DnLine}" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Border.hsep">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="0,4" />
+    <Setter Property="Background" Value="{DynamicResource DnLine}" />
+  </Style>
+
+  <!-- Floating chips over the canvas (view controls, "Show interface", status pill). -->
+  <Style Selector="Border.float">
+    <Setter Property="Background" Value="{DynamicResource DnFloat}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource DnLine}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource DnRadiusLarge}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource DnPopShadow}" />
+  </Style>
+
+  <Style Selector="ToolTip">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="9,5" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Padding" Value="9,6" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+</Styles>

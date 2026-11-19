@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The drawing engine: document, pixels, brush, strokes, undo.
+    It must not reference any UI framework (enforced by an architecture test),
+    so it can be tested on its own and reused by future front ends.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DoodleNook.Engine</RootNamespace>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DoodleNook.Engine.Tests" />
+  </ItemGroup>
+</Project>

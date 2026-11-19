@@ -1,0 +1,8 @@
+<Project>
+  <!--
+    Avalonia's packages include a build step that sends anonymous build statistics
+    (Avalonia.BuildServices). DoodleNook opts out: this empty target replaces it.
+    CI additionally sets AVALONIA_TELEMETRY_OPTOUT=1. Nothing is sent at run time either way.
+  -->
+  <Target Name="AvaloniaStats" />
+</Project>

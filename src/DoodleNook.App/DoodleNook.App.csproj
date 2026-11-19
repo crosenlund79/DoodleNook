@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The Windows desktop application (Avalonia UI). Builds as DoodleNook.exe.
+    Drawing logic lives in DoodleNook.Engine; this project is UI, input and files.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>DoodleNook</AssemblyName>
+    <RootNamespace>DoodleNook.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\DoodleNook.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
+    <!-- Same SkiaSharp version Avalonia 12.1.6 is built against (used for PNG files and the canvas texture). -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DoodleNook.Engine\DoodleNook.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DoodleNook.App.Tests" />
+  </ItemGroup>
+
+  <!-- The native Skia/HarfBuzz packages ship ~100 MB of debug symbols; users don't need them. -->
+  <Target Name="RemoveNativeDebugSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <_DnNativeSymbols Include="$(PublishDir)*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_DnNativeSymbols)" />
+  </Target>
+</Project>
