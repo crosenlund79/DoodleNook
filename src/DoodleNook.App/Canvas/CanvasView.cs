@@ -307,9 +307,11 @@ public sealed class CanvasView : Control, ICustomHitTest
         base.OnPointerMoved(e);
         if (Input is null) return;
         var mods = e.KeyModifiers;
-        if (Input.AltHeld != mods.HasFlag(KeyModifiers.Alt) && Input.Gesture == Gesture.None)
+        // Pen events from Windows carry no Alt flag (pointer key states only know Shift and Ctrl), so a pointer event
+        // may switch the temporary eyedropper on but never off; the Alt key-up (or losing focus) ends it.
+        if (!Input.AltHeld && mods.HasFlag(KeyModifiers.Alt) && Input.Gesture == Gesture.None)
         {
-            Input.AltHeld = mods.HasFlag(KeyModifiers.Alt);
+            Input.AltHeld = true;
             UpdateCursor();
         }
 
@@ -438,10 +440,13 @@ public sealed class CanvasView : Control, ICustomHitTest
                 DrawChecker(canvas, dest);
             }
 
-            // Crisp pixels when zoomed in (like other paint apps), smooth filtering when zoomed out.
-            var sampling = _zoom >= 0.999
+            // Exact pixels at 100 % and crisp, visible pixels from 200 % (like other paint apps); smooth filtering in
+            // between and when zoomed out (with mipmaps, so thin lines don't shimmer).
+            var sampling = Math.Abs(_zoom - 1) < 0.001 || _zoom >= 2
                 ? new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None)
-                : new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
+                : _zoom > 1
+                    ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None)
+                    : new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
             if (_flip) canvas.Scale(-1, 1, dest.MidX, 0);
             _texture.Draw(canvas, lease.GrContext, dest, sampling);
             canvas.Restore();

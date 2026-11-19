@@ -87,7 +87,7 @@ public class WindowTests
         Assert.True(w.Canvas.Bounds.Width > 1000 && w.Canvas.Bounds.Height > 600);
         Assert.Equal("Untitled — DoodleNook", w.Title);
         Assert.Equal(ToolKind.Brush, w.Session.Tool);
-        Assert.True(w.BrushTool.Classes.Contains("on"));
+        Assert.Contains("on", w.BrushTool.Classes);
         Assert.Equal(1920, w.Session.Document.Width);
         Assert.InRange(w.Canvas.ActualZoom, 0.3, 1.0); // fitted
         w.Close();
@@ -130,7 +130,7 @@ public class WindowTests
         var w = Open();
         Key(w, Avalonia.Input.Key.E);
         Assert.Equal(ToolKind.Eraser, w.Session.Tool);
-        Assert.True(w.EraseButton.Classes.Contains("on"));
+        Assert.Contains("on", w.EraseButton.Classes);
         Assert.False(w.OpacityGroup.IsVisible);
         Key(w, Avalonia.Input.Key.B);
         Assert.Equal(ToolKind.Brush, w.Session.Tool);
@@ -301,6 +301,28 @@ public class WindowTests
         Assert.False(w.FocusManager?.GetFocusedElement() is TextBox, "the hex box should not grab focus");
         Key(w, Avalonia.Input.Key.E);
         Assert.Equal(ToolKind.Eraser, w.Session.Tool);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public void Holding_alt_picks_a_colour_even_when_pointer_events_lack_the_alt_flag()
+    {
+        var w = Open();
+        w.Session.SetForeground(new ColorRgb(10, 120, 200));
+        w.Session.SetSize(40);
+        Drag(w, MouseButton.Left, RawInputModifiers.None, (300, 500), (1500, 500));
+        w.Session.SetForeground(ColorRgb.Black);
+
+        w.KeyPress(Avalonia.Input.Key.LeftAlt, RawInputModifiers.Alt, PhysicalKey.AltLeft, null);
+        // Like Windows pen input: the pointer events themselves report no Alt modifier.
+        Drag(w, MouseButton.Left, RawInputModifiers.None, (900, 500), (905, 500));
+        w.KeyRelease(Avalonia.Input.Key.LeftAlt, RawInputModifiers.None, PhysicalKey.AltLeft, null);
+        Pump();
+
+        var picked = w.Session.Foreground;
+        Assert.True(picked.B > 150 && picked.R < 80, $"picked {picked}");
+        Assert.Equal(1, w.Session.Document.History.UndoCount); // no stroke was painted while Alt was held
+        Assert.False(w.Canvas.Input!.AltHeld);
         w.Close();
     }
 }
