@@ -51,6 +51,7 @@ animation was not the cause, the order of clicks was: the error depends only on 
   |---|---|---|
   | Windows CI run #13 | 11 ms | 2.1 s |
   | Windows CI run #14 | 20 ms | 1.3 s |
+  | Windows CI run #16 (with Palette Lock) | 11 ms | 2.9 s |
   | Linux under Xvfb | 87 ms | 1.5 s |
 
   The GIF is encoded in the background, and every frame is in it with its timing.
@@ -495,7 +496,7 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
 ## Measured performance
 
 Engine measurements from `WorkshopPerformanceTests`, taken on the **Windows CI runner** (Windows 10.0.26100,
-4 logical processors, Release build) in run #14, on the same code as the final commit. Engine only, without drawing to
+4 logical processors, Release build) in run #16, on the same code as the final commit. Engine only, without drawing to
 the screen. Full numbers are in `tests/DoodleNook.Engine.Tests/out/workshop-performance.json`, uploaded with every CI
 run's test results.
 
@@ -507,57 +508,73 @@ The measurement tests now run on their own: a non-parallel test collection, with
 after the other. In run #13 they still shared the CPU with other tests, and the same brushes showed averages up to
 1.6 ms and peaks up to 68 ms. That is why the isolation was added.
 
+The palette rows use the Nook 32 palette. The animation document is painted mostly on its current frame, so its
+numbers are small.
+
 | Brush · ms per pen event (avg / max) | 1920 × 1080, 1 layer | 1920 × 1080, 6 layers | 2560 × 1440, 12 layers | 1920 × 1080 animation, 3 layers |
 |---|---|---|---|---|
-| Sketch pencil | 0.01 / 0.03 | 0.02 / 0.04 | 0.04 / 0.10 | 0.01 / 0.03 |
-| Ink pen | 0.01 / 0.05 | 0.02 / 0.04 | 0.04 / 0.08 | 0.01 / 0.03 |
-| Soft round | 0.07 / 0.14 | 0.13 / 1.77 | 0.24 / 2.65 | 0.07 / 0.14 |
-| Graphite pencil (new) | 0.01 / 0.04 | 0.03 / 0.05 | 0.05 / 0.10 | 0.02 / 1.14 |
-| Charcoal (new: picture tip + texture) | 0.20 / 5.80 | 0.12 / 5.24 | 0.13 / 0.21 | 0.05 / 0.08 |
-| Chalk | 0.04 / 0.08 | 0.07 / 0.12 | 0.12 / 0.24 | 0.04 / 0.08 |
-| Dry ink brush (new: bristle tip) | 0.19 / 0.28 | 0.08 / 0.12 | 0.16 / 3.33 | 0.06 / 0.12 |
-| Soft paint brush (new: canvas texture) | 0.06 / 0.09 | 0.09 / 0.14 | 0.15 / 0.26 | 0.06 / 0.09 |
-| Watercolour wash (new: wet edges) | 0.09 / 0.14 | 0.14 / 0.22 | 0.24 / 0.39 | 0.09 / 0.15 |
-| Spatter (new: scatter) | 0.04 / 0.15 | 0.04 / 0.20 | 0.11 / 1.37 | 0.02 / 0.09 |
-| Grass tufts (new: stamp brush) | 0.05 / 1.48 | 0.09 / 5.56 | 0.10 / 0.28 | 0.03 / 0.12 |
-| Leaves (new: stamp brush, scatter) | 0.07 / 0.15 | 0.05 / 0.14 | 0.12 / 1.46 | 0.03 / 0.07 |
+| Sketch pencil | 0.02 / 0.05 | 0.03 / 0.09 | 0.07 / 0.17 | 0.02 / 0.04 |
+| Ink pen | 0.02 / 0.07 | 0.03 / 0.08 | 0.05 / 0.13 | 0.01 / 0.04 |
+| Soft round | 0.12 / 0.24 | 0.21 / 1.96 | 0.39 / 3.58 | 0.11 / 0.30 |
+| Graphite pencil (new) | 0.02 / 0.05 | 0.03 / 0.09 | 0.06 / 0.13 | 0.04 / 2.19 |
+| Charcoal (new: picture tip + texture) | 0.10 / 0.18 | 0.12 / 0.23 | 0.20 / 0.32 | 0.09 / 0.19 |
+| Chalk | 0.07 / 0.12 | 0.10 / 0.18 | 0.18 / 0.50 | 0.07 / 0.16 |
+| Dry ink brush (new: bristle tip) | 0.09 / 0.14 | 0.12 / 0.18 | 0.23 / 3.07 | 0.09 / 0.34 |
+| Soft paint brush (new: canvas texture) | 0.13 / 0.28 | 0.15 / 0.27 | 0.26 / 0.70 | 0.11 / 0.23 |
+| Watercolour wash (new: wet edges) | 0.15 / 0.23 | 0.22 / 0.36 | 0.38 / 0.60 | 0.15 / 0.42 |
+| Spatter (new: scatter) | 0.04 / 0.15 | 0.07 / 0.30 | 0.16 / 1.74 | 0.04 / 0.38 |
+| Grass tufts (new: stamp brush) | 0.06 / 1.93 | 0.08 / 1.83 | 0.16 / 0.39 | 0.04 / 0.13 |
+| Leaves (new: stamp brush, scatter) | 0.04 / 0.11 | 0.08 / 0.19 | 0.19 / 2.13 | 0.04 / 0.15 |
 
 | ms | 1920 × 1080, 1 layer | 1920 × 1080, 6 layers | 2560 × 1440, 12 layers | 1920 × 1080 animation, 3 layers |
 |---|---|---|---|---|
-| Place a stamp (daisy at 50 %) | 0.84 | 0.52 | 0.32 | 0.14 |
-| Place a large stamp (grass tuft at 400 %) | 18 | 7.55 | 11 | 3.35 |
-| Undo a stamp | 1.34 | 5.06 | 9.70 | 0.61 |
-| Pattern bucket, whole empty layer | 141 | 47 | 80 | 41 |
-| … colour bucket, same layer (for comparison) | 30 | 24 | 44 | 24 |
-| Pattern fill of an 80 % selection, rotated and faded | 118 | 56 | 123 | 34 |
-| Undo a pattern fill | 5.46 | 30 | 86 | 3.52 |
+| Place a stamp (daisy at 50 %) | 0.65 | 0.44 | 0.54 | 0.39 |
+| Place a large stamp (grass tuft at 400 %) | 16 | 12 | 18 | 7.02 |
+| Undo a stamp | 2.05 | 8.47 | 16 | 0.98 |
+| Pattern bucket, whole empty layer | 148 | 108 | 192 | 106 |
+| … colour bucket, same layer (for comparison) | 83 | 82 | 148 | 86 |
+| Pattern fill of an 80 % selection, rotated and faded | 79 | 87 | 204 | 54 |
+| Undo a pattern fill | 8.78 | 41 | 136 | 5.46 |
 
 | Other | ms |
 |---|---|
-| Pixel art 64 × 64: exact stamp · pattern bucket | 0.06 · 0.03 |
-| Palette from a 1920 × 1080 painting: 8 colours · 32 colours | 44 · 67 |
-| One brush-picker preview tile (fastest – slowest of the 12 measured) · all 17 built-in previews | 0.19 – 1.35 · 11 |
-| Open the library and resolve a brush | 0.83 |
-| First use of every built-in stamp and pattern picture (largest: grass tuft) | 44 (20) |
+| Pixel art 64 × 64: exact stamp · pattern bucket | 0.20 · 0.04 |
+| Palette from a 1920 × 1080 painting: 8 colours · 32 colours | 69 · 114 |
+| One brush-picker preview tile (fastest – slowest of the 12 measured) · all 17 built-in previews | 0.30 – 2.20 · 18 |
+| Open the library and resolve a brush | 1.04 |
+| First use of every built-in stamp and pattern picture (largest: grass tuft) | 81 (38) |
+
+| Palette Lock and remapping (Nook 32) | 1920 × 1080, 6 layers | 1920 × 1080, 3 layers animation |
+|---|---|---|
+| Colours found · rows shown | 511 · 24 | 253 · 24 |
+| Analyse the colours (ms) | 220 | 47 |
+| Preview a frame · again after a change (ms) | 213 · 230 | 16 · 22 |
+| Apply and lock, whole picture (ms) | 90 | 22 |
+| Soft round pen event, unlocked → locked (avg ms) | 0.20 → 0.28 | 0.21 → 0.15 |
 
 What this means in practice:
 
 - **Brushes.** Every new brush costs well under a millisecond per pen event on average, in every document, including
-  12 layers at 2560 × 1440 and an animation frame. The classic brushes are unchanged (0.01–0.24 ms). The slowest
-  single event of any 200-event stroke was 5.8 ms.
-- **Stamps.** A normal stamp takes under a millisecond. A grass tuft at 400 % (about 510 × 450 px) takes 3–18 ms.
+  12 layers at 2560 × 1440 and an animation frame (the classic brushes measure 0.01–0.39 ms). The slowest single
+  event of any 200-event stroke was 3.6 ms.
+- **Stamps.** A normal stamp takes under a millisecond. A grass tuft at 400 % (about 510 × 450 px) takes 7–18 ms.
   Undo is a few milliseconds.
 - **Pattern fills.**
-  - A whole empty 1080p layer took 41–141 ms, against 24–44 ms for the colour bucket, which does less per pixel.
+  - A whole empty layer took 106–192 ms, against 82–148 ms for the colour bucket (1.2–1.8×). The CI runner varies
+    between runs: run #14 measured 41–141 ms against 24–44 ms.
   - This mission paints large stamps and pattern fills a row per thread. In this Linux container that took the 80 %
     rotated selection fill from 115–490 ms down to 62–201 ms, with pixel-identical results.
-- **Palette extraction** from a 1080p painting takes 44–67 ms. It runs only when you ask for a proposal.
+- **Palette extraction** from a 1080p painting takes 69–114 ms. It runs only when you ask for a proposal.
 - **Brush picker and library.**
-  - Brush-picker previews cost 0.2–1.4 ms each and are cached.
-  - Built-in stamp and pattern pictures are drawn on first use: 44 ms for all of them, 20 ms for the largest. Before
+  - Brush-picker previews cost 0.3–2.2 ms each and are cached.
+  - Built-in stamp and pattern pictures are drawn on first use: 81 ms for all of them, 38 ms for the largest. Before
     the painter learned to visit only each shape's bounding box it was about 0.6 s in this container; the pictures
     are pixel-identical (hashes compared).
   - Opening the library takes under a millisecond.
+
+- **Palette Lock** adds little to painting: a soft brush on six 1080p layers went from 0.20 to 0.28 ms per pen event.
+  On a 1080p picture with six layers, Remap to Palette analyses the colours in about 0.2 s, redraws the preview frame
+  after a change in about 0.2 s (in the background, so the dialog stays responsive), and applies and locks in 0.09 s.
 
 The same test in this Linux container (Release, shared CPU) gave higher but similar figures: pen events 0.01–0.4 ms
 on average, and pattern fills 60–250 ms.
@@ -633,7 +650,8 @@ on average, and pattern fills 60–250 ms.
   - reopening a locked `.dnk`.
 
   Section 10 repeats the export-dialog freeze scenario at 1080p × 21 frames (Windows figures in the freeze section
-  above). Runs #13 and #14 passed all 41 checks.
+  above). Run #16 passed all 45 checks; runs #13 and #14 passed the 41 there were then. In run #16 on Windows the
+  exported pixel was exactly 40, 80, 120, 73.
 - **Visual review:** every screenshot above was looked at, at 2560 × 1440, 1920 × 1080 and Kamvas 13 at 150 %.
   Fixes that came out of it:
   - the reference board panel had no background (a `Border` subclass doesn't pick up `Border.float` styles);
@@ -646,7 +664,7 @@ on average, and pattern fills 60–250 ms.
 
 - **Pen hardware:** the Huion Kamvas 13 has not been tested. Pressure response and the new brushes are unverified
   with a real pen.
-- **Pattern fill of a whole 1080p layer** took 41–141 ms on the CI runner, 1.7–4.7 × the colour bucket. It's a
+- **Pattern fill of a whole 1080p layer** took 106–192 ms on the CI runner, 1.2–1.8 × the colour bucket. It's a
   single click, but on a slower PC with a large picture it may not feel instant.
 - **Very large stamp brushes with many scattered copies** cost more per pen event than round brushes. The built-in
   ones stay far below a millisecond on average; a home-made 500 px stamp brush with eight copies per dab will be
