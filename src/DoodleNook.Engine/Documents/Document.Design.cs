@@ -1,3 +1,4 @@
+using DoodleNook.Engine.Geometry;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Operations;
 
@@ -109,13 +110,16 @@ public sealed partial class Document
 
     private Layer NewLayer(LayerProperties props, RasterImage image, LayerKind kind) => new(_nextLayerId++, props, image, kind);
 
+    /// <summary>The 1 × 1 stand-in image of a group or adjustment layer (they hold no pixels).</summary>
+    internal static RasterImage Placeholder() => new(1, 1);
+
     /// <summary>Puts layers (of the same group) into a new group, placed where the topmost of them was.</summary>
     public Layer GroupLayers(IReadOnlyList<Layer> members, string? name = null)
     {
         if (members.Count == 0) throw new ArgumentException("Nothing to group.", nameof(members));
         int parent = members[0].ParentId;
         var before = CaptureStructure2();
-        var group = NewLayer(new LayerProperties(name ?? NextGroupName(), ParentId: parent), new RasterImage(Width, Height), LayerKind.Group);
+        var group = NewLayer(new LayerProperties(name ?? NextGroupName(), ParentId: parent), Placeholder(), LayerKind.Group);
         int top = members.Max(IndexOf);
         _layers.Insert(top + 1, group);
         foreach (var m in members) m.Properties = m.Properties with { ParentId = group.Id };
@@ -128,7 +132,7 @@ public sealed partial class Document
     public Layer AddGroup(string? name = null)
     {
         var before = CaptureStructure2();
-        var group = NewLayer(new LayerProperties(name ?? NextGroupName(), ParentId: _active.ParentId), new RasterImage(Width, Height), LayerKind.Group);
+        var group = NewLayer(new LayerProperties(name ?? NextGroupName(), ParentId: _active.ParentId), Placeholder(), LayerKind.Group);
         _layers.Insert(IndexOf(_active) + 1, group);
         _active = group;
         CommitStructure("New group", before);
@@ -202,6 +206,49 @@ public sealed partial class Document
         _layers.InsertRange(at, block);
         CommitStructure(direction > 0 ? "Move layer up" : "Move layer down", before);
         return true;
+    }
+
+    /// <summary>Moves a layer (with everything inside it) just above or below <paramref name="target"/>, into the target's group.</summary>
+    public bool MoveNextTo(Layer layer, Layer target, bool above)
+    {
+        if (ReferenceEquals(layer, target)) return false;
+        var block = Subtree(layer);
+        if (block.Contains(target)) return false;
+        var before = CaptureStructure2();
+        foreach (var l in block) _layers.Remove(l);
+        layer.Properties = layer.Properties with { ParentId = target.ParentId };
+        var targetBlock = Subtree(target);
+        int at = above ? IndexOf(targetBlock[^1]) + 1 : IndexOf(targetBlock[0]);
+        _layers.InsertRange(at, block);
+        if (_layers.Select(l => l.Id).SequenceEqual(before.Layers.Select(e => e.Layer.Id)) && layer.Properties == before.Layers.First(e => ReferenceEquals(e.Layer, layer)).Properties)
+        {
+            ApplyStructure(before); // nothing changed
+            return false;
+        }
+        CommitStructure("Move layer", before);
+        return true;
+    }
+
+    private Layer DuplicateGroup(Layer group)
+    {
+        var before = CaptureStructure2();
+        var block = Subtree(group);
+        var ids = new Dictionary<int, int>();
+        var copies = new List<Layer>();
+        foreach (var l in block)
+        {
+            var c = CloneLayer(l, l.Properties);
+            ids[l.Id] = c.Id;
+            copies.Add(c);
+        }
+        foreach (var c in copies)
+            if (ids.TryGetValue(c.ParentId, out var parent)) c.Properties = c.Properties with { ParentId = parent };
+        var top = copies[^1];
+        top.Properties = top.Properties with { Name = group.Name + " copy" };
+        _layers.InsertRange(IndexOf(group) + 1, copies);
+        _active = top;
+        CommitStructure("Duplicate group", before);
+        return top;
     }
 
     /// <summary>Deletes a group with everything inside it (one undo step).</summary>
@@ -298,6 +345,7 @@ public sealed partial class Document
         if (FindLayer(layerId) is not { } layer) return;
         layer.Mask = mask;
         layer.Revision++;
+        layer.MaskRevision++;
         if (mask is null && ReferenceEquals(layer, _active)) _editingMask = false;
         LayersChanged?.Invoke();
         ActiveLayerChanged?.Invoke();
@@ -336,7 +384,7 @@ public sealed partial class Document
 
     private Layer AddObjectLayer(LayerKind kind, LayerContent content, string name)
     {
-        var layer = NewLayer(new LayerProperties(name, ParentId: _active.ParentId), new RasterImage(Width, Height), kind);
+        var layer = NewLayer(new LayerProperties(name, ParentId: _active.ParentId), kind == LayerKind.Adjustment ? Placeholder() : new RasterImage(Width, Height), kind);
         layer.Content = content;
         Render(layer);
         int at = IndexOf(_active) + 1;
@@ -358,43 +406,62 @@ public sealed partial class Document
     internal void SetContentInternal(int layerId, LayerContent content)
     {
         if (FindLayer(layerId) is not { } layer) return;
+        var old = layer.ContentBounds;
         layer.Content = content;
+        layer.Revision++;
         Render(layer);
         LayersChanged?.Invoke();
-        RecompositeAll();
+        // Text and shapes only change where they were and are; an adjustment changes everything below it.
+        if (layer.IsObject && !_layers.Any(l => l.ClipToBelow)) Recomposite(old.Union(layer.ContentBounds));
+        else RecompositeAll();
     }
 
-    /// <summary>Draws a text or shape layer's pixels from its content (palette-locked pictures: palette colours, same alpha).</summary>
+    /// <summary>Shows a content change without recording it (live dragging and sliders); finish with <see cref="CommitContent"/>.</summary>
+    public void PreviewContent(Layer layer, LayerContent content)
+    {
+        if (layer.Content is null || layer.Content.GetType() != content.GetType() || layer.Content == content) return;
+        SetContentInternal(layer.Id, content);
+    }
+
+    /// <summary>Records a change shown with <see cref="PreviewContent"/>, starting from <paramref name="from"/>.</summary>
+    public void CommitContent(Layer layer, LayerContent from, string historyName)
+    {
+        if (layer.Content is not { } to || to == from) return;
+        Commit(new ContentAction(historyName, layer.Id, from, to));
+    }
+
+    /// <summary>Draws a text or shape layer's pixels from its content (palette-locked pictures: palette colours, same alpha).
+    /// The layer's image is reused when it has the picture's size, so dragging an object doesn't allocate.</summary>
     internal void Render(Layer layer)
     {
+        if (!layer.IsObject) return;
+        var image = layer.Image;
+        if (image.Width != Width || image.Height != Height) image = new RasterImage(Width, Height);
+        else image.Clear(layer.ContentBounds);
+        PixelRect bounds = PixelRect.Empty;
         switch (layer.Content)
         {
-            case TextContent text:
+            case TextContent text when TextRenderer is { } renderer:
             {
-                if (TextRenderer is { } renderer)
-                {
-                    var r = renderer.Render(text, Width, Height);
-                    layer.Image = r.Image;
-                    layer.ContentSize = (r.Width, r.Height);
-                    layer.SubstituteFont = r.Substitute;
-                }
-                else
-                {
-                    layer.Image = new RasterImage(Width, Height);
-                    layer.ContentSize = (Math.Max(1, text.Text.Length) * text.Size * 0.55, text.Size * 1.2);
-                }
+                var r = renderer.Render(text, image);
+                bounds = r.Bounds;
+                layer.ContentSize = (r.Width, r.Height);
+                layer.SubstituteFont = r.Substitute;
                 break;
             }
-            case ShapeContent shape:
-                layer.Image = ShapeRasterizer.Render(shape, Width, Height).Image;
-                layer.ContentSize = (shape.Width, shape.Height);
+            case TextContent text:
+                layer.ContentSize = (Math.Max(1, text.Text.Split('\n').Max(l => l.Length)) * text.Size * 0.55, text.Size * text.LineSpacing * Math.Max(1, text.Text.Split('\n').Length));
                 break;
-            default:
-                if (layer.Image.Width != Width || layer.Image.Height != Height) layer.Image = new RasterImage(Width, Height);
-                return;
+            case ShapeContent shape:
+                bounds = ShapeRasterizer.RenderInto(shape, image);
+                layer.ContentSize = (Math.Abs(shape.Width), Math.Abs(shape.Height));
+                break;
         }
-        ConformToPalette(layer.Image, layer.Image.Bounds);
-        layer.RecalculateBounds();
+        bounds = bounds.Intersect(Bounds);
+        ConformToPalette(image, bounds);
+        layer.Image = image;
+        layer.ContentBounds = bounds;
+        layer.Revision++;
     }
 
     /// <summary>The frame of a text or shape layer (for handles, moving and alignment).</summary>
@@ -404,6 +471,51 @@ public sealed partial class Document
         ShapeContent s => ShapeRasterizer.Box(s),
         _ => null,
     };
+
+    /// <summary>Moves text and shape layers by (dx, dy) as one undo step.</summary>
+    public bool MoveObjects(IReadOnlyList<Layer> layers, double dx, double dy, string historyName = "Move")
+    {
+        var actions = new List<IHistoryAction>();
+        foreach (var l in layers.Where(l => l.IsObject && !l.Locked))
+        {
+            var from = l.Content!;
+            var to = from.Translated(dx, dy);
+            if (to == from) continue;
+            SetContentInternal(l.Id, to);
+            actions.Add(new ContentAction(historyName, l.Id, from, to));
+        }
+        if (actions.Count == 0) return false;
+        Commit(actions.Count == 1 ? actions[0] : new CompositeAction(historyName, actions));
+        return true;
+    }
+
+    /// <summary>Lines up text and shape layers: with each other (the box around them all) or, for a single layer or when
+    /// <paramref name="toCanvas"/>, with the canvas. One undo step.</summary>
+    public bool AlignObjects(IReadOnlyList<Layer> layers, AlignEdge edge, bool toCanvas)
+    {
+        var objects = layers.Where(l => l.IsObject && !l.Locked && BoxOf(l) is not null).ToList();
+        if (objects.Count == 0) return false;
+        (double, double, double, double) reference = (0, 0, Width, Height);
+        if (!toCanvas && objects.Count > 1)
+        {
+            var e = objects.Select(l => BoxOf(l)!.Value.Extent()).ToList();
+            reference = (e.Min(x => x.Left), e.Min(x => x.Top), e.Max(x => x.Right), e.Max(x => x.Bottom));
+        }
+        var actions = new List<IHistoryAction>();
+        string name = $"Align {edge switch { AlignEdge.Left => "left", AlignEdge.CenterX => "centres", AlignEdge.Right => "right", AlignEdge.Top => "top", AlignEdge.CenterY => "middles", _ => "bottom" }}";
+        foreach (var l in objects)
+        {
+            var (dx, dy) = Alignment.Offset(BoxOf(l)!.Value, reference, edge);
+            if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) continue;
+            var from = l.Content!;
+            var to = from.Translated(dx, dy);
+            SetContentInternal(l.Id, to);
+            actions.Add(new ContentAction(name, l.Id, from, to));
+        }
+        if (actions.Count == 0) return false;
+        Commit(actions.Count == 1 ? actions[0] : new CompositeAction(name, actions));
+        return true;
+    }
 
     /// <summary>Text and shape layers whose fonts are missing on this computer (layer name → font used instead).</summary>
     public IReadOnlyList<(string Layer, string Requested, string Used)> MissingFonts =>
@@ -424,6 +536,68 @@ public sealed partial class Document
         _active = raster;
         CommitStructure("Convert to pixels", before);
         return raster;
+    }
+
+    /// <summary>A throwaway copy of one frame for previews (remapping): the same layers, groups, masks and adjustments,
+    /// with each pixel layer's image passed through <paramref name="map"/>.</summary>
+    internal Document PreviewCopy(int frame, Func<Layer, RasterImage, RasterImage> map)
+    {
+        var copy = new Document(Width, Height, Paper, PaperVisible, []);
+        copy._layers.Clear();
+        foreach (var l in _layers)
+        {
+            RasterImage image = !l.HasPixels ? Placeholder()
+                : l.IsTrack ? CelAt(l, frame)?.Image ?? new RasterImage(Width, Height)
+                : l.Image;
+            if (l.HasPixels) image = map(l, image);
+            copy._layers.Add(new Layer(l.Id, l.Properties, image, l.Kind) { Content = l.Content, Mask = l.Mask });
+        }
+        copy._active = copy._layers[^1];
+        copy.RecompositeAll(notify: false);
+        return copy;
+    }
+
+    // ================================================================== saving and opening
+
+    /// <summary>True when the picture uses anything from Mission 008 (groups, masks, text, shapes, adjustment layers,
+    /// guides or perspective): it is then saved in format version 4.</summary>
+    public bool UsesDesignFeatures =>
+        _layers.Any(l => l.Kind != LayerKind.Raster || l.HasMask || l.ParentId != 0 || l.Properties.Collapsed || !l.MaskEnabled)
+        || _guides.Count > 0 || GuidesLocked || Perspective.Points > 0;
+
+    /// <summary>While opening a file: gives the layer at <paramref name="index"/> its kind, content, mask and group.</summary>
+    internal void PrepareLoadedLayer(int index, LayerKind kind, LayerContent? content, RasterImage? mask, int parentIndex)
+    {
+        var layer = _layers[index];
+        if (kind != LayerKind.Raster)
+        {
+            var replacement = new Layer(layer.Id, layer.Properties, kind is LayerKind.Group or LayerKind.Adjustment ? Placeholder() : new RasterImage(Width, Height), kind)
+            {
+                Content = content,
+            };
+            _layers[index] = replacement;
+            if (ReferenceEquals(_active, layer)) _active = replacement;
+            layer = replacement;
+        }
+        if (mask is not null && mask.Width == Width && mask.Height == Height) layer.Mask = mask;
+        // A group must be above its layers (later in the list) and be a group; anything else stays at the top level.
+        int parent = parentIndex > index && parentIndex < _layers.Count ? _layers[parentIndex].Id : 0;
+        layer.Properties = layer.Properties with { ParentId = parent };
+    }
+
+    /// <summary>While opening a file: guides, perspective, then draws text and shapes and composites the picture.</summary>
+    internal void FinishLoad(IEnumerable<Guide> guides, bool guidesLocked, PerspectiveGuide perspective)
+    {
+        // Parents that aren't groups (a damaged file) are dropped.
+        foreach (var l in _layers)
+            if (l.ParentId != 0 && FindLayer(l.ParentId) is not { IsGroup: true })
+                l.Properties = l.Properties with { ParentId = 0 };
+        _guides = guides.Where(g => double.IsFinite(g.Position)).ToList();
+        GuidesLocked = guidesLocked;
+        Perspective = perspective;
+        foreach (var l in _layers.Where(l => l.IsObject)) Render(l);
+        ClearFrameCache();
+        RecompositeAll(notify: false);
     }
 
     // ================================================================== guides and perspective

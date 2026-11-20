@@ -12,7 +12,8 @@ public readonly record struct PixelStrokeStyle(
     bool PixelPerfect = true,
     Symmetry Symmetry = Symmetry.None,
     bool Wrap = false,
-    string Name = "Pixel pencil");
+    string Name = "Pixel pencil",
+    SymmetryPlacement Placement = default);
 
 /// <summary>
 /// The pixel pencil: joins input positions with Bresenham lines and sets whole pixels to the exact colour.
@@ -98,7 +99,10 @@ public sealed class PixelStroke
     private IEnumerable<(int X, int Y)> Mirrors(int x, int y)
     {
         yield return (x, y);
-        int mx = _doc.Width - 1 - x, my = _doc.Height - 1 - y;
+        if (_style.Symmetry == Symmetry.None) yield break;
+        // Pixel centres mirrored through the origin (the canvas centre unless moved): W − 1 − x for the centre.
+        double ox = _style.Placement.OriginX(_doc.Width), oy = _style.Placement.OriginY(_doc.Height);
+        int mx = (int)Math.Round(2 * ox - x - 1), my = (int)Math.Round(2 * oy - y - 1);
         switch (_style.Symmetry)
         {
             case Symmetry.Vertical: yield return (mx, y); break;
@@ -108,6 +112,17 @@ public sealed class PixelStroke
                 yield return (x, my);
                 yield return (mx, my);
                 break;
+            case Symmetry.Radial:
+            {
+                int n = _style.Placement.Count;
+                double dx = x + 0.5 - ox, dy = y + 0.5 - oy;
+                for (int k = 1; k < n; k++)
+                {
+                    double t = k * 2 * Math.PI / n, cos = Math.Cos(t), sin = Math.Sin(t);
+                    yield return ((int)Math.Floor(ox + dx * cos - dy * sin), (int)Math.Floor(oy + dx * sin + dy * cos));
+                }
+                break;
+            }
         }
     }
 

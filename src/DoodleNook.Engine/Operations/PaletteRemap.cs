@@ -455,12 +455,7 @@ public sealed class PaletteRemap
     /// <summary>What a frame looks like after the remap (the document is not changed).</summary>
     public RasterImage Preview(Document doc, int frame, bool includeHidden = true)
     {
-        var layers = doc.Layers.Select(l =>
-        {
-            var img = doc.IsAnimated ? doc.CelAt(l, frame)?.Image ?? new RasterImage(doc.Width, doc.Height) : l.Image;
-            return (l.Properties, includeHidden || l.Visible ? Map(img) : img);
-        }).ToList();
-        var copy = new Document(doc.Width, doc.Height, doc.Paper, doc.PaperVisible, layers);
+        var copy = doc.PreviewCopy(frame, (l, img) => includeHidden || l.Visible ? Map(img) : img);
         return copy.Flatten();
     }
 
@@ -473,7 +468,8 @@ public sealed class PaletteRemap
         string historyName = "Remap to palette")
     {
         if (lockAfter) includeHidden = true;
-        var state = doc.MapImages((layer, img) => includeHidden || layer.Visible ? Map(img) : img);
+        var state = doc.MapImages((layer, img) => includeHidden || layer.Visible ? Map(img) : img,
+            (layer, content) => includeHidden || layer.Visible ? content.WithColours(c => new ColorRgb(Pixel.R(MapPixel(Pixel.Opaque(c))), Pixel.G(MapPixel(Pixel.Opaque(c))), Pixel.B(MapPixel(Pixel.Opaque(c))))) : content);
         var palette = new Palette(paletteName, _target) { LibraryId = libraryId };
         doc.ChangePalette(palette, lockAfter, state, historyName);
     }

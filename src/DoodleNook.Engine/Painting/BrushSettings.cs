@@ -7,13 +7,30 @@ public enum PaintMode
     Erase,
 }
 
-/// <summary>Mirror painting around the centre of the canvas.</summary>
+/// <summary>Mirror painting around a vertical and/or horizontal line, or repeat it around a point (radial).</summary>
 public enum Symmetry
 {
     None,
     Vertical,
     Horizontal,
     Both,
+
+    /// <summary>The stroke repeats around the origin, like spokes of a wheel (see <see cref="SymmetryPlacement.Spokes"/>).</summary>
+    Radial,
+}
+
+/// <summary>Where the symmetry lines cross (document pixels; null = the canvas centre) and how many times radial
+/// symmetry repeats a stroke.</summary>
+public readonly record struct SymmetryPlacement(double? X = null, double? Y = null, int Spokes = 6)
+{
+    public const int MinSpokes = 2;
+    public const int MaxSpokes = 32;
+
+    public double OriginX(int width) => X ?? width / 2.0;
+    public double OriginY(int height) => Y ?? height / 2.0;
+
+    /// <summary>Radial repeats (a default-constructed placement means 6).</summary>
+    public int Count => Spokes < MinSpokes ? 6 : Math.Min(Spokes, MaxSpokes);
 }
 
 /// <summary>

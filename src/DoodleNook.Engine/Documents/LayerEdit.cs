@@ -97,6 +97,7 @@ public sealed class LayerEdit
         {
             // A mask is not artwork: no palette, no content bounds; the layer just shows differently.
             Layer.Revision++;
+            Layer.MaskRevision++;
             Document.OnLayerPixelsChanged(Layer, area);
             return;
         }
@@ -118,7 +119,11 @@ public sealed class LayerEdit
         }
         if (!area.IsEmpty)
         {
-            if (IsMask) Layer.Revision++;
+            if (IsMask)
+            {
+                Layer.Revision++;
+                Layer.MaskRevision++;
+            }
             else Layer.Touch(area);
             Document.OnLayerPixelsChanged(Layer, area);
         }

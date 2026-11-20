@@ -30,6 +30,13 @@ public sealed partial class Document
         Palette = palette.Clone();
         PaletteLocked = locked && palette.Colors.Count > 0;
         _conformer = PaletteLocked ? new PaletteConformer(Palette.Colors) : null;
+        // Text and shapes are drawn from their own colours: draw them again for the new palette (or without one).
+        // Adjustment layers keep to a locked palette in the compositor.
+        if (_layers.Any(l => l.IsObject || l.Kind == LayerKind.Adjustment))
+        {
+            foreach (var l in _layers.Where(l => l.IsObject)) Render(l);
+            RecompositeAll();
+        }
         PaletteChanged?.Invoke();
     }
 
@@ -72,8 +79,8 @@ public sealed partial class Document
     {
         foreach (var layer in _layers)
         {
-            if (!includeHidden && !layer.Visible) continue;
-            if (_animation is null) yield return (layer, layer.Image);
+            if (!layer.HasPixels || (!includeHidden && !layer.Visible)) continue;
+            if (!layer.IsTrack) yield return (layer, layer.Image);
             else
                 foreach (var cel in layer.Cells!.OfType<Cel>().Distinct())
                     yield return (layer, cel.Image);
@@ -84,15 +91,19 @@ public sealed partial class Document
     /// The whole-picture state after mapping images; <paramref name="map"/> returns the same object to leave an image
     /// unchanged (for example a hidden layer that isn't included).
     /// </summary>
-    public DocumentState MapImages(Func<Layer, RasterImage, RasterImage> map)
+    /// <para>Text and shape layers aren't mapped as pixels; <paramref name="content"/> may change their content (for
+    /// example their colours), and they are drawn again.</para>
+    public DocumentState MapImages(Func<Layer, RasterImage, RasterImage> map, Func<Layer, LayerContent, LayerContent>? content = null)
     {
+        var contents = content is null ? null
+            : _layers.Where(l => l.Content is not null).ToDictionary(l => l.Id, l => l.IsObject ? content(l, l.Content!) : l.Content!);
         if (_animation is null)
-            return new(Width, Height, _layers.ToDictionary(l => l.Id, l => map(l, l.Image)), Selection);
+            return new(Width, Height, _layers.Where(l => l.IsPaintable).ToDictionary(l => l.Id, l => map(l, l.Image)), Selection, null, null, contents);
         var cels = new Dictionary<Cel, RasterImage>();
-        foreach (var layer in _layers)
+        foreach (var layer in _layers.Where(l => l.IsTrack))
             foreach (var cel in layer.Cells!.OfType<Cel>().Distinct())
                 if (!cels.ContainsKey(cel)) cels[cel] = map(layer, cel.Image);
-        return new(Width, Height, new Dictionary<int, RasterImage>(), Selection, cels);
+        return new(Width, Height, new Dictionary<int, RasterImage>(), Selection, cels, null, contents);
     }
 
     /// <summary>Locks the picture to a palette as one undo step. Pixels are conformed (nearest palette colour, same

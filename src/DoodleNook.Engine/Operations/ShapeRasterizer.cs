@@ -56,13 +56,20 @@ public static class ShapeRasterizer
     public static (RasterImage Image, PixelRect Bounds) Render(ShapeContent s, int width, int height)
     {
         var image = new RasterImage(width, height);
+        return (image, RenderInto(s, image));
+    }
+
+    /// <summary>Draws the shape into a transparent area of <paramref name="image"/>; returns the area it covers.</summary>
+    public static PixelRect RenderInto(ShapeContent s, RasterImage image)
+    {
+        int width = image.Width;
         var box = Box(s);
         bool line = s.Kind == ShapeType.Line;
         double half = (s.Stroke is null && !line ? 0 : Math.Max(0.5, s.StrokeWidth / 2)) + 1.5;
         var (l, t, r, b) = box.Extent();
         var area = new PixelRect((int)Math.Floor(l - half), (int)Math.Floor(t - half), 0, 0);
         area = new PixelRect(area.X, area.Y, (int)Math.Ceiling(r + half) - area.X + 1, (int)Math.Ceiling(b + half) - area.Y + 1).Intersect(image.Bounds);
-        if (area.IsEmpty || (s.Fill is null && s.Stroke is null && !line)) return (image, PixelRect.Empty);
+        if (area.IsEmpty || (s.Fill is null && s.Stroke is null && !line)) return PixelRect.Empty;
 
         var sdf = Distance(s);
         uint fill = s.Fill is { } f && !line ? Pixel.Opaque(f) : 0;
@@ -86,7 +93,7 @@ public static class ShapeRasterizer
             }
         });
         if (s.Shadow is { } shadow) area = AddShadow(image, area, shadow);
-        return (image, area);
+        return area;
     }
 
     /// <summary>Fraction (0–1) of the pixel inside: decided from the centre when far from the edge, else 4 × 4 samples.</summary>

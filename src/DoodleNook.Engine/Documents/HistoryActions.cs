@@ -38,6 +38,7 @@ public sealed class LayerPixelsAction : IHistoryAction
         {
             if (layer.Mask is { } m) foreach (var p in _patches) p.SwapWith(m);
             layer.Revision++;
+            layer.MaskRevision++;
             d.OnLayerPixelsChanged(layer, Bounds);
             return;
         }
@@ -136,14 +137,23 @@ public sealed class DocumentStateAction : IHistoryAction
 public sealed class DocumentState
 {
     public DocumentState(int width, int height, IReadOnlyDictionary<int, RasterImage> images, SelectionMask? selection,
-        IReadOnlyDictionary<Cel, RasterImage>? celImages = null)
+        IReadOnlyDictionary<Cel, RasterImage>? celImages = null, IReadOnlyDictionary<int, RasterImage?>? masks = null,
+        IReadOnlyDictionary<int, LayerContent>? contents = null)
     {
         Width = width;
         Height = height;
         Images = images;
         Selection = selection;
         CelImages = celImages;
+        Masks = masks;
+        Contents = contents;
     }
+
+    /// <summary>Layer masks by layer id (null: no mask). Null: masks are left as they are.</summary>
+    public IReadOnlyDictionary<int, RasterImage?>? Masks { get; }
+
+    /// <summary>Text, shape and adjustment contents by layer id. Null: left as they are.</summary>
+    public IReadOnlyDictionary<int, LayerContent>? Contents { get; }
 
     public int Width { get; }
     public int Height { get; }
@@ -156,7 +166,8 @@ public sealed class DocumentState
 
     public SelectionMask? Selection { get; }
     public long ByteSize => Images.Values.Sum(i => (long)i.Pixels.Length * 4) + (CelImages?.Values.Sum(i => (long)i.Pixels.Length * 4) ?? 0)
-                            + (Selection?.ByteSize ?? 0) + 64;
+                            + (Masks?.Values.Sum(i => (long)(i?.Pixels.Length ?? 0) * 4) ?? 0)
+                            + (Selection?.ByteSize ?? 0) + 64 + 128L * (Contents?.Count ?? 0);
 }
 
 /// <summary>Several actions recorded as one step (e.g. merge down, paste, transform).</summary>

@@ -141,7 +141,8 @@ public sealed partial class Document
     /// <summary>Adds an empty layer above the active one (or at <paramref name="index"/>) and makes it active.</summary>
     public Layer AddLayer(string? name = null, int? index = null)
     {
-        var layer = NewLayer(new LayerProperties(name ?? NextLayerName()), new RasterImage(Width, Height));
+        // Without an explicit place, the new layer goes just above the active one, in the same group.
+        var layer = NewLayer(new LayerProperties(name ?? NextLayerName(), ParentId: index is null ? _active.ParentId : 0), new RasterImage(Width, Height));
         PrepareNewLayerTrack(layer, hasPixels: false);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
         InsertLayerInternal(layer, at, makeActive: true);
@@ -154,7 +155,7 @@ public sealed partial class Document
     {
         if (image.Width != Width || image.Height != Height) throw new ArgumentException("Layer size differs from the document.");
         ConformToPalette(image, image.Bounds);
-        var layer = NewLayer(new LayerProperties(name), image);
+        var layer = NewLayer(new LayerProperties(name, ParentId: index is null ? _active.ParentId : 0), image);
         PrepareNewLayerTrack(layer, hasPixels: true);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
         InsertLayerInternal(layer, at, makeActive: true);
@@ -162,19 +163,33 @@ public sealed partial class Document
         return layer;
     }
 
+    /// <summary>Duplicates a layer (every drawing of an animation layer; a group with everything inside it).</summary>
     public Layer DuplicateLayer(Layer source)
     {
-        var copy = NewLayer(source.Properties with { Name = source.Name + " copy" }, _animation is null ? source.Image.Clone() : new RasterImage(1, 1));
-        if (_animation is not null) CopyTrack(source, copy);
+        if (source.IsGroup) return DuplicateGroup(source);
+        var copy = CloneLayer(source, source.Properties with { Name = source.Name + " copy" });
         int at = IndexOf(source) + 1;
         InsertLayerInternal(copy, at, makeActive: true);
         Commit(new AddLayerAction("Duplicate layer", copy, at));
         return copy;
     }
 
-    /// <summary>Deletes a layer. The last remaining layer cannot be deleted.</summary>
+    private Layer CloneLayer(Layer source, LayerProperties props)
+    {
+        var image = !source.HasPixels ? Placeholder() : source.IsTrack ? Placeholder() : source.Image.Clone();
+        var copy = NewLayer(props, image, source.Kind);
+        copy.Content = source.Content;
+        copy.ContentSize = source.ContentSize;
+        copy.SubstituteFont = source.SubstituteFont;
+        copy.Mask = source.Mask?.Clone();
+        if (source.IsTrack) CopyTrack(source, copy);
+        return copy;
+    }
+
+    /// <summary>Deletes a layer (a group with everything inside it). The last remaining layer cannot be deleted.</summary>
     public bool DeleteLayer(Layer layer)
     {
+        if (layer.IsGroup) return DeleteGroup(layer);
         if (_layers.Count <= 1 || !_layers.Contains(layer)) return false;
         int index = IndexOf(layer);
         RemoveLayerInternal(layer);
@@ -182,24 +197,48 @@ public sealed partial class Document
         return true;
     }
 
+    /// <summary>Moves a layer to another position in the list. In a picture with groups, use
+    /// <see cref="MoveAmongSiblings"/>, <see cref="MoveIntoGroup"/> and <see cref="MoveOutOfGroup"/>; this then moves the
+    /// layer (with everything inside it) next to the layer now at <paramref name="newIndex"/>, in that layer's group.</summary>
     public bool MoveLayer(Layer layer, int newIndex)
     {
         int from = IndexOf(layer);
         newIndex = Math.Clamp(newIndex, 0, _layers.Count - 1);
         if (from < 0 || from == newIndex) return false;
+        if (_layers.Any(l => l.IsGroup)) return MoveNextTo(layer, _layers[newIndex], above: newIndex > from);
         MoveLayerInternal(layer.Id, newIndex);
         Commit(new MoveLayerAction(layer.Id, from, newIndex));
         return true;
     }
 
-    /// <summary>Merges a layer into the one below, respecting its opacity, blend mode and clipping.</summary>
+    /// <summary>The layer a merge goes into: the one directly below in the same group.</summary>
+    public Layer? LayerBelow(Layer layer)
+    {
+        var siblings = ChildrenOf(layer.ParentId);
+        int i = siblings.ToList().IndexOf(layer);
+        return i > 0 ? siblings[i - 1] : null;
+    }
+
+    /// <summary>Why merge down isn't possible for a layer (null when it is).</summary>
+    public string? MergeDownProblem(Layer layer)
+    {
+        var below = LayerBelow(layer);
+        if (below is null) return "There is no layer below to merge into";
+        if (!layer.HasPixels) return layer.IsGroup ? "A group can't be merged down" : "An adjustment layer can't be merged down";
+        if (!below.IsPaintable) return "Merge down needs a pixel layer below";
+        if (below.HasMask) return "Apply or delete the mask of the layer below first";
+        if (below.Locked) return "The layer below is locked";
+        return null;
+    }
+
+    /// <summary>Merges a layer into the one below, respecting its opacity, blend mode, mask and clipping. Text and shapes
+    /// become pixels of the layer below.</summary>
     public bool MergeDown(Layer layer)
     {
+        if (MergeDownProblem(layer) is not null) return false;
+        var below = LayerBelow(layer)!;
         int index = IndexOf(layer);
-        if (index <= 0) return false;
-        if (_animation is not null) return MergeDownAnimated(layer, index);
-        var below = _layers[index - 1];
-        if (below.Locked) return false;
+        if (_animation is not null && below.IsTrack) return MergeDownAnimated(layer, below, index);
         var edit = BeginEdit(below, "Merge down");
         edit.CaptureAll();
         var area = layer.ContentBounds;
@@ -208,6 +247,7 @@ public sealed partial class Document
             int factor = (int)Math.Round(layer.Opacity * 255);
             var src = layer.Image.Pixels;
             var dst = below.Image.Pixels;
+            var mask = layer.HasMask && layer.MaskEnabled ? layer.Mask!.Pixels : null;
             var clipBase = layer.ClipToBelow ? below : null;
             for (int y = area.Y; y < area.Bottom; y++)
             {
@@ -215,6 +255,7 @@ public sealed partial class Document
                 for (int x = area.X; x < area.Right; x++)
                 {
                     uint s = Blending.Fade(src[row + x], factor);
+                    if (mask is not null) s = Blending.Fade(s, Layer.MaskValue(mask[row + x]));
                     if (clipBase is not null) s = Blending.Fade(s, Pixel.A(dst[row + x]));
                     if (s == 0) continue;
                     uint d = dst[row + x];
@@ -367,21 +408,31 @@ public sealed partial class Document
 
     // ================================================================ whole-document changes
 
-    /// <summary>The current size, pixels and selection. Images are referenced, not copied: whole-picture operations
-    /// replace images with new ones rather than changing them, and undo restores the same objects.</summary>
+    /// <summary>The current size, pixels, masks, object contents and selection. Images are referenced, not copied:
+    /// whole-picture operations replace images with new ones rather than changing them, and undo restores the same objects.</summary>
     public DocumentState CaptureState() => _animation is null
-        ? new(Width, Height, _layers.ToDictionary(l => l.Id, l => l.Image), Selection)
-        : new(Width, Height, new Dictionary<int, RasterImage>(), Selection, AllCels().ToDictionary(c => c, c => c.Image));
+        ? new(Width, Height, _layers.Where(l => l.IsPaintable).ToDictionary(l => l.Id, l => l.Image), Selection, null, MasksNow(), ContentsNow())
+        : new(Width, Height, new Dictionary<int, RasterImage>(), Selection, AllCels().ToDictionary(c => c, c => c.Image), MasksNow(), ContentsNow());
+
+    private Dictionary<int, RasterImage?> MasksNow() => _layers.ToDictionary(l => l.Id, l => l.Mask);
+    private Dictionary<int, LayerContent> ContentsNow() => _layers.Where(l => l.Content is not null).ToDictionary(l => l.Id, l => l.Content!);
 
     /// <summary>Every distinct cel of every layer.</summary>
     public IEnumerable<Cel> AllCels() => _layers.Where(l => l.Cells is not null).SelectMany(l => l.Cells!).OfType<Cel>().Distinct();
 
     /// <summary>Builds the state after applying <paramref name="map"/> to every image of the picture (every layer, or every
-    /// cel of an animation) — used by resize, crop, rotate and flip.</summary>
-    public DocumentState MapAllImages(int width, int height, Func<RasterImage, RasterImage> map, SelectionMask? selection) =>
-        _animation is null
-            ? new(width, height, _layers.ToDictionary(l => l.Id, l => map(l.Image)), selection)
-            : new(width, height, new Dictionary<int, RasterImage>(), selection, AllCels().ToDictionary(c => c, c => map(c.Image)));
+    /// cel of an animation, and every mask) — used by resize, crop, rotate and flip. Text and shape layers are not
+    /// resampled: <paramref name="content"/> moves (and scales or turns) their content and they are drawn again.</summary>
+    public DocumentState MapAllImages(int width, int height, Func<RasterImage, RasterImage> map, SelectionMask? selection,
+        ContentTransform? content = null)
+    {
+        var masks = _layers.ToDictionary(l => l.Id, l => l.Mask is { } m ? map(m) : null);
+        var contents = _layers.Where(l => l.Content is not null)
+            .ToDictionary(l => l.Id, l => content is not null && l.IsObject ? l.Content!.Transformed(content, l.ContentSize) : l.Content!);
+        return _animation is null
+            ? new(width, height, _layers.Where(l => l.IsPaintable).ToDictionary(l => l.Id, l => map(l.Image)), selection, null, masks, contents)
+            : new(width, height, new Dictionary<int, RasterImage>(), selection, AllCels().ToDictionary(c => c, c => map(c.Image)), masks, contents);
+    }
 
     /// <summary>Replaces size, layer pixels and selection as one undo step (resize, crop, rotate…).</summary>
     public void ApplyState(DocumentState newState, string historyName)
@@ -390,7 +441,8 @@ public sealed partial class Document
         {
             // Resampling and similar operations blend colours: keep a locked picture to its palette (alpha unchanged).
             var old = CaptureState();
-            foreach (var img in newState.Images.Values.Where(i => !old.Images.Values.Contains(i))) conformer.Conform(img, img.Bounds);
+            foreach (var (id, img) in newState.Images)
+                if (!old.Images.Values.Contains(img) && FindLayer(id) is { IsObject: false }) conformer.Conform(img, img.Bounds);
             foreach (var (cel, img) in newState.CelImages ?? new Dictionary<Cel, RasterImage>())
                 if (!ReferenceEquals(cel.Image, img)) conformer.Conform(img, img.Bounds);
         }
@@ -527,22 +579,40 @@ public sealed partial class Document
                 cel.Revision++;
             }
         }
-        else
+        foreach (var layer in _layers)
         {
-            foreach (var layer in _layers)
+            if (!layer.IsPaintable || (state.CelImages is not null && layer.IsTrack)) continue;
+            if (state.Images.TryGetValue(layer.Id, out var img))
             {
-                if (state.Images.TryGetValue(layer.Id, out var img))
-                {
-                    layer.Image = img;
-                    layer.RecalculateBounds();
-                }
-                else if (resized)
-                {
-                    layer.Image = new RasterImage(Width, Height);
-                    layer.RecalculateBounds();
-                }
+                layer.Image = img;
+                layer.RecalculateBounds();
+            }
+            else if (resized)
+            {
+                layer.Image = new RasterImage(Width, Height);
+                layer.RecalculateBounds();
             }
         }
+        foreach (var layer in _layers)
+        {
+            var mask = state.Masks is { } masks ? masks.GetValueOrDefault(layer.Id) : layer.Mask;
+            if (mask is not null && (mask.Width != Width || mask.Height != Height)) mask = null;
+            if (!ReferenceEquals(mask, layer.Mask))
+            {
+                layer.Mask = mask;
+                layer.MaskRevision++;
+                layer.Revision++;
+            }
+            bool contentChanged = false;
+            if (state.Contents is { } contents && contents.TryGetValue(layer.Id, out var c) && !ReferenceEquals(c, layer.Content))
+            {
+                layer.Content = c;
+                contentChanged = true;
+                layer.Revision++;
+            }
+            if (layer.IsObject && (contentChanged || resized || layer.Image.Width != Width || layer.Image.Height != Height)) Render(layer);
+        }
+        if (!EditingMask) _editingMask = false;
         _overrides.Clear();
         _floating = null;
         Selection = state.Selection;
@@ -554,7 +624,7 @@ public sealed partial class Document
             ClearFrameCache();
             SizeChanged?.Invoke();
         }
-        if (_animation is not null) foreach (var layer in _layers) DisplayCell(layer);
+        if (_animation is not null) foreach (var layer in _layers.Where(l => l.IsTrack)) DisplayCell(layer);
         SelectionChanged?.Invoke();
         LayersChanged?.Invoke();
         RecompositeAll();

@@ -63,6 +63,13 @@ public sealed class RasterImage
 
     public void Fill(uint value) => Array.Fill(Pixels, value);
 
+    /// <summary>Makes a rectangle transparent.</summary>
+    public void Clear(PixelRect region)
+    {
+        region = region.Intersect(Bounds);
+        for (int y = region.Y; y < region.Bottom; y++) Array.Clear(Pixels, y * Width + region.X, region.Width);
+    }
+
     public RasterImage Clone() => new(Width, Height, (uint[])Pixels.Clone());
 
     /// <summary>Pixel at (x, y), or transparent outside the image.</summary>

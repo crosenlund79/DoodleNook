@@ -8,7 +8,7 @@ public readonly record struct StrokeSample(double X, double Y, float Pressure = 
     public bool IsFinite => double.IsFinite(X) && double.IsFinite(Y);
 }
 
-/// <summary>Everything a stroke needs: the brush, pressure feel, colour, paint or erase, mirror symmetry and (for image
-/// tips and textures) the loaded tip and texture.</summary>
+/// <summary>Everything a stroke needs: the brush, pressure feel, colour, paint or erase, mirror symmetry (and where its
+/// lines cross) and (for image tips and textures) the loaded tip and texture.</summary>
 public readonly record struct StrokeStyle(BrushSettings Brush, PressureCurve Curve, ColorRgb Color, PaintMode Mode, Symmetry Symmetry = Symmetry.None,
-    BrushResources? Resources = null);
+    BrushResources? Resources = null, SymmetryPlacement Placement = default);

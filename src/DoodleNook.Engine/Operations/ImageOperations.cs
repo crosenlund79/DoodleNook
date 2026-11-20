@@ -13,7 +13,9 @@ public static class ImageOperations
         if (width == doc.Width && height == doc.Height) return;
         SelectionMask? selection = null;
         if (doc.Selection is { } sel) selection = ResizeMask(sel.Data, sel.Width, sel.Height, width, height);
-        doc.ApplyState(doc.MapAllImages(width, height, img => Resampler.Resize(img, width, height, mode), selection), "Image size");
+        double sx = (double)width / doc.Width, sy = (double)height / doc.Height;
+        var objects = new ContentTransform((x, y) => (x * sx, y * sy), sx, sy);
+        doc.ApplyState(doc.MapAllImages(width, height, img => Resampler.Resize(img, width, height, mode), selection, objects), "Image size");
     }
 
     /// <summary>Changes the canvas size without scaling. <paramref name="anchorX"/>/<paramref name="anchorY"/> (0–1) say
@@ -59,7 +61,8 @@ public static class ImageOperations
             m.UpdateBounds();
             selection = m.IsEmpty ? null : m;
         }
-        doc.ApplyState(doc.MapAllImages(width, height, img => Move(img, width, height, offsetX, offsetY), selection), name);
+        var objects = new ContentTransform((x, y) => (x + offsetX, y + offsetY));
+        doc.ApplyState(doc.MapAllImages(width, height, img => Move(img, width, height, offsetX, offsetY), selection, objects), name);
     }
 
     /// <summary>Rotates the whole picture by quarter turns clockwise (1 = 90°, 2 = 180°, 3 = 90° anticlockwise).</summary>
@@ -75,16 +78,19 @@ public static class ImageOperations
             2 => (w - 1 - x, h - 1 - y),
             _ => (y, w - 1 - x),
         };
-        Remap(doc, nw, nh, Map, quarterTurns switch { 1 => "Rotate 90° clockwise", 2 => "Rotate 180°", _ => "Rotate 90° anticlockwise" });
+        int q = quarterTurns;
+        var objects = new ContentTransform((x, y) => q switch { 1 => (h - y, x), 2 => (w - x, h - y), _ => (y, w - x) }, Rotate: 90 * q);
+        Remap(doc, nw, nh, Map, quarterTurns switch { 1 => "Rotate 90° clockwise", 2 => "Rotate 180°", _ => "Rotate 90° anticlockwise" }, objects);
     }
 
     public static void Flip(Document doc, bool horizontal)
     {
         int w = doc.Width, h = doc.Height;
-        Remap(doc, w, h, (x, y) => horizontal ? (w - 1 - x, y) : (x, h - 1 - y), horizontal ? "Flip horizontal" : "Flip vertical");
+        var objects = new ContentTransform((x, y) => horizontal ? (w - x, y) : (x, h - y), MirrorX: horizontal, MirrorY: !horizontal);
+        Remap(doc, w, h, (x, y) => horizontal ? (w - 1 - x, y) : (x, h - 1 - y), horizontal ? "Flip horizontal" : "Flip vertical", objects);
     }
 
-    private static void Remap(Document doc, int nw, int nh, Func<int, int, (int X, int Y)> map, string name)
+    private static void Remap(Document doc, int nw, int nh, Func<int, int, (int X, int Y)> map, string name, ContentTransform objects)
     {
         int w = doc.Width, h = doc.Height;
         RasterImage Map(RasterImage source)
@@ -112,7 +118,7 @@ public static class ImageOperations
             m.UpdateBounds();
             selection = m;
         }
-        doc.ApplyState(doc.MapAllImages(nw, nh, Map, selection), name);
+        doc.ApplyState(doc.MapAllImages(nw, nh, Map, selection, objects), name);
     }
 
     private static SelectionMask ResizeMask(byte[] data, int w, int h, int nw, int nh)

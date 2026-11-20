@@ -277,20 +277,34 @@ public sealed class StrokeEngine
     private void Mirrored(double cx, double cy, double diameter, float alpha, float mapped, double angle)
     {
         Stamp(cx, cy, diameter, alpha, mapped, angle);
-        int w = _doc.Width, h = _doc.Height;
+        if (_style.Symmetry == Symmetry.None) return;
+        // Mirror lines through the origin (the canvas centre unless moved): x' = 2·ox − x.
+        double ox = _style.Placement.OriginX(_doc.Width), oy = _style.Placement.OriginY(_doc.Height);
+        double mx = 2 * ox - cx, my = 2 * oy - cy;
         switch (_style.Symmetry)
         {
             case Symmetry.Vertical:
-                Stamp(w - cx, cy, diameter, alpha, mapped, -angle);
+                Stamp(mx, cy, diameter, alpha, mapped, -angle);
                 break;
             case Symmetry.Horizontal:
-                Stamp(cx, h - cy, diameter, alpha, mapped, -angle);
+                Stamp(cx, my, diameter, alpha, mapped, -angle);
                 break;
             case Symmetry.Both:
-                Stamp(w - cx, cy, diameter, alpha, mapped, -angle);
-                Stamp(cx, h - cy, diameter, alpha, mapped, -angle);
-                Stamp(w - cx, h - cy, diameter, alpha, mapped, angle);
+                Stamp(mx, cy, diameter, alpha, mapped, -angle);
+                Stamp(cx, my, diameter, alpha, mapped, -angle);
+                Stamp(mx, my, diameter, alpha, mapped, angle);
                 break;
+            case Symmetry.Radial:
+            {
+                int n = _style.Placement.Count;
+                double dx = cx - ox, dy = cy - oy;
+                for (int k = 1; k < n; k++)
+                {
+                    double t = k * 2 * Math.PI / n, cos = Math.Cos(t), sin = Math.Sin(t);
+                    Stamp(ox + dx * cos - dy * sin, oy + dx * sin + dy * cos, diameter, alpha, mapped, angle + k * 360.0 / n);
+                }
+                break;
+            }
         }
     }
 

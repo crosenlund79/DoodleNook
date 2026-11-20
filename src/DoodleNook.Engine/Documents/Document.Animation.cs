@@ -66,12 +66,13 @@ public sealed partial class Document
     }
 
     private Dictionary<int, Cel?> FirstCels() =>
-        _layers.ToDictionary(l => l.Id, l => l.ContentBounds.IsEmpty ? null : new Cel(l.Image, l.ContentBounds));
+        _layers.Where(l => l.IsPaintable).ToDictionary(l => l.Id, l => l.ContentBounds.IsEmpty ? null : new Cel(l.Image, l.ContentBounds));
 
     internal void CreateAnimationInternal(double fps, IReadOnlyDictionary<int, Cel?> firstCels)
     {
         _animation = new Animation(fps);
-        foreach (var l in _layers) l.Cells = [firstCels.GetValueOrDefault(l.Id)];
+        // Raster layers become tracks; text, shapes, groups and adjustment layers stay the same on every frame.
+        foreach (var l in _layers) l.Cells = l.IsPaintable ? [firstCels.GetValueOrDefault(l.Id)] : null;
         ClearFrameCache();
         ShowFrameInternal(0);
         AnimationChanged?.Invoke();
@@ -81,7 +82,7 @@ public sealed partial class Document
     internal void RemoveAnimationInternal()
     {
         if (_animation is null) return;
-        foreach (var l in _layers)
+        foreach (var l in _layers.Where(l => l.IsTrack))
         {
             var cel = l.Cells is { Count: > 0 } c ? c[0] : null;
             l.Image = cel?.Image ?? new RasterImage(Width, Height);
@@ -107,7 +108,7 @@ public sealed partial class Document
         doc.CreateAnimationInternal(fps, new Dictionary<int, Cel?>());
         if (frames > 1)
         {
-            foreach (var l in doc._layers) l.Cells!.AddRange(Enumerable.Repeat<Cel?>(null, frames - 1));
+            foreach (var l in doc._layers) l.Cells?.AddRange(Enumerable.Repeat<Cel?>(null, frames - 1));
             doc._animation!.Durations.AddRange(Enumerable.Repeat<int?>(null, frames - 1));
         }
         doc.History.Clear();
@@ -151,6 +152,7 @@ public sealed partial class Document
 
     private void DisplayCell(Layer l)
     {
+        if (!l.IsTrack) return; // the same on every frame
         var a = _animation!;
         var cel = l.Cells is { } cells && a.CurrentFrame < cells.Count ? cells[a.CurrentFrame] : null;
         l.CurrentCel = cel;
@@ -260,6 +262,12 @@ public sealed partial class Document
         {
             Add(l.Id);
             Add(l.Properties.GetHashCode());
+            Add(l.MaskRevision);
+            if (!l.IsTrack)
+            {
+                Add(l.Revision); // text, shapes and adjustments: the same on every frame
+                continue;
+            }
             var cel = CelAt(l, frame);
             Add(cel?.Id ?? 0);
             Add(cel?.Revision ?? 0);
@@ -312,7 +320,7 @@ public sealed partial class Document
             PingPong = a.PingPong,
             CurrentFrame = a.CurrentFrame,
             Durations = new List<int?>(a.Durations),
-            Tracks = _layers.ToDictionary(l => l.Id, l => new List<Cel?>(l.Cells!)),
+            Tracks = _layers.Where(l => l.IsTrack).ToDictionary(l => l.Id, l => new List<Cel?>(l.Cells!)),
         };
     }
 
@@ -341,7 +349,7 @@ public sealed partial class Document
         var a = _animation!;
         int source = a.CurrentFrame;
         at = Math.Clamp(at, 0, a.FrameCount);
-        foreach (var l in _layers)
+        foreach (var l in _layers.Where(l => l.IsTrack))
         {
             var cells = l.Cells!;
             var cel = cells[source];
@@ -359,7 +367,7 @@ public sealed partial class Document
     {
         if (_animation is not { FrameCount: > 1 } a || frame < 0 || frame >= a.FrameCount) return false;
         var start = BeginStructure();
-        foreach (var l in _layers) l.Cells!.RemoveAt(frame);
+        foreach (var l in _layers) l.Cells?.RemoveAt(frame);
         a.Durations.RemoveAt(frame);
         EndStructure("Delete frame", start, Math.Min(frame, a.FrameCount - 1));
         return true;
@@ -372,7 +380,7 @@ public sealed partial class Document
         to = Math.Clamp(to, 0, a.FrameCount - 1);
         if (from == to) return false;
         var start = BeginStructure();
-        foreach (var l in _layers)
+        foreach (var l in _layers.Where(l => l.IsTrack))
         {
             var c = l.Cells!;
             var cel = c[from];
@@ -415,7 +423,7 @@ public sealed partial class Document
     // ================================================================ cel commands
 
     private bool ValidCell(Layer layer, int frame) =>
-        _animation is not null && _layers.Contains(layer) && frame >= 0 && frame < _animation.FrameCount;
+        _animation is not null && layer.IsTrack && _layers.Contains(layer) && frame >= 0 && frame < _animation.FrameCount;
 
     /// <summary>Removes the drawing from one cell (the cell becomes empty).</summary>
     public bool DeleteCel(Layer layer, int frame)
@@ -477,7 +485,7 @@ public sealed partial class Document
         else if (c.Count > a.FrameCount)
         {
             foreach (var other in _layers)
-                if (!ReferenceEquals(other, layer)) other.Cells!.Add(other.Cells![^1]);
+                if (!ReferenceEquals(other, layer) && other.Cells is { } oc) oc.Add(oc[^1]);
             a.Durations.Add(null);
         }
         EndStructure("Hold longer", start, a.CurrentFrame);
@@ -497,10 +505,10 @@ public sealed partial class Document
         c.RemoveAt(e);
         c.Add(null);
         int last = a.FrameCount - 1;
-        bool trailingAddsNothing = last > 0 && _layers.All(l => l.Cells![last] is null || ReferenceEquals(l.Cells[last], l.Cells[last - 1]));
+        bool trailingAddsNothing = last > 0 && _layers.Where(l => l.IsTrack).All(l => l.Cells![last] is null || ReferenceEquals(l.Cells[last], l.Cells[last - 1]));
         if (trailingAddsNothing && c[last] is null)
         {
-            foreach (var l in _layers) l.Cells!.RemoveAt(last);
+            foreach (var l in _layers) l.Cells?.RemoveAt(last);
             a.Durations.RemoveAt(last);
         }
         EndStructure("Hold shorter", start, Math.Min(a.CurrentFrame, a.FrameCount - 1));
@@ -563,7 +571,7 @@ public sealed partial class Document
 
     private void PrepareNewLayerTrack(Layer layer, bool hasPixels)
     {
-        if (_animation is null) return;
+        if (_animation is null || !layer.IsPaintable) return;
         layer.Cells = EmptyTrack();
         if (hasPixels)
         {
@@ -581,6 +589,12 @@ public sealed partial class Document
 
     private void CopyTrack(Layer source, Layer copy)
     {
+        if (!source.IsTrack)
+        {
+            copy.Image = source.HasPixels ? source.Image.Clone() : Placeholder();
+            copy.ContentBounds = source.ContentBounds;
+            return;
+        }
         var map = new Dictionary<Cel, Cel>();
         copy.Cells = source.Cells!.Select(c => c is null ? null : map.TryGetValue(c, out var m) ? m : map[c] = c.CloneCel()).ToList();
         var current = copy.Cells[CurrentFrame];
@@ -591,16 +605,16 @@ public sealed partial class Document
 
     /// <summary>Merge down for animations: frame by frame, reusing one merged drawing wherever the same pair of drawings
     /// is shown (holds stay holds).</summary>
-    private bool MergeDownAnimated(Layer layer, int index)
+    private bool MergeDownAnimated(Layer layer, Layer below, int index)
     {
-        var below = _layers[index - 1];
         if (below.Locked) return false;
+        var still = layer.IsTrack ? null : new Cel(layer.Image, layer.ContentBounds); // text or a shape: every frame
         var start = (Before: CaptureStructure(), Conversion: (IHistoryAction?)null);
         var merged = new Dictionary<(Cel?, Cel?), Cel?>();
         var newCells = new List<Cel?>();
         for (int f = 0; f < FrameCount; f++)
         {
-            var key = (below.Cells![f], layer.Cells![f]);
+            var key = (below.Cells![f], still ?? layer.Cells![f]);
             if (!merged.TryGetValue(key, out var result))
             {
                 var (lo, up) = key;
@@ -633,6 +647,7 @@ public sealed partial class Document
         int factor = (int)Math.Round(layer.Opacity * 255);
         var s = src.Pixels;
         var d = dstImage.Pixels;
+        var mask = layer.HasMask && layer.MaskEnabled ? layer.Mask!.Pixels : null;
         area = area.Intersect(Bounds);
         for (int y = area.Y; y < area.Bottom; y++)
         {
@@ -640,6 +655,7 @@ public sealed partial class Document
             for (int x = area.X; x < area.Right; x++)
             {
                 uint p = Blending.Fade(s[row + x], factor);
+                if (mask is not null) p = Blending.Fade(p, Layer.MaskValue(mask[row + x]));
                 if (clip) p = Blending.Fade(p, Pixel.A(d[row + x]));
                 if (p == 0) continue;
                 uint q = d[row + x];

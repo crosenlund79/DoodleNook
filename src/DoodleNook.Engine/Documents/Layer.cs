@@ -76,6 +76,13 @@ public sealed class Layer
     /// <summary>True for layers you paint pixels on (raster layers).</summary>
     public bool IsPaintable => Kind == LayerKind.Raster;
 
+    /// <summary>True for layers that hold pixels (raster, text and shape layers). Groups and adjustment layers have none:
+    /// their <see cref="Image"/> is a 1 × 1 placeholder.</summary>
+    public bool HasPixels => Kind is LayerKind.Raster or LayerKind.Text or LayerKind.Shape;
+
+    /// <summary>Incremented whenever the mask changes (frame cache keys).</summary>
+    public int MaskRevision { get; internal set; }
+
     /// <summary>True for text and shape layers (moved, resized and turned as objects).</summary>
     public bool IsObject => Kind is LayerKind.Text or LayerKind.Shape;
 
