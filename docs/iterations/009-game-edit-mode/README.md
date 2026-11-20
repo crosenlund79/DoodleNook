@@ -50,6 +50,28 @@ asks first (*Replace the PNG* / *Save my editable version only* / *Cancel*), and
 than that change asks whether to open the editable version or the changed PNG. An unreadable `.dnk` is reported and the
 PNG can be opened instead (the broken file is only replaced when you save).
 
+## `template_` graphics: creating a replacement
+
+Some games use `template_player.png` as the original fallback and `player.png` as the custom replacement. Saving an
+image whose file name starts with `template_` (exactly, lower case) asks **Create a replacement without the 'template_'
+prefix?**
+
+- **Yes — Create replacement:** `template_player.png` is left exactly as it is (not replaced, not backed up). The
+  editable version is saved as `_DoodleNook/<same folders>/player.dnk` and the picture written to `player.png` in the
+  same folder. If `player.png` (or `player.dnk`) already exists, DoodleNook asks before replacing it, and an existing
+  `player.png` is backed up first by the usual rule. From then on the open picture *is* `player.png`: Ctrl+S simply
+  saves it, with no more questions, and it gets the usual statuses (*In progress* after the save, *Mark complete* when
+  you choose).
+- **No — Save normally:** the usual save of the template itself (backup and all). Not asked again while it stays open.
+- **Cancel:** nothing is saved.
+
+In the catalog a template whose replacement exists says **Replaced by player.png** and isn't counted in the progress
+(the game shows the replacement, which carries the progress); the counts add *Replaced templates: N*. Any other file
+name is never changed.
+
+Fixed along the way: the catalog's tiles and the open picture now always share one status per image. Before, after
+going back to the catalog, *Mark complete* on the tile of the picture being edited could be undone by its next Ctrl+S.
+
 ## Progress
 
 | Status | Means |
@@ -79,6 +101,7 @@ assets/                      ← the folder you chose
 | | |
 |---|---|
 | Game Edit tests | 9 window and file tests + 1 screenshot run: recursive discovery, relative paths, `_DoodleNook` skipped, opening a tile, the `.dnk` and the PNG written (size, transparency, pixels), the backup made once and never overwritten, Not started → In progress on a complete save only, Mark complete / Mark in progress, saving a complete image keeps it complete, progress %, statuses after reopening and rescans, reopening a `.dnk` with its layers, the unsaved-changes question, a failed backup leaving the PNG and status alone and *Try again*, a PNG changed elsewhere, an unreadable `.dnk`, filters and search, the remembered folder, the window title |
+| `template_` replacements (added after the first delivery) | 3 tests: which names count as templates (only the exact `template_` prefix), Cancel saves nothing, Yes writes `player.dnk` and `player.png` and leaves the template's bytes untouched, later saves go to `player.png` without asking, the overwrite question (Cancel keeps the existing `player.png`; Replace backs it up first), No saves the template as usual and asks once, statuses and counts with a replaced template |
 | All suites, Windows CI run #20 (Release) | engine **251 / 251**, app **149 / 149** (139 from before, with three title checks updated to the new title, + 10 Game Edit) |
 | Smoke test of the packaged `DoodleNook.exe` on Windows (run #20) | **58 / 58** (54 from before + 4 new: subfolder discovery, Ctrl+S writes `_DoodleNook\characters\hero.dnk` and replaces the PNG (size, transparency, pixels), the byte-exact backup and *In progress*, the title "DoodleNook — M009 — hero.dnk") |
 | Artifact (run #20) | `DoodleNook-win-x64.zip`, 64,049,219 bytes, SHA-256 `44c737f8b53633c18bba09e674db24c43fe83124c622480ad9d05015a8bd54c1`: `DoodleNook.exe` (PE32+ x86-64, version 0.9.0+c42964a, milestone M009), native libraries, README-FIRST, licences, Samples |

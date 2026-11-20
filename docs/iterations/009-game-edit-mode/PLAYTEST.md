@@ -16,6 +16,9 @@ while you try it. Note anything fiddly, slow or surprising.
 7. **Mark complete** (chip or tile): the progress bar moves. Save again: still Complete. *Mark in progress* reopens it.
 8. Close DoodleNook, start it again, *File › Game Edit Mode…*: same folder, same statuses.
 9. Optional: change a PNG with another program, then save it in DoodleNook: it asks before replacing.
+10. A `template_` image (e.g. `template_player.png`): edit it, Ctrl+S, choose **Yes — Create replacement**. `player.png`
+    appears next to it, `template_player.png` is unchanged, and the next Ctrl+S saves `player.png` without asking. If
+    `player.png` already existed, you're asked before it's replaced.
 
 ## Questions
 
@@ -24,3 +27,4 @@ while you try it. Note anything fiddly, slow or surprising.
 3. Is the status chip at the top right useful while editing, or in the way?
 4. Did saving behave exactly as you expected for your game?
 5. What would make replacing a whole set of graphics quicker?
+6. Is the `template_` question asked at the right moment, and is "Replaced by …" in the catalog clear?

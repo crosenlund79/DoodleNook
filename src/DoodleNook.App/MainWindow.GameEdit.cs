@@ -28,6 +28,7 @@ public partial class MainWindow
     private Document? _gameDocument;
     private bool _openingGameImage;
     private bool _pngPending;
+    private bool _templateInPlace; // "No — Save normally" was chosen for the open template_ image
 
     /// <summary>The game folder open in Game Edit Mode, or null.</summary>
     public GameProject? Game { get; private set; }
@@ -196,10 +197,15 @@ public partial class MainWindow
         if (project.LoadProblem is { } problem) await _dialogs.ShowMessageAsync("Progress file", problem);
         Game = project;
         _settings.GameFolder = project.Root;
-        if (GameImage is not null && !string.Equals(GameImage.PngPath, project.Find(GameImage.RelativePath)?.PngPath, StringComparison.OrdinalIgnoreCase))
+        if (GameImage is { } open)
         {
-            GameImage = null; // another folder: the open picture is no longer one of its images
-            _gameDocument = null;
+            if (project.Find(open.RelativePath) is { } same && string.Equals(open.PngPath, same.PngPath, StringComparison.OrdinalIgnoreCase))
+                GameImage = same; // the same folder again: keep editing, with this project's image
+            else
+            {
+                GameImage = null; // another folder: the open picture is no longer one of its images
+                _gameDocument = null;
+            }
         }
         ShowCatalog();
         return true;
@@ -297,6 +303,7 @@ public partial class MainWindow
             GameImage = image;
             _gameDocument = doc;
             _pngPending = false;
+            _templateInPlace = false;
             Session.ReplaceDocument(doc, image.DnkPath);
         }
         finally
@@ -317,6 +324,16 @@ public partial class MainWindow
         if (Game is not { } game || GameImage is not { } image) return false;
         if (Session.IsStrokeActive) Session.EndStroke();
         Session.CommitTransform();
+        if (!_templateInPlace && game.ReplacementFor(image) is { } replacement)
+        {
+            var answer = await _dialogs.ShowAsync("Create a replacement without the 'template_' prefix?",
+                DialogHost.Text($"Yes keeps {image.FileName} as it is (the game's fallback) and saves your picture as {replacement.FileName} in the same folder; " +
+                                $"later saves go there.\n\nNo saves as usual and replaces {image.FileName}."),
+                [("cancel", "Cancel", false), ("no", "No — Save normally", false), ("yes", "Yes — Create replacement", true)], "yes", "cancel", 520);
+            if (answer is null or "cancel") return false;
+            if (answer == "yes") return await SaveAsReplacementAsync(game, image, replacement);
+            _templateInPlace = true; // not asked again while this image is open
+        }
         bool replacePng = true;
         if (game.ChangedOutside(image))
         {
@@ -342,6 +359,40 @@ public partial class MainWindow
             return true;
         }
         return await ReplaceGamePngAsync(game, image);
+    }
+
+    /// <summary>"Yes — Create replacement": the template_ PNG is left exactly as it is; the editable version is saved as the
+    /// replacement's .dnk and the picture written to the replacement's PNG (asking first if either exists, and backing up an
+    /// existing PNG by the usual rule). From then on this picture is the replacement, so Ctrl+S simply saves it.</summary>
+    private async Task<bool> SaveAsReplacementAsync(GameProject game, GameImage template, GameImage replacement)
+    {
+        bool png = File.Exists(replacement.PngPath), dnk = replacement.HasDnk;
+        if (png || dnk)
+        {
+            string dnkName = Path.GetFileName(replacement.DnkPath);
+            var overwrite = await _dialogs.ShowAsync($"“{(png ? replacement.FileName : dnkName)}” already exists",
+                DialogHost.Text("Replace it with this picture?" + (png && dnk ? $" Its editable version ({dnkName}) is replaced too." : "") +
+                                (png && game.BackupOriginals && !File.Exists(replacement.BackupPath) ? $" The current {replacement.FileName} is backed up first." : "") +
+                                $"\n\n{template.FileName} stays as it is."),
+                [("cancel", "Cancel", false), ("replace", "Replace", true)], "replace", "cancel", 460);
+            if (overwrite != "replace") return false;
+        }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(replacement.DnkPath)!);
+        }
+        catch (Exception ex)
+        {
+            await _dialogs.ShowMessageAsync("Couldn't save", $"The folder for {Path.GetFileName(replacement.DnkPath)} couldn't be made: {ex.Message}");
+            return false;
+        }
+        if (!await SaveToPathAsync(replacement.DnkPath)) return false; // still the template; nothing else happens
+        GameImage = replacement;
+        _pngPending = false;
+        RefreshGameChip();
+        if (!await ReplaceGamePngAsync(game, replacement)) return false;
+        ShowToast($"Created {replacement.FileName} · {template.FileName} stays as it is · {StatusText(replacement.Status)}");
+        return true;
     }
 
     private async Task<bool> ReplaceGamePngAsync(GameProject game, GameImage image)

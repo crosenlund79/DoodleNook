@@ -44,6 +44,20 @@ public sealed class GameImage
 
     public bool HasDnk => File.Exists(DnkPath);
 
+    /// <summary>For a game's fallback graphic named <c>template_…</c> ("characters/template_player.png"), the path of its
+    /// replacement in the same folder ("characters/player.png"); null for every other image.</summary>
+    public string? ReplacementPath
+    {
+        get
+        {
+            var name = FileName;
+            if (!name.StartsWith(GameProject.TemplatePrefix, StringComparison.Ordinal)
+                || Path.GetFileNameWithoutExtension(name).Length == GameProject.TemplatePrefix.Length) return null;
+            name = name[GameProject.TemplatePrefix.Length..];
+            return Folder.Length == 0 ? name : Folder + "/" + name;
+        }
+    }
+
     private static string Native(string relative) => relative.Replace('/', Path.DirectorySeparatorChar);
 
     public override string ToString() => $"{RelativePath} ({Status})";
@@ -67,6 +81,9 @@ public sealed class GameProject
     public const string CatalogFileName = "catalog.json";
     public const string OriginalsFolderName = "Originals";
 
+    /// <summary>A game's fallback graphics start with this: template_player.png is used until player.png exists.</summary>
+    public const string TemplatePrefix = "template_";
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -79,6 +96,11 @@ public sealed class GameProject
     // comes back keeps its status and nothing unrelated is ever lost.
     private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
     private List<GameImage> _images = new();
+    private Dictionary<string, GameImage> _byPath = new(StringComparer.OrdinalIgnoreCase);
+
+    // One object per image for the project's lifetime, so the picture being edited, the catalog's tile and the progress
+    // always share the same status (a rescan doesn't make new ones).
+    private readonly Dictionary<string, GameImage> _objects = new(StringComparer.OrdinalIgnoreCase);
 
     private GameProject(string root)
     {
@@ -132,7 +154,15 @@ public sealed class GameProject
         var found = new List<string>();
         Scan(Root, "", found);
         found.Sort(StringComparer.OrdinalIgnoreCase);
-        _images = found.Select(rel => new GameImage(this, rel, _entries.TryGetValue(rel, out var e) ? e.Status : GameImageStatus.NotStarted)).ToList();
+        _images = found.Select(ImageAt).ToList();
+        _byPath = _images.ToDictionary(i => i.RelativePath, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private GameImage ImageAt(string relativePath)
+    {
+        if (!_objects.TryGetValue(relativePath, out var image))
+            _objects[relativePath] = image = new GameImage(this, relativePath, _entries.TryGetValue(relativePath, out var e) ? e.Status : GameImageStatus.NotStarted);
+        return image;
     }
 
     private static void Scan(string dir, string relative, List<string> found)
@@ -148,12 +178,30 @@ public sealed class GameProject
         }
     }
 
-    public GameProgress Progress => new(_images.Count,
-        _images.Count(i => i.Status == GameImageStatus.NotStarted),
-        _images.Count(i => i.Status == GameImageStatus.InProgress),
-        _images.Count(i => i.Status == GameImageStatus.Complete));
+    /// <summary>The counts. A template_ image whose replacement exists isn't counted: the game shows the replacement,
+    /// which carries the progress.</summary>
+    public GameProgress Progress
+    {
+        get
+        {
+            var counted = _images.Where(i => !IsReplaced(i)).ToList();
+            return new(counted.Count,
+                counted.Count(i => i.Status == GameImageStatus.NotStarted),
+                counted.Count(i => i.Status == GameImageStatus.InProgress),
+                counted.Count(i => i.Status == GameImageStatus.Complete));
+        }
+    }
 
-    public GameImage? Find(string relativePath) => _images.FirstOrDefault(i => string.Equals(i.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+    public GameImage? Find(string relativePath) => _byPath.GetValueOrDefault(relativePath);
+
+    // ================================================================== template_ graphics
+
+    /// <summary>The image replacing a template_ image (template_player.png → player.png; it may not exist yet), or null
+    /// for other images.</summary>
+    public GameImage? ReplacementFor(GameImage image) => image.ReplacementPath is { } rel ? ImageAt(rel) : null;
+
+    /// <summary>True for a template_ image whose replacement was found by the last scan.</summary>
+    public bool IsReplaced(GameImage image) => image.ReplacementPath is { } rel && _byPath.ContainsKey(rel);
 
     // ================================================================== status
 

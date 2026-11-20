@@ -52,6 +52,8 @@ File › Game Edit Mode… and choose your game's graphics folder: every PNG in 
 in a catalog with its progress. Click one to edit it. Ctrl+S saves your editable version in a "_DoodleNook"
 folder inside the game folder and replaces the game's PNG in place (the original is backed up first, in
 _DoodleNook\Originals, if you leave that ticked). Saving makes an image "In progress"; "Mark complete" is up to you.
+Saving a "template_" image (e.g. template_player.png) asks whether to create a replacement without the prefix
+(player.png, same folder): the template stays as it is, and later saves go to player.png.
 
 The Designer's Toolkit
 ----------------------

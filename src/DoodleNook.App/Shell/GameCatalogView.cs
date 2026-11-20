@@ -106,7 +106,7 @@ public sealed class GameCatalogView : Border
     /// <summary>Shows the catalog of a game folder (after a scan).</summary>
     public void Show(GameProject project)
     {
-        bool rebuild = !ReferenceEquals(project, _project) || _tiles.Children.Count != project.Images.Count;
+        bool rebuild = !ReferenceEquals(project, _project) || !_tiles.Children.Select(t => t.Tag).SequenceEqual(project.Images);
         _project = project;
         IsVisible = true;
         if (rebuild) Rebuild();
@@ -128,10 +128,11 @@ public sealed class GameCatalogView : Border
     {
         if (_project is not { } p) return;
         var progress = p.Progress;
-        _title.Text = $"{p.Name} — {progress.Total} image{(progress.Total == 1 ? "" : "s")}";
+        _title.Text = $"{p.Name} — {p.Images.Count} image{(p.Images.Count == 1 ? "" : "s")}";
         ToolTip.SetTip(_title, p.Root);
         _percent.Text = $"Completion {progress.Percent:0.#}%";
-        _counts.Text = $"Not started: {progress.NotStarted}   ·   In progress: {progress.InProgress}   ·   Complete: {progress.Complete}";
+        _counts.Text = $"Not started: {progress.NotStarted}   ·   In progress: {progress.InProgress}   ·   Complete: {progress.Complete}" +
+                       (p.Images.Count > progress.Total ? $"   ·   Replaced templates: {p.Images.Count - progress.Total}" : "");
         _backToEditing.IsVisible = _app.EditingGameImage;
         UpdateBar();
         foreach (var r in _refresh) r();
@@ -152,7 +153,7 @@ public sealed class GameCatalogView : Border
         foreach (var child in _tiles.Children)
         {
             if (child.Tag is not GameImage image) continue;
-            bool show = (_filter is null || image.Status == _filter)
+            bool show = (_filter is null || (image.Status == _filter && _project?.IsReplaced(image) != true))
                         && (query.Length == 0 || image.RelativePath.Contains(query, StringComparison.OrdinalIgnoreCase));
             child.IsVisible = show;
             if (show) shown++;
@@ -184,7 +185,7 @@ public sealed class GameCatalogView : Border
         };
         ToolTip.SetTip(name, image.RelativePath);
         var dot = new Avalonia.Controls.Shapes.Ellipse { Width = 9, Height = 9, VerticalAlignment = VerticalAlignment.Center };
-        var status = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        var status = new TextBlock { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = ThumbWidth - 14 };
         var mark = UiKit.Button(null, "", null);
         mark.Height = 26;
         mark.FontSize = 12;
@@ -236,8 +237,11 @@ public sealed class GameCatalogView : Border
                 GameImageStatus.InProgress => InProgressColour,
                 _ => NotStartedColour,
             };
-            dot.Fill = new SolidColorBrush(colour);
-            status.Text = MainWindow.StatusText(image.Status);
+            // A template_ image with a replacement: the game shows the replacement, which carries the progress.
+            bool replaced = _project?.IsReplaced(image) == true;
+            dot.Fill = new SolidColorBrush(colour, replaced ? 0.35 : 1);
+            status.Text = replaced ? $"Replaced by {Path.GetFileName(image.ReplacementPath)}" : MainWindow.StatusText(image.Status);
+            mark.IsVisible = !replaced;
             mark.Content = image.Status == GameImageStatus.Complete ? "Mark in progress" : "Mark complete";
             ToolTip.SetTip(mark, image.Status == GameImageStatus.Complete ? "Not finished after all: back to In progress" : "Mark this image as finished");
             bool current = ReferenceEquals(_app.GameImage, image) && _app.EditingGameImage;

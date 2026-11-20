@@ -344,6 +344,163 @@ public sealed class GameEditTests : IDisposable
         w.Close();
     }
 
+    // ================================================================== template_ graphics (fallbacks and their replacements)
+
+    [Fact]
+    public void Only_template_names_have_a_replacement_and_a_replaced_template_is_not_counted_twice()
+    {
+        Png("characters/template_hero.png", 8, 8, Pixel.Opaque(ColorRgb.Black));
+        Png("template_logo.png", 8, 8, Pixel.Opaque(ColorRgb.Black));    // logo.png exists: replaced
+        Png("ui/my_template_button.png", 8, 8, Pixel.Opaque(ColorRgb.Black));
+        Png("ui/Template_icon.png", 8, 8, Pixel.Opaque(ColorRgb.Black));
+        Png("ui/template_.png", 8, 8, Pixel.Opaque(ColorRgb.Black));
+        var p = GameProject.Open(_assets);
+        var templateHero = p.Find("characters/template_hero.png")!;
+        Assert.Equal("characters/hero.png", templateHero.ReplacementPath);
+        Assert.Equal("logo.png", p.Find("template_logo.png")!.ReplacementPath);
+        foreach (var rel in new[] { "characters/player.png", "ui/my_template_button.png", "ui/Template_icon.png", "ui/template_.png" })
+            Assert.Null(p.ReplacementFor(p.Find(rel)!));
+        Assert.True(p.IsReplaced(p.Find("template_logo.png")!));
+        Assert.False(p.IsReplaced(templateHero));
+        Assert.Equal(9, p.Images.Count);
+        Assert.Equal(8, p.Progress.Total);
+
+        // The replacement before and after it exists is one and the same image.
+        var hero = p.ReplacementFor(templateHero)!;
+        Assert.Null(p.Find("characters/hero.png"));
+        Png("characters/hero.png", 8, 8, Pixel.Opaque(ColorRgb.White));
+        p.Rescan();
+        Assert.Same(hero, p.Find("characters/hero.png"));
+        Assert.True(p.IsReplaced(templateHero));
+        Assert.Equal(8, p.Progress.Total);
+    }
+
+    [AvaloniaFact]
+    public async Task Saving_a_template_can_create_its_replacement_and_later_saves_go_there()
+    {
+        Png("characters/template_hero.png", 16, 12, Pixel.Opaque(new ColorRgb(90, 90, 200)));
+        var w = await GameWindow();
+        var game = w.Game!;
+        var template = game.Find("characters/template_hero.png")!;
+        var templateBytes = File.ReadAllBytes(template.PngPath);
+        Assert.True(await w.OpenGameImageAsync(template));
+        Paint(w, 1, 6, 14);
+
+        // Cancel: nothing is saved.
+        var saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Create a replacement without the 'template_' prefix?");
+        w.Dialogs.Close("cancel");
+        Assert.False(await saving);
+        Assert.False(File.Exists(template.DnkPath));
+        Assert.False(File.Exists(Path.Combine(_assets, "characters", "hero.png")));
+        Assert.True(w.Session.Document.IsDirty);
+
+        // Yes: hero.dnk and hero.png; the template stays exactly as it was.
+        saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("yes");
+        Assert.True(await saving);
+        var hero = game.ReplacementFor(template)!;
+        Assert.Equal("characters/hero.png", hero.RelativePath);
+        Assert.Equal(templateBytes, File.ReadAllBytes(template.PngPath));
+        Assert.False(File.Exists(template.DnkPath));
+        Assert.False(File.Exists(template.BackupPath));
+        Assert.True(File.Exists(hero.DnkPath));
+        Assert.Equal(w.Session.Document.Flatten().Pixels, PngCodec.Decode(File.ReadAllBytes(hero.PngPath)).Pixels);
+        Assert.Same(hero, w.GameImage);
+        Assert.True(w.EditingGameImage);
+        Assert.Equal("DoodleNook — M009 — hero.dnk", w.Title);
+        Assert.Equal(GameImageStatus.InProgress, hero.Status);
+        Assert.Equal(GameImageStatus.NotStarted, template.Status);
+
+        // Later saves go to hero.png without asking again.
+        Paint(w, 1, 2, 14);
+        await Save(w);
+        Assert.False(w.Dialogs.IsOpen);
+        Assert.Equal(w.Session.Document.Flatten().Pixels, PngCodec.Decode(File.ReadAllBytes(hero.PngPath)).Pixels);
+        Assert.Equal(templateBytes, File.ReadAllBytes(template.PngPath));
+
+        // The catalog: hero.png is an ordinary image; the template says it's replaced and isn't counted.
+        w.ShowCatalog();
+        Pump();
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "assets — 6 images");
+        Assert.Equal("Not started: 4   ·   In progress: 1   ·   Complete: 0   ·   Replaced templates: 1", Find<TextBlock>(w, "GameCounts").Text);
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Replaced by hero.png");
+        var heroTile = w.GetVisualDescendants().OfType<Border>().First(b => b.Name == "GameTile_characters/hero.png");
+        Click(w, heroTile.GetVisualDescendants().OfType<Button>().First());
+        Assert.Equal(GameImageStatus.Complete, hero.Status);
+        Assert.Equal("Completion 20%", Find<TextBlock>(w, "GameProgressText").Text);
+        w.HideCatalog();                     // marked complete in the catalog, then saved: still complete
+        Paint(w, 1, 10, 14);
+        await Save(w);
+        Assert.Equal(GameImageStatus.Complete, hero.Status);
+        var again = GameProject.Open(_assets);
+        Assert.Equal(GameImageStatus.Complete, again.Find("characters/hero.png")!.Status);
+        Assert.Equal(GameImageStatus.NotStarted, again.Find("characters/template_hero.png")!.Status);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task An_existing_replacement_is_only_overwritten_after_asking_and_no_saves_the_template_as_usual()
+    {
+        Png("characters/template_enemy.png", 16, 16, Pixel.Opaque(new ColorRgb(1, 100, 1)));
+        var w = await GameWindow();
+        var game = w.Game!;
+        var template = game.Find("characters/template_enemy.png")!;
+        var enemy = game.Find("characters/enemy.png")!;
+        var templateBytes = File.ReadAllBytes(template.PngPath);
+        var enemyBytes = File.ReadAllBytes(enemy.PngPath);
+        Assert.True(await w.OpenGameImageAsync(template));
+        Paint(w, 1, 8, 15);
+
+        // Yes, but enemy.png exists: asked first, and Cancel leaves everything as it was.
+        var saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("yes");
+        await Until(() => w.Dialogs.IsOpen || saving.IsCompleted);
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "“enemy.png” already exists");
+        w.Dialogs.Close("cancel");
+        Assert.False(await saving);
+        Assert.Equal(enemyBytes, File.ReadAllBytes(enemy.PngPath));
+        Assert.False(File.Exists(enemy.DnkPath));
+        Assert.Same(template, w.GameImage);
+
+        // Replace: the old enemy.png is backed up by the usual rule, then replaced; the template is untouched.
+        saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("yes");
+        await Until(() => w.Dialogs.IsOpen || saving.IsCompleted);
+        w.Dialogs.Close("replace");
+        Assert.True(await saving);
+        Assert.Equal(enemyBytes, File.ReadAllBytes(enemy.BackupPath));
+        Assert.NotEqual(enemyBytes, File.ReadAllBytes(enemy.PngPath));
+        Assert.Equal(templateBytes, File.ReadAllBytes(template.PngPath));
+        Assert.Same(enemy, w.GameImage);
+        Assert.Equal(GameImageStatus.InProgress, enemy.Status);
+
+        // No — Save normally: the template itself is saved as usual (backed up first), and asked only once.
+        Png("ui/template_button.png", 12, 8, Pixel.Opaque(new ColorRgb(200, 150, 60)));
+        w.ShowCatalog();
+        var button = game.Find("ui/template_button.png")!;
+        var buttonBytes = File.ReadAllBytes(button.PngPath);
+        Assert.True(await w.OpenGameImageAsync(button));
+        Paint(w, 1, 4, 11);
+        saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("no");
+        Assert.True(await saving);
+        Assert.Equal(buttonBytes, File.ReadAllBytes(button.BackupPath));
+        Assert.NotEqual(buttonBytes, File.ReadAllBytes(button.PngPath));
+        Assert.True(File.Exists(button.DnkPath));
+        Assert.False(File.Exists(Path.Combine(_assets, "ui", "button.png")));
+        Assert.Equal(GameImageStatus.InProgress, button.Status);
+        Paint(w, 1, 2, 11);
+        await Save(w);
+        Assert.False(w.Dialogs.IsOpen);
+        w.Close();
+    }
+
     [AvaloniaFact]
     public void The_window_title_shows_the_milestone()
     {
