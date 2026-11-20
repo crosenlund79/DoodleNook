@@ -49,6 +49,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _persistSettings = Program.Options.SmokeTestDirectory is null && !Design.IsDesignMode && !IsHeadless;
         _settings = _persistSettings ? AppSettings.Load() : new AppSettings();
+        InitLibrary(); // before the settings: the remembered brush may be one of the user's own
         _settings.ApplyTo(Session);
         if (_persistSettings) RestorePlacement();
 
@@ -314,6 +315,7 @@ public partial class MainWindow : Window
             _settings.Save();
         }
         Animator.Pause();
+        _referenceBoard?.SaveNow();
         _autosaveTimer.Stop();
         _recovery?.EndSession();
     }

@@ -29,7 +29,7 @@ public static class Workspaces
             [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Lasso, ToolKind.Move, ToolKind.Fill, ToolKind.Hand], ToolKind.Brush,
             "A slim toolbar for spontaneous doodling."),
         new(WorkspaceKind.Painting, "C", "Painting", "wsC",
-            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
+            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Stamp, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
             "Brushes, colour and layers for finished artwork."),
         new(WorkspaceKind.Editing, "D", "Editing", "wsD",
             [ToolKind.Move, ToolKind.RectSelect, ToolKind.EllipseSelect, ToolKind.Lasso, ToolKind.MagicWand, ToolKind.Crop, ToolKind.Eyedropper,
@@ -37,7 +37,7 @@ public static class Workspaces
             "Selections, transforms, crop, resize and colour adjustments."),
         new(WorkspaceKind.PixelArt, "E", "Pixel Art", "wsE",
             [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.PixelEllipse,
-             ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand], ToolKind.PixelPencil,
+             ToolKind.Stamp, ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand], ToolKind.PixelPencil,
             "Exact pixels, a grid, palettes and whole-number zoom for game art."),
         new(WorkspaceKind.Animation, "F", "Animation Studio", "wsF",
             [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Lasso, ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
@@ -48,9 +48,15 @@ public static class Workspaces
     public static readonly ToolKind[] PixelAnimationTools =
         [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand];
 
-    /// <summary>The tools shown in a workspace (Animation Studio swaps in pixel tools for pixel-art animation).</summary>
-    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation) =>
-        ws.Kind == WorkspaceKind.Animation && pixelAnimation ? PixelAnimationTools : ws.Tools;
+    /// <summary>The tools shown in a workspace (Animation Studio swaps in pixel tools for pixel-art animation; the
+    /// stamp tool can be added through Customize workspace where it isn't there by default).</summary>
+    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation, bool optionalStamp = false)
+    {
+        var tools = ws.Kind == WorkspaceKind.Animation && pixelAnimation ? PixelAnimationTools : ws.Tools;
+        if (!optionalStamp || tools.Contains(ToolKind.Stamp)) return tools;
+        // Before the Hand (always last).
+        return [.. tools.Where(t => t != ToolKind.Hand), ToolKind.Stamp, .. tools.Where(t => t == ToolKind.Hand)];
+    }
 
     public static WorkspaceInfo Get(WorkspaceKind kind) => All[(int)kind];
 
@@ -74,13 +80,17 @@ public static class Workspaces
         [ToolKind.PixelLine] = new(ToolKind.PixelLine, "Line", "line", "L", "Drag a pixel line · Shift snaps to 45°"),
         [ToolKind.PixelRect] = new(ToolKind.PixelRect, "Rectangle", "rect", "U", "Drag a pixel rectangle"),
         [ToolKind.PixelEllipse] = new(ToolKind.PixelEllipse, "Ellipse", "ellipse", "Shift+U", "Drag a pixel ellipse"),
+        [ToolKind.Stamp] = new(ToolKind.Stamp, "Stamp", "stamp", "S", "Click to place the current stamp · [ and ] size · pick stamps in the options bar"),
     };
 
     /// <summary>The tool a key selects in a workspace (Photoshop-style letters, resolved within the workspace's tools).</summary>
-    public static ToolKind? ToolForKey(WorkspaceInfo ws, string letter, bool shift, bool pixelAnimation = false)
+    public static ToolKind? ToolForKey(WorkspaceInfo ws, string letter, bool shift, bool pixelAnimation = false) =>
+        ToolForKey(ToolsOf(ws, pixelAnimation), letter, shift);
+
+    /// <summary>The tool a key selects among the tools shown now.</summary>
+    public static ToolKind? ToolForKey(IReadOnlyList<ToolKind> tools, string letter, bool shift)
     {
         string key = shift ? "Shift+" + letter : letter;
-        var tools = ToolsOf(ws, pixelAnimation);
         foreach (var t in tools)
             if (Tools[t].Shortcut == key) return t;
         // Fall back to tools other workspaces offer for this key (e.g. M in Quick Sketch).
@@ -108,6 +118,9 @@ public static class CustomOptions
     public const string PreviewPanel = "preview-panel";
     public const string LayersDock = "layers-dock";
     public const string TimelineThumbnails = "timeline-thumbnails";
+    public const string StampTool = "stamp-tool";
+    public const string FavouriteBrushes = "favourite-brushes";
+    public const string ReferenceBoard = "reference-board";
 
     private static readonly WorkspaceKind[] None = [];
 
@@ -130,6 +143,12 @@ public static class CustomOptions
         new(LayersDock, "Layers panel", "The full layers panel docked on the right (the timeline already lists the layers)", [WorkspaceKind.Animation], None),
         new(TimelineThumbnails, "Drawing thumbnails in the timeline", "Small pictures of each drawing when the timeline is tall enough",
             [WorkspaceKind.Animation], [WorkspaceKind.Animation]),
+        new(StampTool, "Stamp tool", "Place stamps from your library (Painting and Pixel Art always have it)",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.Editing, WorkspaceKind.Animation], None),
+        new(FavouriteBrushes, "Favourite brushes", "Your starred brushes as one-click buttons next to the brush picker",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Animation], None),
+        new(ReferenceBoard, "Reference board", "Your reference pictures in a floating panel (also Window › Reference board)",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt, WorkspaceKind.Animation], None),
     ];
 
     public static IEnumerable<CustomOption> For(WorkspaceKind kind) => All.Where(o => o.Workspaces.Contains(kind));

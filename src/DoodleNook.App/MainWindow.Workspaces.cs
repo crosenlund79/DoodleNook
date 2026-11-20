@@ -37,7 +37,7 @@ public partial class MainWindow
     public bool PixelAnimation => Workspace.Kind == WorkspaceKind.Animation && WsState.PixelAnimation;
 
     /// <summary>The tools of the current workspace (and drawing style).</summary>
-    public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation);
+    public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation, WsState.IsShown(CustomOptions.StampTool, Workspace.Kind));
 
     internal Animation.TimelinePanel? Timeline => _timeline;
 
@@ -127,8 +127,8 @@ public partial class MainWindow
     {
         var dock = new DockArea(this,
         [
-            new DockSection("colour", "Colour", "palette", new ColourPanel(Session, compact: true) { Width = double.NaN }),
-            new DockSection("brushes", "Brushes", "brush", new BrushPanel(Session, compact: true) { Width = double.NaN }),
+            new DockSection("colour", "Colour", "palette", new ColourPanel(Session, compact: true, app: this) { Width = double.NaN }),
+            new DockSection("brushes", "Brushes", "brush", new BrushPanel(Session, compact: true, app: this) { Width = double.NaN }),
             new DockSection("layers", "Layers", "layers", new LayersPanel(Session, 380)),
         ]) { Name = "PaintDock" };
         dock.CollapsedChanged += ApplyChromeVisibility;
@@ -187,14 +187,14 @@ public partial class MainWindow
 
     private Border BuildPaletteHost()
     {
-        var column = new PaletteColumn(Session, () => new ColourPanel(Session),
+        var column = new PaletteColumn(Session, () => new ColourPanel(Session, app: this),
             v =>
             {
                 WsState.RightClickPaintsBackground = v;
                 Canvas.Input!.PixelRightPaintsBackground = v && Workspace.Kind == WorkspaceKind.PixelArt;
                 ShowToast(v ? "Right-click paints with the background colour" : "Right-click opens the quick palette");
             },
-            () => WsState.RightClickPaintsBackground);
+            () => WsState.RightClickPaintsBackground, this);
         return new Border
         {
             Name = "PaletteColumn",
@@ -232,6 +232,7 @@ public partial class MainWindow
         _animationPreview.IsVisible = !hidden && kind == WorkspaceKind.Animation && WsState.IsShown(CustomOptions.PreviewPanel, kind);
         _quickBar?.SetLayersChipVisible(_settings.StateFor(WorkspaceKind.QuickSketch).IsShown(CustomOptions.LayersChip, WorkspaceKind.QuickSketch));
         if (kind == WorkspaceKind.Animation) _timeline?.ApplyLayout();
+        ApplyReferenceBoard();
 
         // The dock column: a fixed, draggable width when expanded; just the icon strip when collapsed.
         var col = MainGrid.ColumnDefinitions[3];

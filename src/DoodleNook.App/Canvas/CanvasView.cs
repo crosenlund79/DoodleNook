@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Rendering.SceneGraph;
@@ -14,6 +15,7 @@ using DoodleNook.App.Input;
 using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Geometry;
 using DoodleNook.Engine.Imaging;
+using DoodleNook.Engine.Operations;
 using DoodleNook.Engine.Viewing;
 using SkiaSharp;
 
@@ -122,6 +124,13 @@ public sealed class CanvasView : Control, ICustomHitTest
             InvalidateVisual();
         };
         Input.ViewPannedByUser += () => _fitMode = false;
+        session.StateChanged += () =>
+        {
+            // Stamp size, rotation or choice changed: move the preview with it.
+            bool had = Input.Overlay.Stamp is not null;
+            Input.UpdateStampPreview();
+            if (had || Input.Overlay.Stamp is not null) InvalidateVisual();
+        };
         session.DocumentReplaced += OnDocumentReplaced;
         session.StateChanged += () =>
         {
@@ -170,7 +179,9 @@ public sealed class CanvasView : Control, ICustomHitTest
 
     private void OnSelectionChanged()
     {
-        _selectionPath?.Dispose();
+        // Not disposed here: a draw operation queued for the render thread may still be reading the old path (that
+        // use-after-free crashed in sk_path_clone). Dropping the reference lets the garbage collector free it once the
+        // last frame that uses it is done.
         _selectionPath = null;
         var sel = _session?.Document.Selection;
         if (sel is not null && !sel.IsEmpty)
@@ -275,6 +286,51 @@ public sealed class CanvasView : Control, ICustomHitTest
 
     private static readonly IBrush Shade = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0));
 
+    private WriteableBitmap? _stampBitmap;
+    private RasterImage? _stampBitmapSource;
+
+    /// <summary>The stamp, faded, exactly where a click would place it (follows zoom, rotation and flip of the view).</summary>
+    private void DrawStampPreview(DrawingContext context, RasterImage img, StampPlacement p)
+    {
+        if (!ReferenceEquals(img, _stampBitmapSource))
+        {
+            _stampBitmap = Controls.BrushPreview.ToBitmap(img);
+            _stampBitmapSource = img;
+        }
+        // Image pixel (u, v) → document: centre + rotate(scale · (u − w/2, v − h/2)), mirrored when flipped.
+        double a = p.Rotation * Math.PI / 180, cos = Math.Cos(a), sin = Math.Sin(a);
+        (double X, double Y) ToDoc(double u, double v)
+        {
+            double qx = (u - img.Width / 2.0) * p.Scale * (p.FlipX ? -1 : 1), qy = (v - img.Height / 2.0) * p.Scale * (p.FlipY ? -1 : 1);
+            return (p.X + qx * cos - qy * sin, p.Y + qx * sin + qy * cos);
+        }
+        var o = ToDoc(0, 0);
+        var ux = ToDoc(img.Width, 0);
+        var vy = ToDoc(0, img.Height);
+        var v0 = View.DocumentToView(o.X, o.Y);
+        var v1 = View.DocumentToView(ux.X, ux.Y);
+        var v2 = View.DocumentToView(vy.X, vy.Y);
+        var m = new Matrix((v1.X - v0.X) / img.Width, (v1.Y - v0.Y) / img.Width, (v2.X - v0.X) / img.Height, (v2.Y - v0.Y) / img.Height, v0.X, v0.Y);
+        using (context.PushTransform(m))
+        using (context.PushOpacity(0.6))
+        {
+            RenderOptions.SetBitmapInterpolationMode(this, _session!.PixelMode ? BitmapInterpolationMode.None : BitmapInterpolationMode.HighQuality);
+            context.DrawImage(_stampBitmap!, new Rect(0, 0, img.Width, img.Height));
+        }
+        var outline = new StreamGeometry();
+        using (var g = outline.Open())
+        {
+            var c3 = ToDoc(img.Width, img.Height);
+            var v3 = View.DocumentToView(c3.X, c3.Y);
+            g.BeginFigure(new Point(v0.X, v0.Y), false);
+            g.LineTo(new Point(v1.X, v1.Y));
+            g.LineTo(new Point(v3.X, v3.Y));
+            g.LineTo(new Point(v2.X, v2.Y));
+            g.EndFigure(true);
+        }
+        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)), 1, new DashStyle([3, 3], 0)), outline);
+    }
+
     private void DrawOverlays(DrawingContext context)
     {
         if (_session is null || Input is null) return;
@@ -282,6 +338,9 @@ public sealed class CanvasView : Control, ICustomHitTest
         var white = new Pen(Brushes.White, 1.3);
         var dark = new Pen(new SolidColorBrush(Color.FromArgb(170, 0, 0, 0)), 3);
         var dash = new Pen(Brushes.White, 1.2, new DashStyle([4, 4], 0));
+
+        if (o.Stamp is { } stamp && _session.Tool == ToolKind.Stamp && Input.Gesture == Gesture.None)
+            DrawStampPreview(context, stamp.Image, stamp.Placement);
 
         if (o.Crop is { } crop)
         {

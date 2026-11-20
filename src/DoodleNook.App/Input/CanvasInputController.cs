@@ -76,6 +76,9 @@ public sealed class CanvasOverlay
     public (double X0, double Y0, double X1, double Y1)? Line { get; set; }
     public (double X, double Y)[]? TransformFrame { get; set; }
     public PixelRect? Crop { get; set; }
+
+    /// <summary>The stamp tool's preview under the pointer (picture and placement in document coordinates).</summary>
+    public (RasterImage Image, StampPlacement Placement)? Stamp { get; set; }
 }
 
 /// <summary>
@@ -281,6 +284,9 @@ public sealed class CanvasInputController
             case ToolKind.Fill:
                 DoFill(p);
                 return Gesture.None;
+            case ToolKind.Stamp:
+                DoStamp(p);
+                return Gesture.None;
             case ToolKind.MagicWand:
                 DoWand(p);
                 return Gesture.None;
@@ -314,6 +320,7 @@ public sealed class CanvasInputController
         if (Gesture == Gesture.None)
         {
             Hover = (last.X, last.Y);
+            UpdateStampPreview();
             OverlayChanged?.Invoke();
             return;
         }
@@ -542,6 +549,7 @@ public sealed class CanvasInputController
     {
         if (Gesture != Gesture.None) return;
         Hover = null;
+        Overlay.Stamp = null;
         OverlayChanged?.Invoke();
     }
 
@@ -676,10 +684,34 @@ public sealed class CanvasInputController
 
     // ================================================================ helpers
 
+    /// <summary>Shows the current stamp under the pointer (stamp tool only).</summary>
+    public void UpdateStampPreview()
+    {
+        if (_session.Tool != ToolKind.Stamp || Hover is not { } h || _session.StampOptions.StampId is not { } id || _session.Library.StampImage(id) is not { } img)
+        {
+            Overlay.Stamp = null;
+            return;
+        }
+        var (x, y) = _view.ViewToDocument(h.X, h.Y);
+        var placement = _session.StampPlacementAt(x, y);
+        Overlay.Stamp = (img, _session.PixelMode ? placement.PixelExact(img) : placement);
+    }
+
+    private void DoStamp(in PointerInput p)
+    {
+        var (x, y) = Doc(p);
+        _session.PlaceStamp(x, y);
+    }
+
     private void DoFill(in PointerInput p)
     {
         if (!_session.CanEditActiveLayer()) return;
         var (x, y) = Doc(p);
+        if (_session.PatternOptions.UsePattern)
+        {
+            _session.PatternFillAt((int)Math.Floor(x), (int)Math.Floor(y));
+            return;
+        }
         var options = _session.PixelMode ? _session.Fill with { Exact = true, Tolerance = 0 } : _session.Fill;
         FloodFill.Apply(Document, Document.ActiveLayer, (int)Math.Floor(x), (int)Math.Floor(y), _session.Foreground, options);
     }

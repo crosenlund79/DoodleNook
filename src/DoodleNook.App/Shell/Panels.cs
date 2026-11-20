@@ -3,9 +3,11 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using DoodleNook.App.Controls;
 using DoodleNook.App.Editor;
 using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Library;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Painting;
 
@@ -22,14 +24,17 @@ public sealed class ColourPanel : StackPanel
     private readonly TextBox[] _numbers = new TextBox[6];
     private readonly WrapPanel _swatches = new() { ItemWidth = 29, ItemHeight = 29 };
     private readonly WrapPanel _recent = new() { ItemWidth = 29, ItemHeight = 29 };
+    private readonly TextBlock _swatchTitle = new() { Classes = { "dim" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 170 };
+    private readonly MainWindow? _app;
     private double _h, _s, _v;
     private ColorRgb _shown;
     private bool _editing;
 
     /// <param name="compact">Docked version: a smaller square, the numbers behind a toggle, no separate recent row.</param>
-    public ColourPanel(EditorSession session, Action? close = null, bool compact = false)
+    public ColourPanel(EditorSession session, Action? close = null, bool compact = false, MainWindow? app = null)
     {
         _session = session;
+        _app = app;
         Width = 252;
         Spacing = 7;
         if (close is not null) Children.Add(UiKit.Header("Colour", close));
@@ -75,13 +80,25 @@ public sealed class ColourPanel : StackPanel
         }
 
         var swatchHead = new DockPanel();
-        var add = UiKit.Button("plus", tip: "Save the current colour as a swatch", click: () => session.AddSwatch(session.Foreground));
+        var add = UiKit.Button("plus", tip: "Add the current colour (to your swatches, or to the palette shown)", click: () =>
+        {
+            if (session.Library.FindPalette(session.ActivePaletteId) is { BuiltIn: false } p)
+            {
+                if (!p.Colors.Contains(session.Foreground)) session.Library.UpdatePalette(p.Id, [.. p.Colors, session.Foreground]);
+            }
+            else session.AddSwatch(session.Foreground);
+        });
         add.Width = 26;
         add.Height = 26;
         add.MinWidth = 26;
         DockPanel.SetDock(add, Dock.Right);
         swatchHead.Children.Add(add);
-        swatchHead.Children.Add(UiKit.Label("Swatches · right-click removes", size: 12));
+        // Which colours the grid shows: your own swatches or one of your palettes (chosen here, managed in Palettes…).
+        var chooser = Menus.MenuButton(UiKit.Row(4, _swatchTitle, new DnIcon { Kind = "chevd", Width = 14, Height = 14 }), PaletteMenu, "Swatches or a palette", 240);
+        chooser.Name = "SwatchSource";
+        chooser.Height = 26;
+        chooser.HorizontalAlignment = HorizontalAlignment.Left;
+        swatchHead.Children.Add(chooser);
         Children.Add(swatchHead);
         Children.Add(_swatches);
         if (!compact)
@@ -96,6 +113,7 @@ public sealed class ColourPanel : StackPanel
         _hex.LostFocus += (_, _) => { _editing = false; CommitHex(); };
         _hex.KeyDown += (_, e) => { if (e.Key == Key.Enter) { CommitHex(); e.Handled = true; } };
         session.StateChanged += Refresh;
+        session.LibraryChanged += Refresh;
         Refresh();
     }
 
@@ -152,8 +170,30 @@ public sealed class ColourPanel : StackPanel
             double[] values = [fg.R, fg.G, fg.B, Math.Round(_h), Math.Round(_s * 100), Math.Round(_v * 100)];
             for (int i = 0; i < 6; i++) _numbers[i].Text = values[i].ToString("0");
         }
-        Fill(_swatches, _session.Swatches, removable: true);
+        var palette = _session.Library.FindPalette(_session.ActivePaletteId);
+        _swatchTitle.Text = palette is null ? "Swatches · right-click removes" : palette.Name + (palette.BuiltIn ? "" : " · right-click removes");
+        Fill(_swatches, palette?.Colors ?? (IEnumerable<ColorRgb>)_session.Swatches, removable: palette is null or { BuiltIn: false });
         Fill(_recent, _session.RecentColors.Take(8), removable: false);
+    }
+
+    private IEnumerable<MenuEntry> PaletteMenu()
+    {
+        var lib = _session.Library;
+        yield return new(null, "My swatches", null, () => _session.SetActivePalette(null), Checked: _session.ActivePaletteId is null);
+        foreach (var group in lib.Palettes.GroupBy(p => p.Collection))
+        {
+            yield return MenuEntry.Heading(group.Key);
+            foreach (var p in group)
+            {
+                var id = p.Id;
+                yield return new(null, p.Name, null, () => _session.SetActivePalette(id), Checked: _session.ActivePaletteId == id);
+            }
+        }
+        if (_app is not null)
+        {
+            yield return MenuEntry.Separator;
+            yield return new("palette", "Palettes…", null, () => _ = _app.OpenPalettesAsync(_session.ActivePaletteId));
+        }
     }
 
     private void Fill(WrapPanel panel, IEnumerable<ColorRgb> colors, bool removable)
@@ -179,7 +219,10 @@ public sealed class ColourPanel : StackPanel
             if (removable)
                 sw.PointerReleased += (_, e) =>
                 {
-                    if (e.InitialPressMouseButton == MouseButton.Right) _session.RemoveSwatch(colour);
+                    if (e.InitialPressMouseButton != MouseButton.Right) return;
+                    if (_session.Library.FindPalette(_session.ActivePaletteId) is { BuiltIn: false } p)
+                        _session.Library.UpdatePalette(p.Id, p.Colors.Where(x => x != colour));
+                    else _session.RemoveSwatch(colour);
                 };
             panel.Children.Add(sw);
         }
@@ -189,19 +232,25 @@ public sealed class ColourPanel : StackPanel
 /// <summary>The brush panel: recognisable previews of every preset, then the settings of the current brush or eraser.</summary>
 public sealed class BrushPanel : StackPanel
 {
+    private static readonly Dictionary<string, WriteableBitmap> Previews = new();
     private readonly EditorSession _session;
-    private readonly WrapPanel _tiles = new() { ItemWidth = 120, ItemHeight = 54 };
+    private readonly MainWindow? _app;
+    private readonly StackPanel _tiles = new() { Spacing = 2 };
+    private readonly TextBox _search = new() { Watermark = "Find a brush", Height = 30, Name = "BrushSearch" };
+    private readonly ScrollViewer _tileScroll;
     private readonly TextBlock _title = UiKit.Heading("Brushes");
     private readonly List<Action> _refresh = new();
     private readonly Control _grainRow, _flowRow;
     private string? _tilesFor;
 
     /// <param name="compact">Docked version: the presets, with the settings behind a toggle.</param>
-    public BrushPanel(EditorSession session, Action? close = null, bool compact = false)
+    public BrushPanel(EditorSession session, Action? close = null, bool compact = false, MainWindow? app = null)
     {
         _session = session;
+        _app = app;
         Width = 252;
         Spacing = 6;
+        _tileScroll = new ScrollViewer { Content = _tiles, MaxHeight = compact ? 260 : 300, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         if (close is not null)
         {
             var header = (DockPanel)UiKit.Header("Brushes", close);
@@ -209,7 +258,26 @@ public sealed class BrushPanel : StackPanel
             header.Children.Add(_title);
             Children.Add(header);
         }
-        Children.Add(_tiles);
+        Children.Add(_search);
+        Children.Add(_tileScroll);
+        _search.TextChanged += (_, _) =>
+        {
+            _tilesFor = null;
+            Refresh();
+        };
+        if (app is not null)
+        {
+            var lab = UiKit.Button("lab", "Brush Laboratory…", "Create your own brushes: tip, texture, pressure, scatter, with a test canvas", () =>
+            {
+                close?.Invoke();
+                _ = app.OpenBrushLabAsync();
+            });
+            lab.Height = 30;
+            lab.Name = "OpenBrushLab";
+            lab.HorizontalAlignment = HorizontalAlignment.Stretch;
+            lab.Background = new SolidColorBrush(DnColors.Ui3);
+            Children.Add(lab);
+        }
         var settings = new StackPanel { Spacing = 6 };
         if (compact)
         {
@@ -265,6 +333,11 @@ public sealed class BrushPanel : StackPanel
         settings.Children.Add(UiKit.Row(6, UiKit.Label("Mirror"), sym));
 
         session.StateChanged += Refresh;
+        session.LibraryChanged += () =>
+        {
+            _tilesFor = null;
+            Refresh();
+        };
         Refresh();
     }
 
@@ -277,38 +350,87 @@ public sealed class BrushPanel : StackPanel
         _grainRow.IsVisible = !eraser && s.Grain > 0;
         _flowRow.IsVisible = !eraser && s.BuildUp;
         foreach (var r in _refresh) r();
-        if (eraser || _tilesFor == _session.BrushPresetId) return;
-        _tilesFor = _session.BrushPresetId;
+        _search.IsVisible = !eraser;
+        _tileScroll.IsVisible = !eraser;
+        var lib = _session.Library;
+        string query = _search.Text?.Trim() ?? "";
+        string key = $"{_session.BrushPresetId}|{query}|{string.Join(",", lib.Brushes.Select(b => b.Id + (lib.IsFavoriteBrush(b.Id) ? "*" : "") + b.Name))}";
+        if (eraser || _tilesFor == key) return;
+        _tilesFor = key;
         _tiles.Children.Clear();
-        var ink = new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B);
-        foreach (var p in EditorSession.Presets)
+        var brushes = lib.Brushes.Where(b => query.Length == 0 || b.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                                                             || b.Category.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        var sections = new List<(string Title, List<BrushPreset> Items)>();
+        var favourites = brushes.Where(b => lib.IsFavoriteBrush(b.Id)).ToList();
+        if (favourites.Count > 0) sections.Add(("★ Favourites", favourites));
+        foreach (var cat in BrushCategories.Order)
         {
-            bool on = p.Id == _session.BrushPresetId;
-            var stack = new StackPanel { Spacing = 1 };
-            stack.Children.Add(new Image { Source = BrushPreview.Render(p.Settings, ink, 102, 22), Width = 102, Height = 22, HorizontalAlignment = HorizontalAlignment.Left });
-            stack.Children.Add(new TextBlock { Text = p.Name, FontSize = 12, Foreground = new SolidColorBrush(on ? DnColors.Text : DnColors.Text2) });
-            var tile = new Button
+            var items = brushes.Where(b => b.Category == cat && !lib.IsFavoriteBrush(b.Id)).ToList();
+            if (items.Count > 0) sections.Add((cat, items));
+        }
+        if (sections.Count == 0) _tiles.Children.Add(new TextBlock { Text = "No brush with that name", Classes = { "dim" }, FontSize = 12, Margin = new Thickness(4) });
+        var ink = new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B);
+        foreach (var (title, items) in sections)
+        {
+            _tiles.Children.Add(new TextBlock { Text = title, Classes = { "dim" }, FontSize = 11, Margin = new Thickness(4, 4, 0, 0) });
+            var wrap = new WrapPanel { ItemWidth = 120, ItemHeight = 54 };
+            foreach (var p in items) wrap.Children.Add(Tile(p, ink));
+            _tiles.Children.Add(wrap);
+        }
+    }
+
+    private Button Tile(BrushPreset p, ColorRgb ink)
+    {
+        bool on = p.Id == _session.BrushPresetId;
+        var lib = _session.Library;
+        string pk = p.Settings + "|" + ink.ToHex();
+        if (!Previews.TryGetValue(pk, out var bmp)) Previews[pk] = bmp = BrushPreview.Render(p.Settings, ink, 102, 22, resources: lib.Resolve(p.Settings));
+        var stack = new StackPanel { Spacing = 1 };
+        stack.Children.Add(new Image { Source = bmp, Width = 102, Height = 22, HorizontalAlignment = HorizontalAlignment.Left });
+        stack.Children.Add(new TextBlock { Text = p.Name, FontSize = 12, Foreground = new SolidColorBrush(on ? DnColors.Text : DnColors.Text2), TextTrimming = TextTrimming.CharacterEllipsis });
+        var tile = new Button
+        {
+            Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
+            Height = 50,
+            Width = 116,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
+            Name = "BrushTile_" + p.Id,
+            Content = new Border
             {
-                Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Height = 50,
-                Width = 116,
-                Padding = new Thickness(0),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Stretch,
-                Content = new Border
-                {
-                    Child = stack,
-                    Padding = new Thickness(6, 4),
-                    CornerRadius = new CornerRadius(9),
-                    Background = new SolidColorBrush(on ? Color.Parse("#2BE9A94D") : DnColors.Ui),
-                    BorderBrush = new SolidColorBrush(on ? DnColors.Accent : Colors.Transparent),
-                    BorderThickness = new Thickness(1),
-                },
-            };
-            var id = p.Id;
-            tile.Click += (_, _) => _session.ApplyPreset(id);
-            ToolTip.SetTip(tile, $"{p.Name}: {p.Description}");
-            _tiles.Children.Add(tile);
+                Child = stack,
+                Padding = new Thickness(6, 4),
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(on ? Color.Parse("#2BE9A94D") : DnColors.Ui),
+                BorderBrush = new SolidColorBrush(on ? DnColors.Accent : Colors.Transparent),
+                BorderThickness = new Thickness(1),
+            },
+        };
+        var id = p.Id;
+        tile.Click += (_, _) => _session.ApplyPreset(id);
+        ToolTip.SetTip(tile, $"{p.Name}: {p.Description}{(p.BuiltIn ? "" : " (your brush)")}\nRight-click: favourite, edit, duplicate…");
+        var menu = UiKit.PopFlyout(new Panel(), PlacementMode.Pointer);
+        menu.Opening += (_, _) => menu.Content = Menus.Build(TileMenu(id), menu.Hide, 230);
+        tile.ContextFlyout = menu;
+        return tile;
+    }
+
+    private IEnumerable<MenuEntry> TileMenu(string id)
+    {
+        var lib = _session.Library;
+        var p = lib.FindBrush(id);
+        if (p is null) yield break;
+        bool fav = lib.IsFavoriteBrush(id);
+        yield return MenuEntry.Heading(p.Name);
+        yield return new("star", fav ? "Remove from favourites" : "Add to favourites", null, () => lib.SetFavoriteBrush(id, !fav));
+        if (_app is not null) yield return new("lab", "Edit in the Brush Laboratory…", null, () => _ = _app.OpenBrushLabAsync(id));
+        yield return new("copy", "Duplicate", null, () => _session.ApplyPreset(lib.DuplicateBrush(id).Id));
+        if (_app is not null && !p.BuiltIn)
+        {
+            yield return new(null, "Rename…", null, () => _ = _app.RenameBrushAsync(id));
+            yield return new("export", "Export…", null, () => _ = _app.ExportPackAsync(p.Name, brushIds: [id]));
+            yield return new("trash", "Delete…", null, () => _ = _app.DeleteBrushAsync(id));
         }
     }
 }
@@ -377,7 +499,7 @@ public sealed class PaletteColumn : StackPanel
     private readonly TextBlock _layerName = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 80 };
     private Document? _watched;
 
-    public PaletteColumn(EditorSession session, Func<Control> colourEditor, Action<bool> setRightPaintsBackground, Func<bool> rightPaintsBackground)
+    public PaletteColumn(EditorSession session, Func<Control> colourEditor, Action<bool> setRightPaintsBackground, Func<bool> rightPaintsBackground, MainWindow? app = null)
     {
         _session = session;
         Width = 136;
@@ -413,18 +535,39 @@ public sealed class PaletteColumn : StackPanel
         layers.Flyout = UiKit.PopFlyout(new LayersPanel(session, 360) { Width = 290 }, Avalonia.Controls.PlacementMode.LeftEdgeAlignedTop);
         Children.Add(layers);
 
-        var menu = UiKit.Button("dots", tip: "Palette options");
+        IEnumerable<MenuEntry> MenuEntries()
+        {
+            yield return new("plus", "Add the foreground colour", null, () => Change(p => { if (!p.Colors.Contains(session.Foreground)) p.Colors.Add(session.Foreground); }));
+            yield return new("trash", "Remove the foreground colour", null, () => Change(p => p.Colors.Remove(session.Foreground)));
+            yield return new("image", "Palette from the picture", null, () => { session.Document.Palette = Palette.FromImage(session.Document.Flatten(), 64); Refresh(); });
+            yield return new("palette", "Reset to Nook 32", null, () => { session.Document.Palette = Palette.Default(); Refresh(); });
+            yield return MenuEntry.Separator;
+            yield return MenuEntry.Heading("Use a saved palette");
+            foreach (var p in session.Library.Palettes)
+            {
+                var id = p.Id;
+                yield return new(null, p.Name, null, () =>
+                {
+                    if (app is not null) app.UsePalette(id);
+                    else session.Document.Palette = new Palette(p.Name, p.Colors);
+                    Refresh();
+                }, Checked: session.ActivePaletteId == id);
+            }
+            yield return MenuEntry.Separator;
+            yield return new("save", "Save this palette…", null, () =>
+            {
+                var saved = session.Library.AddPalette(session.Document.Palette.Name, "My palettes", session.Document.Palette.Colors);
+                session.SetActivePalette(saved.Id);
+                app?.ShowToast($"Saved “{saved.Name}” to your palettes");
+            });
+            if (app is not null) yield return new("palette", "Palettes…", null, () => _ = app.OpenPalettesAsync(session.ActivePaletteId));
+        }
+        var menu = Menus.MenuButton(new DnIcon { Kind = "dots" }, MenuEntries, "Palette options", 240);
+        menu.Classes.Add("sq");
         menu.Width = 28;
         menu.Height = 28;
         menu.MinWidth = 28;
-        var menuItems = new StackPanel { Spacing = 1, Width = 220 };
-        void Item(string icon, string label, Action a) => menuItems.Children.Add(UiKit.Button(icon, label, null, () => { ((Avalonia.Controls.Flyout)menu.Flyout!).Hide(); a(); }, "menu"));
-        Item("plus", "Add the foreground colour", () => Change(p => { if (!p.Colors.Contains(session.Foreground)) p.Colors.Add(session.Foreground); }));
-        Item("trash", "Remove the foreground colour", () => Change(p => p.Colors.Remove(session.Foreground)));
-        Item("image", "Palette from the picture", () => session.Document.Palette = Palette.FromImage(session.Document.Flatten(), 64));
-        Item("palette", "Reset to Nook 32", () => session.Document.Palette = Palette.Default());
-        menu.Flyout = UiKit.PopFlyout(menuItems);
-        menu.Flyout.Closed += (_, _) => Refresh();
+        menu.Name = "PixelPaletteMenu";
         var head = new DockPanel();
         DockPanel.SetDock(menu, Dock.Right);
         head.Children.Add(menu);

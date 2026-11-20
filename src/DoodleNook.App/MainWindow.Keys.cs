@@ -236,7 +236,7 @@ public partial class MainWindow
         if (!ctrl && !alt && key is >= Key.A and <= Key.Z)
         {
             var letter = key.ToString();
-            if (Workspaces.ToolForKey(Workspace, letter, shift) is { } tool)
+            if (Workspaces.ToolForKey(CurrentTools, letter, shift) is { } tool)
             {
                 s.SelectTool(tool);
                 return true;

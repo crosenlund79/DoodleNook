@@ -73,6 +73,13 @@ public partial class MainWindow
             new("fill", sel ? "Fill selection with foreground" : "Fill layer with foreground", "Alt+Backspace", () => s.FillSelection()),
             new("fill", sel ? "Fill selection with background" : "Fill layer with background", "Ctrl+Backspace", () => s.FillSelection(background: true)),
             new("trash", sel ? "Clear selection" : "Clear layer", "Delete", ClearSelectionOrLayer),
+            new("pattern", sel ? "Fill selection with pattern" : "Fill layer with pattern", null, () =>
+            {
+                if (!s.FillSelectionWithPattern()) ShowToast("Choose a pattern first: paint bucket › Pattern");
+            }, s.PatternOptions.PatternId is not null),
+            MenuEntry.Separator,
+            new("stamp", sel ? "Save selection as stamp…" : "Save layer as stamp…", null, () => _ = SaveSelectionAsAssetAsync(PickerKind.Stamps)),
+            new("pattern", sel ? "Save selection as pattern…" : "Save layer as pattern…", null, () => _ = SaveSelectionAsAssetAsync(PickerKind.Patterns)),
             MenuEntry.Separator,
             new("transform", "Free transform", "Ctrl+T", FreeTransform),
             new("flip", "Flip horizontal", null, () => FlipSelection(true)),
@@ -213,6 +220,13 @@ public partial class MainWindow
             list.Add(new(WsState.DockCollapsed ? "chevl" : "chevr", WsState.DockCollapsed ? "Expand panels" : "Collapse panels to icons", null, ToggleDockCollapsed));
         }
         list.Add(MenuEntry.Separator);
+        list.Add(MenuEntry.Heading("Creative tools"));
+        list.Add(new("lab", "Brush Laboratory…", null, () => _ = OpenBrushLabAsync()));
+        list.Add(new("palette", "Palettes…", null, () => _ = OpenPalettesAsync()));
+        list.Add(new("board", "Reference board", null, () => SetReferenceBoardVisible(!WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind)),
+            Workspace.Kind != WorkspaceKind.PureSketch, WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind)));
+        list.Add(new("stamp", "Creative library…", null, () => _ = OpenLibraryAsync()));
+        list.Add(MenuEntry.Separator);
         list.Add(new("settings", "Customize workspace…", null, () => _ = CustomizeWorkspaceAsync(), CustomOptions.For(Workspace.Kind).Any()));
         list.Add(new(null, "Reset workspace layout", null, ResetWorkspaceLayout));
         list.Add(MenuEntry.Separator);
@@ -256,6 +270,9 @@ public partial class MainWindow
             new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
             MenuEntry.Separator,
             new("trash", "Clear layer", null, ClearLayer),
+            new("lab", "Brush Laboratory…", null, () => _ = OpenBrushLabAsync()),
+            new("board", "Reference board", null, () => SetReferenceBoardVisible(!WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind)),
+                Checked: WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind)),
             new("settings", "Customize workspace…", null, () => _ = CustomizeWorkspaceAsync()),
             MenuEntry.Separator,
             new("fit", "Fit on screen", "Ctrl+0", () => Canvas.FitToView()),
@@ -321,7 +338,8 @@ public partial class MainWindow
             ("Alt+1 … Alt+6", "Pure Sketch · Quick Sketch · Painting · Editing · Pixel Art · Animation Studio"),
             ("B / E / I / H", "Brush (pixel pencil) / Eraser / Eyedropper / Hand"),
             ("V / M / L / W / C", "Move / Rectangle select (Shift: ellipse) / Lasso / Magic wand / Crop"),
-            ("G / Shift+G / U", "Paint bucket / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
+            ("G / Shift+G / U", "Paint bucket (colour or pattern) / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
+            ("S", "Stamp tool · [ and ] change the stamp's size"),
             ("[ and ] · right-drag", "Smaller / larger brush"),
             ("Right-click · pen button", "Quick palette at the pen"),
             ("X / D", "Swap / default colours · Alt: eyedropper with any tool"),
@@ -363,7 +381,8 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} — Mission 006 “Make It Move”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} — Mission 007 “The Artist's Workshop”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes and a reference board.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
         [("ok", "Close", true)], "ok", "ok");

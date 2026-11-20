@@ -36,6 +36,13 @@ public sealed class AppSettings
     public OnionSkinSettings? OnionRaster { get; set; }
     public OnionSkinSettings? OnionPixel { get; set; }
 
+    public StampToolOptions? Stamp { get; set; }
+    public PatternToolOptions? PatternFill { get; set; }
+    public string? ActivePalette { get; set; }
+
+    /// <summary>The reference board panel: where it was, and its size (window pixels).</summary>
+    public double[]? ReferenceBoardPlacement { get; set; }
+
     /// <summary>Recovery copies of unsaved work every this many seconds (0 = off).</summary>
     public int AutosaveSeconds { get; set; } = 60;
 
@@ -108,6 +115,9 @@ public sealed class AppSettings
         if (Pixel is not null) session.SetPixelOptions(Pixel with { Size = Math.Clamp(Pixel.Size, 1, 64) });
         session.SetTransformInterpolation(TransformInterpolation);
         session.RestoreOnion(OnionRaster, OnionPixel);
+        if (Stamp is not null) session.SetStampOptions(Stamp);
+        if (PatternFill is not null) session.SetPatternOptions(PatternFill);
+        session.SetActivePalette(ActivePalette);
         if (Brush is null || Eraser is null) return;
         var fg = ColorRgb.TryParse(Foreground, out var f) ? f : EditorSession.DefaultForeground;
         var bg = ColorRgb.TryParse(Background, out var b) ? b : EditorSession.DefaultBackground;
@@ -133,6 +143,9 @@ public sealed class AppSettings
         Selection = session.Selection;
         Pixel = session.Pixel;
         TransformInterpolation = session.TransformInterpolation;
+        Stamp = session.StampOptions;
+        PatternFill = session.PatternOptions;
+        ActivePalette = session.ActivePaletteId;
         OnionRaster = session.OnionRaster;
         OnionPixel = session.OnionPixel;
     }

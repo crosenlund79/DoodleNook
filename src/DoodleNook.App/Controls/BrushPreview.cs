@@ -13,7 +13,7 @@ namespace DoodleNook.App.Controls;
 /// </summary>
 public static class BrushPreview
 {
-    public static WriteableBitmap Render(BrushSettings brush, ColorRgb color, int width, int height, double scale = 2)
+    public static WriteableBitmap Render(BrushSettings brush, ColorRgb color, int width, int height, double scale = 2, BrushResources? resources = null)
     {
         int w = (int)Math.Round(width * scale), h = (int)Math.Round(height * scale);
         var doc = new Document(w, h);
@@ -42,7 +42,7 @@ public static class BrushPreview
             float p = (float)(0.45 + 0.55 * Math.Sin(Math.PI * t));
             return new StrokeSample(x * scale, y * scale, p);
         }
-        engine.Begin(new StrokeStyle(b, PressureCurve.Normal, color, PaintMode.Paint), At(0));
+        engine.Begin(new StrokeStyle(b, PressureCurve.Normal, color, PaintMode.Paint, Symmetry.None, resources), At(0));
         for (int i = 1; i <= n; i++) engine.Add(At(i));
         engine.End();
         // 96 DPI on purpose: the Image controls showing previews have a fixed size and scale the 2× bitmap down.

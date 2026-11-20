@@ -33,7 +33,8 @@ public sealed class OptionsBuilder
         bool sel = s.Document.Selection is { IsEmpty: false };
         bool crop = _app.Canvas.Input?.PendingCrop is not null;
         bool transform = s.ActiveTransform is not null;
-        return $"{tool}|{sel}|{crop}|{transform}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}";
+        return $"{tool}|{sel}|{crop}|{transform}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}" +
+               $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}";
     }
 
     public void Refresh()
@@ -110,7 +111,13 @@ public sealed class OptionsBuilder
             case ToolKind.Hand:
                 items.Add(Hint("Drag to pan · hold R and drag to rotate the view · wheel zooms"));
                 break;
+            case ToolKind.Stamp:
+                items.AddRange(StampItems(compact));
+                break;
             case ToolKind.Fill:
+                items.Add(Seg([(false, "fill", "Colour", "Fill with the foreground colour"), (true, "pattern", "Pattern", "Fill with a repeating pattern from your library")],
+                    () => s.PatternOptions.UsePattern, v => s.SetPatternOptions(s.PatternOptions with { UsePattern = v })));
+                if (s.PatternOptions.UsePattern) items.AddRange(PatternItems());
                 if (!s.PixelMode)
                     items.Add(Slider("Tolerance", 0, 255, () => s.Fill.Tolerance, v => s.SetFillOptions(s.Fill with { Tolerance = (int)Math.Round(v) }), v => $"{v:0}",
                         tip: "How different a colour may be and still be filled"));
@@ -164,6 +171,103 @@ public sealed class OptionsBuilder
         return Wrap(items, info.Icon, info.Name, compact);
     }
 
+    // ================================================================== stamps and patterns (Mission 007)
+
+    private Control AssetChip(PickerKind kind, Func<string?> current, Action<string> choose, string tip)
+    {
+        var thumb = new Image { Width = 26, Height = 26, Stretch = Stretch.Uniform };
+        var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 120, TextTrimming = TextTrimming.CharacterEllipsis };
+        var chip = UiKit.Chip(UiKit.Row(6, new Border { Background = UiKit.CheckerBrush(), CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = thumb }, name,
+            new DnIcon { Kind = "chevd" }), tip);
+        chip.Name = kind == PickerKind.Stamps ? "StampChip" : "PatternChip";
+        var picker = new AssetPicker(_app, kind, current, id =>
+        {
+            choose(id);
+            chip.Flyout?.Hide();
+        });
+        var flyout = UiKit.PopFlyout(picker);
+        flyout.Opening += (_, _) => picker.Refresh();
+        chip.Flyout = flyout;
+        string? shown = null;
+        _refresh.Add(() =>
+        {
+            var id = current();
+            var lib = S.Library;
+            name.Text = kind == PickerKind.Stamps ? lib.FindStamp(id)?.Name ?? "Choose a stamp" : lib.FindPattern(id)?.Name ?? "Choose a pattern";
+            if (id == shown) return;
+            shown = id;
+            var img = id is null ? null : kind == PickerKind.Stamps ? lib.StampImage(id) : lib.PatternImage(id);
+            thumb.Source = img is null ? null : kind == PickerKind.Patterns ? AssetPicker.TiledPreview(img, 26, 26) : BrushPreview.ToBitmap(AssetPicker.Fit(img, 52));
+        });
+        return chip;
+    }
+
+    private IEnumerable<Control> StampItems(bool compact)
+    {
+        var s = S;
+        yield return AssetChip(PickerKind.Stamps, () => s.StampOptions.StampId, id => s.SetStampOptions(s.StampOptions with { StampId = id }), "Choose the stamp");
+        if (s.PixelMode)
+        {
+            yield return Seg([(1.0, null, "1×", "Actual pixels"), (2.0, null, "2×", "Twice as big"), (3.0, null, "3×", "Three times"), (4.0, null, "4×", "Four times")],
+                () => Math.Max(1, Math.Round(s.StampOptions.Scale)), v => s.SetStampOptions(s.StampOptions with { Scale = v }));
+            yield return Seg([(0.0, null, "0°", "Upright"), (90.0, null, "90°", "Quarter turn"), (180.0, null, "180°", "Upside down"), (-90.0, null, "270°", "Three quarter turns")],
+                () => Math.Round(s.StampOptions.Rotation / 90) * 90 is var r && r == -180 ? 180 : Math.Round(s.StampOptions.Rotation / 90) * 90,
+                v => s.SetStampOptions(s.StampOptions with { Rotation = v }));
+        }
+        else
+        {
+            yield return Slider("Size", 0.05, 4, () => s.StampOptions.Scale, v => s.SetStampOptions(s.StampOptions with { Scale = v }), v => $"{v * 100:0}%", log: true,
+                tip: "Stamp size ([ and ])");
+            yield return Slider("Rotate", -180, 180, () => s.StampOptions.Rotation, v => s.SetStampOptions(s.StampOptions with { Rotation = Math.Round(v) }), v => $"{v:0}°",
+                tip: "Turn the stamp");
+            yield return Slider("Opacity", 0.05, 1, () => s.StampOptions.Opacity, v => s.SetStampOptions(s.StampOptions with { Opacity = v }), v => $"{v * 100:0}%");
+        }
+        yield return Toggle("flip", null, "Mirror left ↔ right", () => s.StampOptions.FlipX, v => s.SetStampOptions(s.StampOptions with { FlipX = v }));
+        yield return Toggle(null, "↕", "Mirror top ↕ bottom", () => s.StampOptions.FlipY, v => s.SetStampOptions(s.StampOptions with { FlipY = v }));
+        if (s.Document.Selection is { IsEmpty: false })
+            yield return Action("plus", "Selection → stamp", "Save the selected artwork as a new stamp", () => _ = _app.SaveSelectionAsAssetAsync(PickerKind.Stamps));
+        else if (!compact) yield return Hint("Click to place · [ and ] size");
+    }
+
+    private IEnumerable<Control> PatternItems()
+    {
+        var s = S;
+        yield return AssetChip(PickerKind.Patterns, () => s.PatternOptions.PatternId, id => s.SetPatternOptions(s.PatternOptions with { PatternId = id }), "Choose the pattern");
+        if (s.PixelMode)
+            yield return Seg([(1.0, null, "1×", "Actual pixels"), (2.0, null, "2×", "Twice as big"), (3.0, null, "3×", "Three times"), (4.0, null, "4×", "Four times")],
+                () => Math.Max(1, Math.Round(s.PatternOptions.Scale)), v => s.SetPatternOptions(s.PatternOptions with { Scale = v }));
+        else
+        {
+            yield return Slider("Scale", 0.1, 8, () => s.PatternOptions.Scale, v => s.SetPatternOptions(s.PatternOptions with { Scale = v }), v => $"{v * 100:0}%", log: true);
+            yield return Slider("Rotate", -180, 180, () => s.PatternOptions.Rotation, v => s.SetPatternOptions(s.PatternOptions with { Rotation = Math.Round(v) }), v => $"{v:0}°");
+        }
+        double TileW() => S.Library.PatternImage(S.PatternOptions.PatternId ?? "")?.Width ?? 64;
+        double TileH() => S.Library.PatternImage(S.PatternOptions.PatternId ?? "")?.Height ?? 64;
+        yield return Slider("Offset", 0, 1, () => s.PatternOptions.OffsetX / (TileW() * s.PatternOptions.Scale) % 1, v =>
+                s.SetPatternOptions(s.PatternOptions with { OffsetX = Math.Round(v * TileW() * s.PatternOptions.Scale), OffsetY = Math.Round(v * TileH() * s.PatternOptions.Scale) }),
+            v => $"{v * 100:0}%", tip: "Shift the pattern so its repeat lines up where you want");
+    }
+
+    private string FavouritesKey() => _app.WsState.IsShown(CustomOptions.FavouriteBrushes, _app.Workspace.Kind)
+        ? string.Join(",", S.Library.Brushes.Where(b => S.Library.IsFavoriteBrush(b.Id)).Select(b => b.Id)) : "";
+
+    /// <summary>Starred brushes as one-click buttons (Customize workspace › Favourite brushes).</summary>
+    private IEnumerable<Control> FavouriteBrushItems()
+    {
+        if (!_app.WsState.IsShown(CustomOptions.FavouriteBrushes, _app.Workspace.Kind)) yield break;
+        var s = S;
+        var ink = new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B);
+        foreach (var b in s.Library.Brushes.Where(b => s.Library.IsFavoriteBrush(b.Id)).Take(8))
+        {
+            var id = b.Id;
+            var button = UiKit.Button(null, null, b.Name + " (favourite)", () => s.ApplyPreset(id));
+            button.Content = new Image { Source = BrushPreview.Render(b.Settings, ink, 36, 18, resources: s.Library.Resolve(b.Settings)), Width = 36, Height = 18 };
+            button.Name = "Favourite_" + id;
+            _refresh.Add(() => button.Classes.Set("on", s.BrushPresetId == id));
+            yield return button;
+        }
+    }
+
     private Control Wrap(List<Control> items, string icon, string name, bool compact)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
@@ -188,18 +292,21 @@ public sealed class OptionsBuilder
             var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
             var content = UiKit.Row(8, preview, name, new DnIcon { Kind = "chevd" });
             var chip = UiKit.Chip(content, "Brush presets and settings");
-            chip.Flyout = UiKit.PopFlyout(new BrushPanel(s, () => chip.Flyout?.Hide()));
+            var favourites = new List<Control>();
+            chip.Flyout = UiKit.PopFlyout(new BrushPanel(s, () => chip.Flyout?.Hide(), app: _app));
             chip.Name = "OptionsPresetChip";
+            foreach (var f in FavouriteBrushItems()) favourites.Add(f);
             string? key = null;
             _refresh.Add(() =>
             {
                 var k = s.Brush.ToString();
                 if (k == key) return;
                 key = k;
-                preview.Source = BrushPreview.Render(s.Brush, new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B), 44, 22);
-                name.Text = EditorSession.Presets.FirstOrDefault(p => p.Id == s.BrushPresetId)?.Name ?? "Brush";
+                preview.Source = BrushPreview.Render(s.Brush, new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B), 44, 22, resources: s.Library.Resolve(s.Brush));
+                name.Text = s.CurrentPreset?.Name ?? "Brush";
             });
             yield return chip;
+            foreach (var f in favourites) yield return f;
         }
         yield return Slider("Size", 1, 500, () => s.CurrentPaintSettings.Size, s.SetSize, v => $"{v:0} px", log: true, tip: "Size ([ and ]) · right-drag on the canvas");
         if (tool == ToolKind.Brush)

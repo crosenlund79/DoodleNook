@@ -1,4 +1,5 @@
 using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Library;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Operations;
 using DoodleNook.Engine.Painting;
@@ -25,6 +26,7 @@ public enum ToolKind
     PixelLine,
     PixelRect,
     PixelEllipse,
+    Stamp,
 }
 
 public enum PressureFeel
@@ -34,8 +36,12 @@ public enum PressureFeel
     Firm,
 }
 
-/// <summary>A named starting point for the brush engine.</summary>
-public sealed record BrushPreset(string Id, string Name, string Description, BrushSettings Settings);
+/// <summary>Options of the stamp tool: which stamp, its size (scale), rotation, opacity and mirroring.</summary>
+public sealed record StampToolOptions(string? StampId = "builtin:grass", double Scale = 1, double Rotation = 0, double Opacity = 1, bool FlipX = false, bool FlipY = false);
+
+/// <summary>Pattern fill (the paint bucket's pattern mode, and Edit › Fill with pattern).</summary>
+public sealed record PatternToolOptions(bool UsePattern = false, string? PatternId = "builtin:brick", double Scale = 1, double OffsetX = 0, double OffsetY = 0,
+    double Rotation = 0, double Opacity = 1);
 
 /// <summary>Options of the selection tools.</summary>
 public sealed record SelectionToolOptions(SelectionMode Mode = SelectionMode.Replace, bool AntiAlias = true, int WandTolerance = 32, bool WandContiguous = true, bool SampleMerged = false);
@@ -50,27 +56,8 @@ public sealed record PixelToolOptions(int Size = 1, bool PixelPerfect = true, Sy
 /// </summary>
 public sealed class EditorSession
 {
-    public static readonly IReadOnlyList<BrushPreset> Presets =
-    [
-        new("pencil", "Sketch pencil", "Grainy graphite: light pressure lets the paper show",
-            new BrushSettings { Size = 6, Hardness = 0.85, Opacity = 0.9, PressureSize = true, PressureOpacity = true, Grain = 0.55 }),
-        new("ink", "Ink pen", "Crisp ink with a strong pressure taper",
-            new BrushSettings { Size = 9, Hardness = 1, Opacity = 1, PressureSize = true, MinimumSizeFraction = 0.02 }),
-        new("liner", "Fine liner", "Even, constant line",
-            new BrushSettings { Size = 3, Hardness = 1, Opacity = 1, PressureSize = false }),
-        new("hard", "Hard round", "Solid colour blocking",
-            new BrushSettings { Size = 30, Hardness = 0.98, Opacity = 1, PressureSize = true, MinimumSizeFraction = 0.25 }),
-        new("soft", "Soft round", "Soft shading and glows",
-            new BrushSettings { Size = 70, Hardness = 0.05, Opacity = 0.6, PressureSize = true, PressureOpacity = true }),
-        new("marker", "Marker", "Flat chisel tip: thick one way, thin the other",
-            new BrushSettings { Size = 26, Hardness = 0.9, Opacity = 0.55, PressureSize = false, Roundness = 0.3, Angle = 35 }),
-        new("air", "Airbrush", "Builds up while you hold it, even standing still",
-            new BrushSettings { Size = 120, Hardness = 0, Opacity = 1, PressureSize = false, PressureOpacity = true, BuildUp = true, Flow = 0.04, Spray = true }),
-        new("chalk", "Chalk", "Rough, textured strokes on grainy paper",
-            new BrushSettings { Size = 32, Hardness = 0.55, Opacity = 0.9, PressureSize = true, PressureOpacity = true, Grain = 0.9, GrainScale = 1.6 }),
-        new("wash", "Flat wash", "Even layers of translucent colour",
-            new BrushSettings { Size = 48, Hardness = 0.95, Opacity = 0.7, PressureSize = false, PressureOpacity = true }),
-    ];
+    /// <summary>DoodleNook's built-in brushes (the user's own brushes are in <see cref="Library"/>).</summary>
+    public static IReadOnlyList<BrushPreset> Presets => BuiltInAssets.Brushes;
 
     public static readonly ColorRgb DefaultForeground = ColorRgb.Parse("#3B2F2A");
     public static readonly ColorRgb DefaultBackground = ColorRgb.White;
@@ -241,6 +228,14 @@ public sealed class EditorSession
     /// <summary>The [ and ] keys: about 15 % per step, at least 1 px.</summary>
     public void StepSize(int direction)
     {
+        if (Tool == ToolKind.Stamp)
+        {
+            // Stamps: 15 % per step (whole steps in pixel art).
+            double sc = StampOptions.Scale;
+            double ns = PixelMode ? Math.Max(1, Math.Round(sc) + direction) : direction > 0 ? sc * 1.15 : sc / 1.15;
+            SetStampOptions(StampOptions with { Scale = ns });
+            return;
+        }
         double s = CurrentSize;
         double next = direction > 0 ? Math.Max(s + 1, s * 1.15) : Math.Min(s - 1, s / 1.15);
         SetSize(Math.Round(next));
@@ -286,7 +281,7 @@ public sealed class EditorSession
 
     public void ApplyPreset(string id)
     {
-        var preset = Presets.FirstOrDefault(p => p.Id == id);
+        var preset = Library.FindBrush(id);
         if (preset is null) return;
         BrushPresetId = id;
         Brush = preset.Settings with { Smoothing = Brush.Smoothing };
@@ -300,7 +295,7 @@ public sealed class EditorSession
     {
         Brush = brush.Normalized();
         Eraser = eraser.Normalized();
-        BrushPresetId = Presets.Any(p => p.Id == presetId) ? presetId : Presets[0].Id;
+        BrushPresetId = Library.FindBrush(presetId) is not null ? presetId : Presets[0].Id;
         PressureFeel = feel;
         Foreground = fg;
         Background = bg;
@@ -415,7 +410,7 @@ public sealed class EditorSession
         bool erase = forceEraser || Tool == ToolKind.Eraser;
         var settings = erase ? Eraser : Brush;
         if (!erase) RememberColor(Foreground);
-        _engine.Begin(new StrokeStyle(settings, Curve, Foreground, erase ? PaintMode.Erase : PaintMode.Paint, Symmetry), first);
+        _engine.Begin(new StrokeStyle(settings, Curve, Foreground, erase ? PaintMode.Erase : PaintMode.Paint, Symmetry, Library.Resolve(settings)), first);
     }
 
     public void ContinueStroke(ReadOnlySpan<StrokeSample> samples) => _engine.Add(samples);
@@ -666,6 +661,143 @@ public sealed class EditorSession
         Prepare();
         if (!Document.IsAnimated) Document.MakeAnimation();
         if (!Document.PasteCel(layer, frame, cel)) Tell("The copied drawing is a different size from this picture");
+    }
+
+    // ================================================================ creative library (Mission 007)
+
+    /// <summary>The artist's brushes, stamps, patterns and palettes (built-in ones included).</summary>
+    public CreativeLibrary Library { get; private set; } = new();
+
+    /// <summary>Raised when the library changes (a brush saved, a stamp added…).</summary>
+    public event Action? LibraryChanged;
+
+    public StampToolOptions StampOptions { get; private set; } = new();
+    public PatternToolOptions PatternOptions { get; private set; } = new();
+
+    /// <summary>The palette shown in the colour panel and Pixel Art's palette column (null = the picture's own palette).</summary>
+    public string? ActivePaletteId { get; private set; }
+
+    public void SetLibrary(CreativeLibrary library)
+    {
+        Library.Changed -= OnLibraryChanged;
+        Library = library;
+        library.Changed += OnLibraryChanged;
+        OnLibraryChanged();
+    }
+
+    private void OnLibraryChanged()
+    {
+        LibraryChanged?.Invoke();
+        Changed();
+    }
+
+    /// <summary>The preset the current brush came from (null if it no longer exists).</summary>
+    public BrushPreset? CurrentPreset => Library.FindBrush(BrushPresetId);
+
+    /// <summary>Uses brush settings directly (Brush Laboratory), remembering which preset they belong to.</summary>
+    public void UseBrush(BrushSettings settings, string presetId)
+    {
+        BrushPresetId = presetId;
+        Brush = settings.Normalized();
+        if (Tool != ToolKind.Brush) SelectTool(ToolKind.Brush);
+        else Changed();
+    }
+
+    public void SetStampOptions(StampToolOptions o)
+    {
+        StampOptions = o with
+        {
+            Scale = Math.Clamp(double.IsFinite(o.Scale) ? o.Scale : 1, 0.05, 20),
+            Rotation = double.IsFinite(o.Rotation) ? (o.Rotation % 360 + 540) % 360 - 180 : 0,
+            Opacity = Math.Clamp(double.IsFinite(o.Opacity) ? o.Opacity : 1, 0.05, 1),
+        };
+        Changed();
+    }
+
+    public void SetPatternOptions(PatternToolOptions o)
+    {
+        PatternOptions = o with
+        {
+            Scale = Math.Clamp(double.IsFinite(o.Scale) ? o.Scale : 1, 0.1, 16),
+            OffsetX = double.IsFinite(o.OffsetX) ? o.OffsetX : 0,
+            OffsetY = double.IsFinite(o.OffsetY) ? o.OffsetY : 0,
+            Rotation = double.IsFinite(o.Rotation) ? o.Rotation % 360 : 0,
+            Opacity = Math.Clamp(double.IsFinite(o.Opacity) ? o.Opacity : 1, 0.05, 1),
+        };
+        Changed();
+    }
+
+    public void SetActivePalette(string? id)
+    {
+        ActivePaletteId = id is not null && Library.FindPalette(id) is null ? null : id;
+        Changed();
+    }
+
+    /// <summary>The colours of the active palette (or the picture's own palette).</summary>
+    public IReadOnlyList<ColorRgb> ActivePaletteColors => Library.FindPalette(ActivePaletteId)?.Colors ?? Document.Palette.Colors;
+
+    /// <summary>The stamp tool's placement at a point (pixel-exact in pixel mode).</summary>
+    public StampPlacement StampPlacementAt(double x, double y) =>
+        new(x, y, StampOptions.Scale, StampOptions.Rotation, StampOptions.Opacity, StampOptions.FlipX, StampOptions.FlipY);
+
+    /// <summary>Places the current stamp centred at a point on the active layer (or animation drawing), as one undo step.</summary>
+    public bool PlaceStamp(double x, double y)
+    {
+        CommitTransform();
+        if (!CanEditActiveLayer()) return false;
+        if (StampOptions.StampId is not { } id || Library.StampImage(id) is not { } img)
+        {
+            Tell("Choose a stamp first (the stamp button in the options bar)");
+            return false;
+        }
+        return StampsAndPatterns.PlaceStamp(Document, Document.ActiveLayer, img, StampPlacementAt(x, y), PixelMode);
+    }
+
+    private PatternFillOptions PatternFillFor() => new(PatternOptions.Scale, PatternOptions.OffsetX, PatternOptions.OffsetY, PatternOptions.Rotation, PatternOptions.Opacity);
+
+    /// <summary>The paint bucket in pattern mode.</summary>
+    public bool PatternFillAt(int x, int y)
+    {
+        CommitTransform();
+        if (!CanEditActiveLayer()) return false;
+        if (PatternOptions.PatternId is not { } id || Library.PatternImage(id) is not { } tile)
+        {
+            Tell("Choose a pattern first");
+            return false;
+        }
+        var region = PixelMode ? Fill with { Exact = true, Tolerance = 0 } : Fill;
+        return StampsAndPatterns.FillAt(Document, Document.ActiveLayer, x, y, tile, PatternFillFor(), region, PixelMode);
+    }
+
+    /// <summary>Edit › Fill with pattern: the selection, or the whole layer.</summary>
+    public bool FillSelectionWithPattern()
+    {
+        CommitTransform();
+        if (!CanEditActiveLayer()) return false;
+        if (PatternOptions.PatternId is not { } id || Library.PatternImage(id) is not { } tile) return false;
+        return StampsAndPatterns.FillSelection(Document, Document.ActiveLayer, tile, PatternFillFor(), PixelMode);
+    }
+
+    /// <summary>The active layer's pixels inside the selection (or all of its painting), cropped: for new stamps,
+    /// patterns and brush tips. The artwork itself is not changed. Null when there is nothing there.</summary>
+    public RasterImage? SelectionPicture(bool mergedLayers = false)
+    {
+        CommitTransform();
+        var layer = Document.ActiveLayer;
+        var source = mergedLayers ? Document.RenderFrame(Document.CurrentFrame, includePaper: false) : layer.Image;
+        var area = Document.Selection?.Bounds ?? (mergedLayers ? Document.Bounds : layer.ContentBounds);
+        area = area.Intersect(Document.Bounds);
+        if (area.IsEmpty) return null;
+        var img = new RasterImage(area.Width, area.Height);
+        bool any = false;
+        for (int y = 0; y < area.Height; y++)
+            for (int x = 0; x < area.Width; x++)
+            {
+                uint p = Blending.Fade(source[x + area.X, y + area.Y], Document.SelectionAt(x + area.X, y + area.Y));
+                img[x, y] = p;
+                any |= DoodleNook.Engine.Imaging.Pixel.A(p) > 0;
+            }
+        return any ? img : null;
     }
 
     // ================================================================ selection and clipboard

@@ -208,7 +208,7 @@ public sealed class ToolStrip : Border
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Content = _fg, Name = "FgChip",
         };
         ToolTip.SetTip(fgChip, "Foreground colour · click to edit");
-        var colour = new ColourPanel(app.Session);
+        var colour = new ColourPanel(app.Session, app: app);
         fgChip.Flyout = UiKit.PopFlyout(colour, PlacementMode.RightEdgeAlignedBottom);
         _chips = new Panel { Width = 36, Height = 36, Margin = new Thickness(0, 0, 0, 2) };
         _chips.Children.Add(bgChip);
@@ -415,7 +415,7 @@ public sealed class QuickBar : Border
         chipContent.Children.Add(_preview);
         chipContent.Children.Add(new DnIcon { Kind = "chevd" });
         var preset = UiKit.Chip(chipContent, "Brush presets and settings");
-        preset.Flyout = UiKit.PopFlyout(new BrushPanel(s, () => preset.Flyout?.Hide()));
+        preset.Flyout = UiKit.PopFlyout(new BrushPanel(s, () => preset.Flyout?.Hide(), app: app));
         preset.Name = "PresetChip";
 
         var (size, rs) = UiKit.Slider("Size", 1, 500, () => s.CurrentPaintSettings.Size, s.SetSize, v => $"{v:0} px", log: true, tip: "Brush size ([ and ]) · right-drag on the canvas");
@@ -428,7 +428,7 @@ public sealed class QuickBar : Border
         var colour = UiKit.Button(null, null, "Colour");
         colour.Classes.Add("sq");
         colour.Content = _dot;
-        colour.Flyout = UiKit.PopFlyout(new ColourPanel(s, () => colour.Flyout?.Hide()));
+        colour.Flyout = UiKit.PopFlyout(new ColourPanel(s, () => colour.Flyout?.Hide(), app: app));
         colour.Name = "ColourChip";
 
         _erase = UiKit.Button("eraser", "Erase", "Eraser (E)", s.ToggleEraser, "solid");
