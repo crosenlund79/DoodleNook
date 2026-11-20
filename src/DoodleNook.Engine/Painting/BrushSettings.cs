@@ -68,6 +68,60 @@ public sealed record BrushSettings
     /// <summary>Keep spraying while the pen rests (airbrush).</summary>
     public bool Spray { get; init; }
 
+    // ---------------------------------------------------------------- Mission 007: Brush Laboratory settings
+    // Every new setting defaults to "off", so brushes saved before Mission 007 paint exactly as they did.
+
+    /// <summary>Distance between dabs as a fraction of the dab size (0 = automatic, fine enough for a smooth edge).</summary>
+    public double Spacing { get; init; }
+
+    /// <summary>An image tip ("builtin:…", "tip:…" or "stamp:…"); null = the round/elliptic tip.</summary>
+    public string? TipId { get; init; }
+
+    /// <summary>Image tips keep their own colours (stamp brushes) instead of painting in the current colour.</summary>
+    public bool TipColors { get; init; }
+
+    /// <summary>The tip turns with the direction of the stroke (added to <see cref="Angle"/>).</summary>
+    public bool FollowDirection { get; init; }
+
+    /// <summary>How far dabs are thrown from the stroke, as a multiple of the dab size (0 = on the line).</summary>
+    public double Scatter { get; init; }
+
+    /// <summary>Dabs placed at each step (more than one only makes sense with scatter).</summary>
+    public int ScatterCount { get; init; } = 1;
+
+    /// <summary>Random size variation per dab, 0–1 (1 = down to almost nothing).</summary>
+    public double SizeJitter { get; init; }
+
+    /// <summary>Random rotation per dab, 0–1 (1 = any angle).</summary>
+    public double RotationJitter { get; init; }
+
+    /// <summary>Random opacity variation per dab, 0–1.</summary>
+    public double OpacityJitter { get; init; }
+
+    /// <summary>Texture used for the grain ("builtin:…" or "pattern:…"); null = the paper grain.</summary>
+    public string? TextureId { get; init; }
+
+    /// <summary>Rotation of the texture, in degrees.</summary>
+    public double TextureRotation { get; init; }
+
+    /// <summary>Paint goes into the texture's dark parts instead of its light parts.</summary>
+    public bool InvertTexture { get; init; }
+
+    /// <summary>Shapes the pressure response of this brush on top of the pressure feel: below 1 a light touch gives
+    /// more, above 1 it needs a firmer hand. 1 = unchanged.</summary>
+    public double PressureGamma { get; init; } = 1;
+
+    /// <summary>Pen pressure controls how fast a build-up brush adds paint.</summary>
+    public bool PressureFlow { get; init; }
+
+    /// <summary>Watercolour-like edges: paint collects at the rim of a stroke, 0–1.</summary>
+    public double WetEdges { get; init; }
+
+    /// <summary>True when any Mission 007 dynamic is in use (the engine then takes its extended path).</summary>
+    public bool UsesExtendedDynamics =>
+        Spacing > 0 || TipId is not null || FollowDirection || Scatter > 0 || ScatterCount > 1 || SizeJitter > 0 || RotationJitter > 0 ||
+        OpacityJitter > 0 || PressureGamma != 1 || PressureFlow;
+
     /// <summary>Returns a copy with every value clamped to its valid range (NaN becomes the default).</summary>
     public BrushSettings Normalized() => this with
     {
@@ -81,6 +135,17 @@ public sealed record BrushSettings
         Grain = Clamp(Grain, 0, 1, 0),
         GrainScale = Clamp(GrainScale, 0.25, 8, 1),
         Flow = Clamp(Flow, 0.005, 1, 1),
+        Spacing = Clamp(Spacing, 0, 5, 0),
+        TipId = string.IsNullOrWhiteSpace(TipId) ? null : TipId,
+        Scatter = Clamp(Scatter, 0, 5, 0),
+        ScatterCount = Math.Clamp(ScatterCount, 1, 16),
+        SizeJitter = Clamp(SizeJitter, 0, 1, 0),
+        RotationJitter = Clamp(RotationJitter, 0, 1, 0),
+        OpacityJitter = Clamp(OpacityJitter, 0, 1, 0),
+        TextureId = string.IsNullOrWhiteSpace(TextureId) ? null : TextureId,
+        TextureRotation = double.IsFinite(TextureRotation) ? TextureRotation % 360 : 0,
+        PressureGamma = Clamp(PressureGamma, 0.2, 5, 1),
+        WetEdges = Clamp(WetEdges, 0, 1, 0),
     };
 
     /// <summary>
@@ -89,10 +154,18 @@ public sealed record BrushSettings
     /// </summary>
     public (double Diameter, float Alpha) Evaluate(float pressure, PressureCurve curve)
     {
-        float p = curve.Map(pressure);
+        float p = MapPressure(pressure, curve);
         double diameter = PressureSize ? Size * (MinimumSizeFraction + (1 - MinimumSizeFraction) * p) : Size;
         float alpha = PressureOpacity ? p : 1f;
         return (diameter, alpha);
+    }
+
+    /// <summary>The pressure after the pressure feel and this brush's own curve.</summary>
+    public float MapPressure(float pressure, PressureCurve curve)
+    {
+        float p = curve.Map(pressure);
+        if (PressureGamma != 1 && p > 0f && p < 1f) p = (float)Math.Pow(p, PressureGamma);
+        return p;
     }
 
     private static double Clamp(double v, double min, double max, double fallback) =>

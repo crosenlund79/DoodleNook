@@ -18,6 +18,11 @@ namespace DoodleNook.Engine.Painting;
 /// (or reduced, for the eraser). Transparency-locked layers keep their alpha.</item>
 /// <item>When the stroke ends, the changed tiles are stored as a single undo step.</item>
 /// </list>
+/// Mission 007 (Brush Laboratory) adds image tips (tinted, or in their own colours for stamp brushes, which are
+/// layered dab over dab in a separate colour buffer), custom spacing, rotation that follows the stroke, scatter and
+/// size/rotation/opacity jitter from a seeded generator (the same stroke always gives the same marks), a per-brush
+/// pressure curve, pressure-controlled flow, textures from the library and watercolour-like wet edges. Brushes that
+/// use none of these take exactly the Mission 006 path (a test compares them with a frozen copy of that engine).
 /// </summary>
 public sealed class StrokeEngine
 {
@@ -29,6 +34,16 @@ public sealed class StrokeEngine
     private readonly Dictionary<int, float[]> _mask = new();
     private readonly Stack<float[]> _maskPool = new();
     private readonly uint[] _paintLut = new uint[256];
+    private readonly Dictionary<int, float[]> _color = new();
+    private readonly Stack<float[]> _colorPool = new();
+
+    private BrushTip? _tip;
+    private BrushTexture? _texture;
+    private bool _colorTip;
+    private bool _extended;
+    private BrushRandom _rng;
+    private double _dirDeg;
+    private double _texCos = 1, _texSin;
 
     private LayerEdit? _edit;
     private StrokeStyle _style;
@@ -70,6 +85,15 @@ public sealed class StrokeEngine
 
         _style = style;
         _brush = style.Brush.Normalized();
+        _tip = _brush.TipId is not null ? style.Resources?.Tip : null;
+        _texture = style.Resources?.Texture;
+        _colorTip = _tip is { HasColor: true } && _brush.TipColors && style.Mode == PaintMode.Paint;
+        _extended = _brush.UsesExtendedDynamics;
+        _rng = new BrushRandom(Seed(first));
+        _dirDeg = 0;
+        double tr = _brush.TextureRotation * Math.PI / 180;
+        _texCos = Math.Cos(tr);
+        _texSin = Math.Sin(tr);
         BuildPaintLut();
         _edit = _doc.BeginEdit(layer, style.Mode == PaintMode.Erase ? "Erase" : "Brush stroke");
         TargetLayer = layer;
@@ -166,6 +190,7 @@ public sealed class StrokeEngine
     {
         double dx = x - _x, dy = y - _y;
         double len = Math.Sqrt(dx * dx + dy * dy);
+        if (len >= 1e-9 && _brush.FollowDirection) _dirDeg = Math.Atan2(dy, dx) * 180 / Math.PI;
         if (len < 1e-9)
         {
             if (p > _lastDabPressure + 0.02f)
@@ -198,6 +223,8 @@ public sealed class StrokeEngine
     /// </summary>
     internal double Spacing(double diameter)
     {
+        if (_brush.Spacing > 0) return Math.Max(MinSpacing, _brush.Spacing * diameter);
+        if (_tip is not null) return Math.Max(MinSpacing, 0.1 * diameter);
         double d = diameter * _brush.Roundness;
         double r = Math.Max(d * 0.5, 0.5);
         double fall = EdgeWidth(r);
@@ -220,6 +247,35 @@ public sealed class StrokeEngine
         if (_brush.BuildUp) alpha *= (float)_brush.Flow;
 
         double angle = _brush.Angle;
+        if (!_extended)
+        {
+            Mirrored(cx, cy, diameter, alpha, mapped, angle);
+            return;
+        }
+
+        // Brush Laboratory dynamics.
+        mapped = _brush.MapPressure(pressure, _style.Curve);
+        if (_brush.BuildUp && _brush.PressureFlow) alpha *= Math.Max(0.05f, mapped);
+        if (_brush.FollowDirection) angle += _dirDeg;
+        for (int i = 0; i < _brush.ScatterCount; i++)
+        {
+            double x = cx, y = cy, d = diameter, a = angle;
+            float al = alpha;
+            if (_brush.Scatter > 0)
+            {
+                double r = Math.Sqrt(_rng.Next()) * _brush.Scatter * diameter, t = _rng.Next() * 2 * Math.PI;
+                x += r * Math.Cos(t);
+                y += r * Math.Sin(t);
+            }
+            if (_brush.SizeJitter > 0) d *= 1 - _brush.SizeJitter * _rng.Next();
+            if (_brush.RotationJitter > 0) a += (_rng.Next() * 2 - 1) * 180 * _brush.RotationJitter;
+            if (_brush.OpacityJitter > 0) al *= (float)(1 - _brush.OpacityJitter * _rng.Next());
+            Mirrored(x, y, d, al, mapped, a);
+        }
+    }
+
+    private void Mirrored(double cx, double cy, double diameter, float alpha, float mapped, double angle)
+    {
         Stamp(cx, cy, diameter, alpha, mapped, angle);
         int w = _doc.Width, h = _doc.Height;
         switch (_style.Symmetry)
@@ -240,6 +296,11 @@ public sealed class StrokeEngine
 
     private void Stamp(double cx, double cy, double diameter, float alpha, float mappedPressure, double angleDeg)
     {
+        if (_tip is not null)
+        {
+            StampTip(cx, cy, diameter, alpha, mappedPressure, angleDeg);
+            return;
+        }
         double r = diameter * 0.5;
         if (r < 0.5)
         {
@@ -311,7 +372,7 @@ public sealed class StrokeEngine
                         }
                         if (grain)
                         {
-                            float g = PaperGrain.Sample(x, y, _brush.GrainScale);
+                            float g = GrainValue(x, y);
                             float f = g <= g0 ? 0 : g >= g1 ? 1 : (g - g0) / (g1 - g0);
                             cov *= 1 - grainAmount * (1 - f);
                             if (cov <= 0) continue;
@@ -319,6 +380,102 @@ public sealed class StrokeEngine
                         ref float slot = ref m[row + x];
                         if (buildUp) slot += (1 - slot) * cov;
                         else if (cov > slot) slot = cov;
+                    }
+                }
+            }
+        }
+        _pending = _pending.Union(box);
+        StrokeBounds = StrokeBounds.Union(box);
+    }
+
+    /// <summary>The texture value at a pixel: the paper grain unless the brush names a texture; optionally rotated or inverted.</summary>
+    private float GrainValue(int x, int y)
+    {
+        float g;
+        if (_texture is not null) g = _texture.Sample(x, y, _brush.GrainScale, _texCos, _texSin);
+        else if (_brush.TextureRotation == 0) g = PaperGrain.Sample(x, y, _brush.GrainScale);
+        else g = PaperGrain.Sample((int)Math.Floor(x * _texCos + y * _texSin), (int)Math.Floor(-x * _texSin + y * _texCos), _brush.GrainScale);
+        return _brush.InvertTexture ? 1 - g : g;
+    }
+
+    private static ulong Seed(StrokeSample s) =>
+        (ulong)BitConverter.DoubleToInt64Bits(Math.Round(s.X, 2)) * 0x9E3779B97F4A7C15UL ^ (ulong)BitConverter.DoubleToInt64Bits(Math.Round(s.Y, 2));
+
+    /// <summary>An image-tip dab: the tip is scaled so its longer side is the dab size, squashed by the roundness and
+    /// rotated by the angle. Tinted tips raise the coverage mask; colour tips are laid over the stroke's colour buffer.</summary>
+    private void StampTip(double cx, double cy, double diameter, float alpha, float mappedPressure, double angleDeg)
+    {
+        if (diameter < 1)
+        {
+            alpha *= (float)(diameter * diameter);
+            diameter = 1;
+        }
+        if (alpha <= 0) return;
+        var tip = _tip!;
+        double maxDim = Math.Max(tip.Width, tip.Height);
+        double s = diameter / maxDim; // canvas pixels per tip pixel
+        var (lw, lh, la, lc, lscale) = tip.LevelFor(diameter);
+        if (!_colorTip) lc = null;
+        double roundness = _brush.Roundness;
+        double halfW = tip.Width * s * 0.5, halfH = tip.Height * s * roundness * 0.5;
+        double ext = Math.Sqrt(halfW * halfW + halfH * halfH) + 1;
+        var box = PixelRect.FromBounds(cx - ext, cy - ext, cx + ext, cy + ext).Intersect(_doc.Bounds);
+        if (box.IsEmpty) return;
+        double rad = angleDeg * Math.PI / 180, cos = Math.Cos(rad), sin = Math.Sin(rad);
+        double inv = 1 / s, invRound = 1 / roundness;
+        double ox = tip.Width * 0.5, oy = tip.Height * 0.5;
+        bool grain = _brush.Grain > 0;
+        float grainAmount = (float)_brush.Grain;
+        float level = 0.35f + 0.65f * mappedPressure;
+        float g0 = 1 - level - 0.18f, g1 = 1 - level + 0.18f;
+        bool buildUp = _brush.BuildUp;
+
+        int tx0 = box.X / T, ty0 = box.Y / T, tx1 = (box.Right - 1) / T, ty1 = (box.Bottom - 1) / T;
+        for (int ty = ty0; ty <= ty1; ty++)
+        {
+            for (int tx = tx0; tx <= tx1; tx++)
+            {
+                _edit!.BeforeTile(tx, ty);
+                int key = _edit.TileKey(tx, ty);
+                var m = _colorTip ? null : MaskTile(key);
+                var c = _colorTip ? ColorTile(key) : null;
+                var part = box.Intersect(new PixelRect(tx * T, ty * T, T, T));
+                for (int y = part.Y; y < part.Bottom; y++)
+                {
+                    double fy = y + 0.5 - cy;
+                    int row = (y - ty * T) * T - tx * T;
+                    for (int x = part.X; x < part.Right; x++)
+                    {
+                        double fx = x + 0.5 - cx;
+                        double u = fx * cos + fy * sin, v = (-fx * sin + fy * cos) * invRound;
+                        double px = (u * inv + ox) * lscale, py = (v * inv + oy) * lscale;
+                        if (px < -1 || py < -1 || px > lw + 1 || py > lh + 1) continue;
+                        float a = BrushTip.Sample(lw, lh, la, lc, px, py, out float r, out float g, out float b);
+                        if (a <= 0.0005f) continue;
+                        float k = alpha;
+                        if (grain)
+                        {
+                            float gv = GrainValue(x, y);
+                            float f = gv <= g0 ? 0 : gv >= g1 ? 1 : (gv - g0) / (g1 - g0);
+                            k *= 1 - grainAmount * (1 - f);
+                            if (k <= 0) continue;
+                        }
+                        if (c is not null)
+                        {
+                            int i = (row + x) * 4;
+                            float sa = Math.Min(1f, a * k), keep = 1 - sa;
+                            c[i] = r * k + c[i] * keep;
+                            c[i + 1] = g * k + c[i + 1] * keep;
+                            c[i + 2] = b * k + c[i + 2] * keep;
+                            c[i + 3] = sa + c[i + 3] * keep;
+                        }
+                        else
+                        {
+                            float cov = Math.Min(1f, a * k);
+                            ref float slot = ref m![row + x];
+                            if (buildUp) slot += (1 - slot) * cov;
+                            else if (cov > slot) slot = cov;
+                        }
                     }
                 }
             }
@@ -344,6 +501,8 @@ public sealed class StrokeEngine
         var area = _pending;
         _pending = PixelRect.Empty;
         if (area.IsEmpty || _edit is null) return PixelRect.Empty;
+        if (_colorTip) return FlushColor(area);
+        float wet = (float)_brush.WetEdges;
 
         var layer = _edit.Layer;
         var pixels = layer.Image.Pixels;
@@ -376,6 +535,7 @@ public sealed class StrokeEngine
                             pixels[dst + x] = baseline;
                             continue;
                         }
+                        if (wet > 0) cov = WetEdge(cov, wet);
                         float c = cov * opacity;
                         if (selection is not null) c = c * selection.Data[dst + x] / 255f;
                         int a = (int)(c + 0.5f);
@@ -394,6 +554,78 @@ public sealed class StrokeEngine
         }
         _edit.Changed(area);
         return area;
+    }
+
+    /// <summary>Watercolour-like rim: the inside of a stroke is lighter and paint collects where coverage falls off.</summary>
+    private static float WetEdge(float cov, float wet) =>
+        Math.Clamp(cov * (1 - 0.6f * wet) + wet * 2.4f * cov * cov * (1 - cov), 0f, 1f);
+
+    /// <summary>Composites a colour-tip stroke (stamp brush): the stroke's own colours over the original pixels.</summary>
+    private PixelRect FlushColor(PixelRect area)
+    {
+        var layer = _edit!.Layer;
+        var pixels = layer.Image.Pixels;
+        int w = _doc.Width;
+        float opacity = (float)_brush.Opacity;
+        bool alphaLock = layer.AlphaLocked;
+        var selection = _doc.Selection;
+        int tx0 = area.X / T, ty0 = area.Y / T, tx1 = (area.Right - 1) / T, ty1 = (area.Bottom - 1) / T;
+        for (int ty = ty0; ty <= ty1; ty++)
+        {
+            for (int tx = tx0; tx <= tx1; tx++)
+            {
+                int key = _edit.TileKey(tx, ty);
+                if (!_color.TryGetValue(key, out var ct)) continue;
+                var before = _edit.BeforeTile(tx, ty);
+                var part = area.Intersect(new PixelRect(tx * T, ty * T, T, T));
+                for (int y = part.Y; y < part.Bottom; y++)
+                {
+                    int local = (y - ty * T) * T - tx * T;
+                    int dst = y * w;
+                    for (int x = part.X; x < part.Right; x++)
+                    {
+                        int ci = (local + x) * 4;
+                        uint baseline = before[local + x];
+                        float k = opacity;
+                        if (selection is not null) k = k * selection.Data[dst + x] / 255f;
+                        int a = (int)(ct[ci + 3] * k * 255 + 0.5f);
+                        if (a <= 0)
+                        {
+                            pixels[dst + x] = baseline;
+                            continue;
+                        }
+                        if (a > 255) a = 255;
+                        byte r = (byte)Math.Min(a, (int)(ct[ci] * k * 255 + 0.5f));
+                        byte g = (byte)Math.Min(a, (int)(ct[ci + 1] * k * 255 + 0.5f));
+                        byte b = (byte)Math.Min(a, (int)(ct[ci + 2] * k * 255 + 0.5f));
+                        uint over = Pixel.Over(Pixel.Pack((byte)a, r, g, b), baseline);
+                        if (alphaLock)
+                        {
+                            byte ba = Pixel.A(baseline);
+                            if (ba == 0) over = baseline;
+                            else
+                            {
+                                var (sr, sg, sb, _) = Pixel.ToStraight(over);
+                                over = Pixel.FromStraight(sr, sg, sb, ba);
+                            }
+                        }
+                        pixels[dst + x] = over;
+                    }
+                }
+            }
+        }
+        _edit.Changed(area);
+        return area;
+    }
+
+    private float[] ColorTile(int key)
+    {
+        if (!_color.TryGetValue(key, out var tile))
+        {
+            tile = _colorPool.Count > 0 ? _colorPool.Pop() : new float[T * T * 4];
+            _color[key] = tile;
+        }
+        return tile;
     }
 
     /// <summary>Paints colour into existing pixels without changing their transparency (transparency lock).</summary>
@@ -424,6 +656,12 @@ public sealed class StrokeEngine
             if (_maskPool.Count < 256) _maskPool.Push(tile);
         }
         _mask.Clear();
+        foreach (var tile in _color.Values)
+        {
+            Array.Clear(tile);
+            if (_colorPool.Count < 64) _colorPool.Push(tile);
+        }
+        _color.Clear();
         _edit = null;
         _pending = PixelRect.Empty;
         _active = false;
