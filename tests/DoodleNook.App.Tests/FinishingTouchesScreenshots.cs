@@ -17,6 +17,16 @@ public class FinishingTouchesScreenshots
     internal static readonly (string Name, double Width, double Height, double Scaling)[] Sizes =
         [("kamvas13-150", 1280, 720, 1.5), ("desktop1080", 1920, 1080, 1.0)];
 
+    /// <summary>Closes a screenshot window for real (nothing pending, nothing unsaved), so it stops drawing.</summary>
+    internal static void CloseNow(MainWindow w)
+    {
+        w.CancelTransform();
+        w.CancelLiquify();
+        w.Session.Document.MarkSaved();
+        w.Close();
+        Pump();
+    }
+
     /// <summary>A small painted scene to work on: sky, a hill, a sun and a few strokes.</summary>
     internal static void PaintScene(MainWindow w)
     {
@@ -72,7 +82,90 @@ public class FinishingTouchesScreenshots
             Click(w, Find<Button>(w, "RadialBrush"));
             Pump();
             WorkshopScreenshots.Save(w, $"m010-quick-palette-brushes-{name}");
-            w.Close();
+            CloseNow(w);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Capture_liquify_and_retouch()
+    {
+        foreach (var (name, width, height, scaling) in Sizes)
+        {
+            var w = Open(width, height, WorkspaceKind.Painting);
+            w.SetRenderScaling(scaling);
+            Pump();
+            PaintScene(w);
+            WorkshopScreenshots.Save(w, $"m010-painting-default-{name}");
+            Assert.True(await w.StartLiquifyAsync());
+            w.Session.SetLiquifyOptions(w.Session.Liquify with { Mode = Engine.Operations.LiquifyMode.Push, Size = 260, Strength = 1 });
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (700, 700), (740, 640), (780, 580), (820, 520));
+            var hover = DocToWindow(w, 900, 640);
+            w.MouseMove(hover);
+            Pump();
+            WorkshopScreenshots.Save(w, $"m010-liquify-{name}");
+            w.ApplyLiquify();
+
+            // Smudge across the purple and orange strokes.
+            w.Session.SelectTool(Editor.ToolKind.Smudge);
+            w.Session.SetRetouchOptions(w.Session.Retouch with { SmudgeSize = 60, SmudgeStrength = 0.85 });
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (420, 690), (440, 740), (460, 790), (480, 840), (500, 880));
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (1000, 680), (1030, 730), (1060, 780), (1090, 830));
+            w.MouseMove(DocToWindow(w, 1150, 760));
+            Pump();
+            WorkshopScreenshots.Save(w, $"m010-smudge-{name}");
+
+            // Clone the sun into the sky, showing the source marker.
+            w.Session.SelectTool(Editor.ToolKind.Clone);
+            w.Session.SetRetouchOptions(w.Session.Retouch with { CloneSize = 140, CloneSoftness = 0.3 });
+            w.Session.SetCloneSource(1400, 260);
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (500, 230), (520, 240), (540, 260));
+            w.MouseMove(DocToWindow(w, 560, 280));
+            Pump();
+            WorkshopScreenshots.Save(w, $"m010-clone-{name}");
+            CloseNow(w);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Capture_perspective_and_warp()
+    {
+        foreach (var (name, width, height, scaling) in Sizes)
+        {
+            var w = Open(width, height, WorkspaceKind.Painting);
+            w.SetRenderScaling(scaling);
+            Pump();
+            PaintScene(w);
+            // A little painted sign to transform.
+            var s = w.Session;
+            s.SetForeground(ColorRgb.Parse("#F6E7C8"));
+            s.UseBrush(new BrushSettings { Size = 30, Hardness = 1, Opacity = 1 }, "pencil");
+            for (int y = 300; y <= 480; y += 20) Drag(w, MouseButton.Left, RawInputModifiers.None, (420, y), (900, y));
+            s.SetForeground(ColorRgb.Parse("#5B3A6B"));
+            s.UseBrush(new BrushSettings { Size = 14, Hardness = 1, Opacity = 1 }, "pencil");
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (470, 340), (470, 440), (540, 440));
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (600, 340), (600, 440));
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (660, 440), (700, 340), (740, 440));
+            Drag(w, MouseButton.Left, RawInputModifiers.None, (800, 340), (800, 440), (860, 440));
+            s.Document.SetSelection(SelectionMask.Rectangle(s.Document.Width, s.Document.Height, new DoodleNook.Engine.Imaging.PixelRect(400, 280, 520, 220)), "Select");
+            Pump();
+
+            w.TransformIn(Engine.Operations.TransformMode.Perspective);
+            s.ActiveTransform!.SetCorners([(470, 250), (860, 300), (900, 520), (420, 470)]);
+            w.Canvas.Input!.RefreshTransformFrame();
+            Pump();
+            WorkshopScreenshots.Save(w, $"m010-perspective-{name}");
+            w.CancelTransform();
+
+            w.TransformIn(Engine.Operations.TransformMode.Warp);
+            var g = s.ActiveTransform!.Warp!;
+            var bent = g.With(5, g.Points[5].X, g.Points[5].Y - 40).With(6, g.Points[6].X, g.Points[6].Y - 40).With(9, g.Points[9].X, g.Points[9].Y + 35)
+                .With(10, g.Points[10].X, g.Points[10].Y + 35).With(1, g.Points[1].X, g.Points[1].Y - 45).With(2, g.Points[2].X, g.Points[2].Y - 45)
+                .With(13, g.Points[13].X, g.Points[13].Y + 40).With(14, g.Points[14].X, g.Points[14].Y + 40);
+            s.ActiveTransform.SetWarp(bent);
+            w.Canvas.Input.RefreshTransformFrame();
+            Pump();
+            WorkshopScreenshots.Save(w, $"m010-warp-{name}");
+            CloseNow(w);
         }
     }
 }

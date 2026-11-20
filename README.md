@@ -2,12 +2,14 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 009 "Game Edit Mode"** — choose a game's graphics folder, browse its PNGs in a catalog,
-edit one, and Ctrl+S saves an editable `.dnk` and replaces the game's PNG in place (with an optional backup of the
-original). Progress is tracked as Not started, In progress and Complete (only when you say so).
-Read [docs/iterations/009-game-edit-mode](docs/iterations/009-game-edit-mode/README.md) and try it with the
-[playtest guide](docs/iterations/009-game-edit-mode/PLAYTEST.md).
-Earlier milestones: [Mission 008 "The Designer's Toolkit"](docs/iterations/008-designers-toolkit/README.md) (text,
+**Current milestone: Mission 010 "The Finishing Touches"** — reshape, blend, repair and refine existing artwork:
+Liquify, Smudge, Clone and Repair, Perspective and Warp transforms, and a quick palette (the Alt+1 wheel) where brush
+sizing is comfortable and brushes can be chosen.
+Read [docs/iterations/010-finishing-touches](docs/iterations/010-finishing-touches/README.md) and try it with the
+[playtest guide](docs/iterations/010-finishing-touches/PLAYTEST.md).
+Earlier milestones: [Mission 009 "Game Edit Mode"](docs/iterations/009-game-edit-mode/README.md) (a game's graphics
+folder in a catalog with progress, Ctrl+S saving the `.dnk` and the game's PNG),
+[Mission 008 "The Designer's Toolkit"](docs/iterations/008-designers-toolkit/README.md) (text,
 shapes, groups, masks, adjustment layers, drawing assistants),
 [Mission 007 "The Artist's Workshop"](docs/iterations/007-artists-workshop/README.md) (Brush
 Laboratory, stamps, patterns, palettes, Palette Lock, reference board),
@@ -19,7 +21,7 @@ pen-drawing foundation).
 **Less is more — but capable when needed. Ease of use first.** The interface rules are in [`CLAUDE.md`](CLAUDE.md) and
 [docs/design/INTERFACE-PHILOSOPHY.md](docs/design/INTERFACE-PHILOSOPHY.md).
 
-- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F009-game-edit-mode) → newest green run → artifact **DoodleNook-win-x64**.
+- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F010-finishing-touches) → newest green run → artifact **DoodleNook-win-x64**.
 - Earlier research and the approved design prototype: [docs/](docs/README.md).
 - Sound identity sketches: [sound-experiments/](sound-experiments/README.md).
 

@@ -163,7 +163,13 @@ public sealed class RetouchStroke
     }
 
     /// <summary>Distance between dabs: a fixed share of the diameter, so a stroke looks the same at any input rate.</summary>
-    private double Spacing(double diameter) => _style.Kind == RetouchKind.Smudge ? Math.Max(1, 0.12 * diameter) : Math.Max(0.5, 0.1 * diameter);
+    private double Spacing(double diameter) => _style.Kind == RetouchKind.Smudge ? SmudgeSpacing(diameter) : Math.Max(0.5, 0.1 * diameter);
+
+    // Smudge dabs are close together (no visible steps in long smears); each mixes less, so the strength per distance
+    // travelled is that of one dab every 12 % of the diameter, whatever the spacing.
+    private static double SmudgeSpacing(double diameter) => Math.Max(0.75, 0.035 * diameter);
+
+    private static double SmudgeShare(double diameter) => Math.Min(1, SmudgeSpacing(diameter) / Math.Max(1, 0.12 * diameter));
 
     private double Diameter(float p) => Math.Max(1, _style.Size * (_style.PressureSize ? 0.15 + 0.85 * _style.Curve.Map(p) : 1));
 
@@ -259,7 +265,7 @@ public sealed class RetouchStroke
         var pixels = _edit!.Target.Pixels;
         int w = _doc.Width;
         bool alphaLock = _edit.AlphaLocked;
-        float keep = strength; // how much of the carried paint stays in the buffer
+        float share = (float)SmudgeShare(d); // this dab's share of the reference step
         for (int y = box.Y; y < box.Bottom; y++)
         {
             double fy = y + 0.5 - cy;
@@ -275,12 +281,14 @@ public sealed class RetouchStroke
                 int k = (j * size + i) * 4, idx = y * w + x;
                 uint before = pixels[idx];
                 float r0 = Pixel.R(before) / 255f, g0 = Pixel.G(before) / 255f, b0 = Pixel.B(before) / 255f, a0 = Pixel.A(before) / 255f;
-                float mix = cov * strength;
+                // Per reference step the canvas moves cov·strength toward the carried paint, and the carried paint picks up
+                // cov·(1 − strength) of the canvas; split evenly over the dabs in that step.
+                float mix = 1 - MathF.Pow(1 - cov * strength, share);
                 float r = r0 + (_carry[k] - r0) * mix, g = g0 + (_carry[k + 1] - g0) * mix,
                     b = b0 + (_carry[k + 2] - b0) * mix, a = a0 + (_carry[k + 3] - a0) * mix;
                 pixels[idx] = alphaLock ? KeepAlpha(Pack(r, g, b, a), before) : Pack(r, g, b, a);
                 // The carried paint picks up some of what it passes over.
-                float pick = cov * (1 - keep);
+                float pick = 1 - MathF.Pow(1 - cov * (1 - strength), share);
                 _carry[k] += (r0 - _carry[k]) * pick;
                 _carry[k + 1] += (g0 - _carry[k + 1]) * pick;
                 _carry[k + 2] += (b0 - _carry[k + 2]) * pick;
@@ -305,7 +313,9 @@ public sealed class RetouchStroke
         {
             // Repair looks at the stroke's surroundings: redo the area around the new dabs (and all of it at the end).
             double margin = Math.Max(8, _style.Size);
-            var region = final ? StrokeBounds : area;
+            // At the end the whole stroke is healed once more, so early parts see the final surroundings; long strokes keep
+            // their step-by-step result (each step already looked a brush size around itself).
+            var region = final && (long)StrokeBounds.Width * StrokeBounds.Height <= 512L * 512 ? StrokeBounds : area;
             if (region.IsEmpty) return PixelRect.Empty;
             region = PixelRect.FromBounds(region.X - margin, region.Y - margin, region.Right + margin, region.Bottom + margin).Intersect(_doc.Bounds);
             Heal(region);

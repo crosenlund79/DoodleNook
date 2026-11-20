@@ -65,6 +65,48 @@ public partial class MainWindow
             ShowToast("Free transform · drag the handles · Enter applies, Esc cancels");
     }
 
+    /// <summary>Edit › Liquify…: reshape the active layer by dragging on the canvas (Enter applies, Esc cancels).
+    /// Text and shapes are only liquified after the artist agrees to turn them into pixels.</summary>
+    public async Task<bool> StartLiquifyAsync()
+    {
+        Canvas.Input?.CancelCrop();
+        Session.CommitTransform();
+        var layer = Session.Document.ActiveLayer;
+        if (layer.IsObject && !layer.Locked)
+        {
+            var kind = layer.Kind == Engine.Documents.LayerKind.Text ? "text" : "an editable shape";
+            var r = await _dialogs.ShowAsync("Liquify works on pixels",
+                DoodleNook.App.Dialogs.DialogHost.Text($"“{layer.Name}” is {kind}. Turn it into pixels to liquify it? It can't be edited as {kind} afterwards (Undo brings it back)."),
+                [("cancel", "Cancel", false), ("convert", "Turn into pixels", true)], "convert", "cancel", 440);
+            if (r != "convert") return false;
+            Session.ConvertToPixels();
+        }
+        if (!Session.BeginLiquify()) return false;
+        ShowToast("Liquify · drag to reshape · Enter applies, Esc cancels · Ctrl+Z takes back a stroke · Alt reverses");
+        return true;
+    }
+
+    public void ApplyLiquify()
+    {
+        if (Session.ApplyLiquify()) ShowToast("Liquify applied");
+    }
+
+    public void CancelLiquify()
+    {
+        if (Session.CancelLiquify()) ShowToast("Liquify cancelled");
+    }
+
+    /// <summary>Edit › Perspective / Warp: a transform of the selection (or layer) in that mode straight away.</summary>
+    public void TransformIn(Engine.Operations.TransformMode mode)
+    {
+        Canvas.Input?.CancelCrop();
+        if (!Session.BeginTransform(mode == Engine.Operations.TransformMode.Warp ? "Warp" : "Perspective")) return;
+        Session.SetTransformMode(mode);
+        ShowToast(mode == Engine.Operations.TransformMode.Warp
+            ? "Warp · drag the grid's points to bend · Enter applies, Esc cancels"
+            : "Perspective · drag the corners · Enter applies, Esc cancels");
+    }
+
     public void ApplyTransform()
     {
         if (Session.CommitTransform()) ShowToast("Transform applied");

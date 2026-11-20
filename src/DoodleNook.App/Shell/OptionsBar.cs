@@ -33,7 +33,8 @@ public sealed partial class OptionsBuilder
         bool sel = s.Document.Selection is { IsEmpty: false };
         bool crop = _app.Canvas.Input?.PendingCrop is not null;
         bool transform = s.ActiveTransform is not null;
-        return $"{tool}|{sel}|{crop}|{transform}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}" +
+        bool liquify = s.ActiveLiquify is not null;
+        return $"{tool}|{sel}|{crop}|{transform}|{s.ActiveTransform?.Mode}|{liquify}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}" +
                $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}|{DesignKey(tool)}" +
                (EditorSession.IsRetouchTool(tool) ? $"|{s.CloneSource is not null}|{s.Retouch.RepairFromSource}" : "");
     }
@@ -87,10 +88,15 @@ public sealed partial class OptionsBuilder
         var items = new List<Control>();
         var info = Workspaces.Tools[tool];
 
+        if (s.ActiveLiquify is not null)
+        {
+            items.AddRange(LiquifyItems(compact));
+            return Wrap(items, "liquify", "Liquify", compact);
+        }
         if (s.ActiveTransform is not null)
         {
             items.AddRange(TransformItems(compact));
-            return Wrap(items, "transform", "Free transform", compact);
+            return Wrap(items, "transform", "Transform", compact);
         }
         if (_app.Canvas.Input?.PendingCrop is { } crop)
         {
@@ -435,19 +441,56 @@ public sealed partial class OptionsBuilder
         yield return Action("close", "Deselect", "Deselect (Ctrl+D)", s.Deselect);
     }
 
+    /// <summary>Liquify's bar (while a session runs): what the brush does, its size, strength and softness, then Reset,
+    /// Cancel and Apply. Six modes as icons with names in their tooltips keep it to one row on a Kamvas at 150 %.</summary>
+    private IEnumerable<Control> LiquifyItems(bool compact)
+    {
+        var s = S;
+        var o = () => s.Liquify;
+        yield return Seg([(LiquifyMode.Push, "lq-push", null, "Push: drags the picture along with the brush"),
+                          (LiquifyMode.Inflate, "lq-inflate", null, "Inflate: swells what is under the brush · keeps growing while you hold · Alt: pinch"),
+                          (LiquifyMode.Pinch, "lq-pinch", null, "Pinch: shrinks toward the brush's centre · Alt: inflate"),
+                          (LiquifyMode.Twirl, "lq-twirl", null, "Twirl: turns clockwise while you hold · Alt: anticlockwise"),
+                          (LiquifyMode.Smooth, "lq-smooth", null, "Smooth: evens out kinks in the reshaping"),
+                          (LiquifyMode.Restore, "undo", null, "Restore: brings the original back where you brush")],
+            () => o().Mode, v => s.SetLiquifyOptions(o() with { Mode = v }));
+        yield return Slider("Size", 4, 1000, () => o().Size, v => s.SetLiquifyOptions(o() with { Size = v }), v => $"{v:0} px", log: true,
+            tip: "Brush size ([ and ]) · right-drag on the canvas", width: 80);
+        yield return Slider("Strength", 0.05, 1, () => o().Strength, v => s.SetLiquifyOptions(o() with { Strength = v }), v => $"{v * 100:0}%",
+            tip: "How strongly each movement reshapes · pen pressure lightens it", width: 70);
+        yield return Slider("Softness", 0, 1, () => o().Softness, v => s.SetLiquifyOptions(o() with { Softness = v }), v => $"{v * 100:0}%",
+            tip: "How gradually the effect fades toward the brush's edge", width: 70);
+        yield return Action("undo", "Reset", "Undo all reshaping (Liquify goes on)", s.ResetLiquify);
+        yield return Action("close", "Cancel", "Leave the picture as it was (Esc)", () => _app.CancelLiquify());
+        yield return Action("check", "Apply", "Keep the reshaped picture (Enter)", () => _app.ApplyLiquify(), primary: true);
+    }
+
     private IEnumerable<Control> TransformItems(bool compact)
     {
         var s = S;
+        var mode = s.ActiveTransform?.Mode ?? TransformMode.Free;
+        yield return Seg([(TransformMode.Free, "transform", compact ? null : "Free", "Move, scale and rotate (going back here undoes Perspective and Warp)"),
+                          (TransformMode.Perspective, "tf-persp", compact ? null : "Perspective", "Drag the four corners anywhere: tilt a sign, fit art onto a wall"),
+                          (TransformMode.Warp, "tf-warp", compact ? null : "Warp", "Drag the grid's points: the picture bends smoothly with them")],
+            () => s.ActiveTransform?.Mode ?? TransformMode.Free, s.SetTransformMode);
         if (!s.PixelMode)
             yield return Seg([(Interpolation.Nearest, null, "Pixels", "Nearest neighbour: hard pixels, for pixel art"),
                               (Interpolation.Bilinear, null, "Smooth", "Bilinear: smooth and fast"),
                               (Interpolation.Bicubic, null, "Sharp", "Bicubic: smoothest edges, keeps detail")],
                 () => s.TransformInterpolation, s.SetTransformInterpolation);
-        yield return Action("flip", "↔", "Flip left to right", () => _app.FlipSelection(true));
-        yield return Action(null, "↕", "Flip upside down", () => _app.FlipSelection(false));
-        yield return Action("rotateccw", "90°", "Rotate 90° anticlockwise", () => _app.RotateSelection(-90));
-        yield return Action("rotate", "90°", "Rotate 90° clockwise", () => _app.RotateSelection(90));
-        if (!compact) yield return Hint("Drag inside to move · corners scale (Shift keeps proportions) · outside a corner rotates");
+        if (mode == TransformMode.Free)
+        {
+            yield return Action("flip", "↔", "Flip left to right", () => _app.FlipSelection(true));
+            yield return Action(null, "↕", "Flip upside down", () => _app.FlipSelection(false));
+            yield return Action("rotateccw", "90°", "Rotate 90° anticlockwise", () => _app.RotateSelection(-90));
+            yield return Action("rotate", "90°", "Rotate 90° clockwise", () => _app.RotateSelection(90));
+            if (!compact) yield return Hint("Drag inside to move · corners scale (Shift keeps proportions) · outside a corner rotates");
+        }
+        else
+        {
+            yield return Action("undo", "Reset", mode == TransformMode.Warp ? "Straighten the grid again" : "Put the corners back", s.ResetTransformMode);
+            if (!compact) yield return Hint(mode == TransformMode.Warp ? "Drag a point to bend · drag inside to move" : "Drag a corner · drag inside to move");
+        }
         yield return Action("check", "Apply", "Apply the transform (Enter)", () => _app.ApplyTransform(), primary: true);
         yield return Action("close", "Cancel", "Cancel (Esc)", () => _app.CancelTransform());
     }

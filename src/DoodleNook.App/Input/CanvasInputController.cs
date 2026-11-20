@@ -60,6 +60,9 @@ public enum Gesture
     Guide,
     AssistHandle,
     StraightLine,
+
+    // Mission 010
+    Liquify,
 }
 
 public enum CursorShape
@@ -84,6 +87,11 @@ public sealed class CanvasOverlay
     public List<(double X, double Y)>? Polyline { get; set; }
     public (double X0, double Y0, double X1, double Y1)? Line { get; set; }
     public (double X, double Y)[]? TransformFrame { get; set; }
+
+    /// <summary>Perspective and Warp (Mission 010): the handles to draw instead of the free transform's eight, and the warp
+    /// grid's lines (in document coordinates).</summary>
+    public (double X, double Y)[]? TransformHandles { get; set; }
+    public List<(double X, double Y)[]>? TransformGrid { get; set; }
     public PixelRect? Crop { get; set; }
 
     /// <summary>The stamp tool's preview under the pointer (picture and placement in document coordinates).</summary>
@@ -120,6 +128,8 @@ public sealed partial class CanvasInputController
     private ShapeOperation? _shape;
     private FloatingTransform? _move;
     private Affine _transformStart;
+    private (double X, double Y)[] _cornersAtPress = [];
+    private WarpGrid? _warpAtPress;
     private int _handle = -1;
     private double _rotateStartAngle, _rotateStartView;
     private bool _pixelBackground;
@@ -177,6 +187,8 @@ public sealed partial class CanvasInputController
         Gesture.None when SpaceHeld || _session.Tool == ToolKind.Hand => CursorShape.Hand,
         Gesture.None when RotateHeld => CursorShape.Rotate,
         Gesture.None when _session.ActiveTransform is not null => CursorShape.Move,
+        Gesture.Liquify => CursorShape.BrushOutline,
+        Gesture.None when _session.ActiveLiquify is not null => CursorShape.BrushOutline,
         Gesture.None when AltHeld && _session.Tool is ToolKind.Clone or ToolKind.Repair => CursorShape.Crosshair, // Alt+click picks the source
         Gesture.None when AltHeld && !IsSelectionTool(_session.Tool) => CursorShape.Eyedropper,
         _ => _session.Tool switch
@@ -264,7 +276,10 @@ public sealed partial class CanvasInputController
                 break;
             case Gesture.Transform:
                 _transformStart = _session.ActiveTransform!.Transform;
+                _cornersAtPress = _session.ActiveTransform.Corners;
+                _warpAtPress = _session.ActiveTransform.Warp;
                 _handle = HitHandle(p.X, p.Y);
+                _session.ActiveTransform.Draft = _session.ActiveTransform.Mode != TransformMode.Free; // quick previews while dragging
                 break;
             case Gesture.ObjectEdit:
             case Gesture.NewShape:
@@ -272,6 +287,14 @@ public sealed partial class CanvasInputController
             case Gesture.Guide:
                 PressDesign(g, p);
                 break;
+            case Gesture.Liquify:
+            {
+                var l = _session.ActiveLiquify!;
+                l.Reverse = p.Alt || AltHeld; // Alt: the opposite (twirl the other way, inflate ↔ pinch)
+                var (lx, ly) = Doc(p);
+                l.BeginStroke(lx, ly, p.Kind == PointerKind.Pen ? p.Pressure : 1f);
+                break;
+            }
         }
         OverlayChanged?.Invoke();
         return Gesture != Gesture.None;
@@ -295,6 +318,7 @@ public sealed partial class CanvasInputController
             return Gesture.SecondaryPending; // tap = quick palette, drag = brush size
         }
         if (!p.Primary) return Gesture.None;
+        if (_session.ActiveLiquify is not null) return Gesture.Liquify; // while liquifying, dragging reshapes
         bool alt = p.Alt || AltHeld;
         if (alt && tool is ToolKind.Clone or ToolKind.Repair && _session.ActiveTransform is null)
         {
@@ -393,8 +417,17 @@ public sealed partial class CanvasInputController
             case Gesture.Pick:
                 Pick(last);
                 break;
+            case Gesture.Liquify:
+                foreach (var pt in points)
+                {
+                    if (pt.PointerId != _pointerId) continue;
+                    var (lx, ly) = Doc(pt);
+                    _session.ActiveLiquify?.StrokeTo(lx, ly, pt.Kind == PointerKind.Pen ? pt.Pressure : 1f);
+                }
+                break;
             case Gesture.SecondaryPending:
-                if (_moved && _session.Tool is ToolKind.Brush or ToolKind.Eraser or ToolKind.PixelPencil or ToolKind.PixelEraser)
+                if (_moved && (_session.Tool is ToolKind.Brush or ToolKind.Eraser or ToolKind.PixelPencil or ToolKind.PixelEraser or ToolKind.Smudge or ToolKind.Clone or ToolKind.Repair
+                               || _session.ActiveLiquify is not null))
                 {
                     Gesture = Gesture.ResizeBrush;
                     ResizeAnchor = (_startX, _startY);
@@ -493,6 +526,12 @@ public sealed partial class CanvasInputController
                 break;
             case Gesture.PixelPaint:
                 _session.EndStroke();
+                break;
+            case Gesture.Liquify:
+                _session.ActiveLiquify?.EndStroke();
+                break;
+            case Gesture.Transform when _session.ActiveTransform is { Draft: true } t:
+                t.Draft = false; // the real preview once the handle is let go
                 break;
             case Gesture.SecondaryPending:
                 RadialRequested?.Invoke(_startX, _startY);
@@ -629,6 +668,7 @@ public sealed partial class CanvasInputController
     public void Tick(double elapsedMs)
     {
         if (Gesture == Gesture.Paint && _session.Brush.Spray && !StrokeErases) _session.Spray(elapsedMs);
+        if (Gesture == Gesture.Liquify) _session.ActiveLiquify?.Hold(elapsedMs); // Inflate, Pinch, Twirl… keep working while the pen rests
     }
 
     // ================================================================ crop
@@ -660,8 +700,66 @@ public sealed partial class CanvasInputController
             return;
         }
         double w = t.Source.Width, h = t.Source.Height;
+        Overlay.TransformHandles = null;
+        Overlay.TransformGrid = null;
+        switch (t.Mode)
+        {
+            case TransformMode.Perspective:
+                Overlay.TransformFrame = t.Corners;
+                Overlay.TransformHandles = t.Corners;
+                return;
+            case TransformMode.Warp when t.Warp is { } g:
+            {
+                // The grid's rows and columns, drawn as the curves the picture now follows.
+                var lines = new List<(double X, double Y)[]>();
+                const int steps = 32;
+                for (int k = 0; k < WarpGrid.N; k++)
+                {
+                    double v = h * k / (WarpGrid.N - 1), u = w * k / (WarpGrid.N - 1);
+                    lines.Add(Enumerable.Range(0, steps + 1).Select(i => g.Map(w * i / steps, v)).ToArray());
+                    lines.Add(Enumerable.Range(0, steps + 1).Select(i => g.Map(u, h * i / steps)).ToArray());
+                }
+                Overlay.TransformFrame = null;
+                Overlay.TransformGrid = lines;
+                Overlay.TransformHandles = g.Points.ToArray();
+                return;
+            }
+        }
         var m = t.Transform;
         Overlay.TransformFrame = [m.Apply(0, 0), m.Apply(w, 0), m.Apply(w, h), m.Apply(0, h)];
+    }
+
+    /// <summary>Perspective and Warp: the handle under a view point (corners 0–3, warp points 100–115), 8 inside (move),
+    /// −1 elsewhere.</summary>
+    private int HitShapeHandle(FloatingTransform t, double vx, double vy)
+    {
+        var pts = t.Mode == TransformMode.Perspective ? t.Corners : t.Warp!.Points.ToArray();
+        int best = -1;
+        double bestD = 12 * 12;
+        for (int i = 0; i < pts.Length; i++)
+        {
+            var (hx, hy) = _view.DocumentToView(pts[i].X, pts[i].Y);
+            double d = (hx - vx) * (hx - vx) + (hy - vy) * (hy - vy);
+            if (d <= bestD)
+            {
+                bestD = d;
+                best = t.Mode == TransformMode.Perspective ? i : 100 + i;
+            }
+        }
+        if (best >= 0) return best;
+        // Inside the outline: move everything.
+        var (docX, docY) = _view.ViewToDocument(vx, vy);
+        var outline = t.Mode == TransformMode.Perspective ? t.Corners : [pts[0], pts[WarpGrid.N - 1], pts[^1], pts[^WarpGrid.N]];
+        return Inside(outline, docX, docY) ? 8 : -1;
+    }
+
+    private static bool Inside((double X, double Y)[] poly, double x, double y)
+    {
+        bool inside = false;
+        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+            if ((poly[i].Y > y) != (poly[j].Y > y) && x < (poly[j].X - poly[i].X) * (y - poly[i].Y) / (poly[j].Y - poly[i].Y) + poly[i].X)
+                inside = !inside;
+        return inside;
     }
 
     /// <summary>Handles in source-local coordinates: 0–3 corners, 4–7 edge midpoints.</summary>
@@ -676,6 +774,7 @@ public sealed partial class CanvasInputController
     {
         var t = _session.ActiveTransform;
         if (t is null) return -1;
+        if (t.Mode != TransformMode.Free) return HitShapeHandle(t, vx, vy);
         double w = t.Source.Width, h = t.Source.Height;
         // Small frames: leave room to grab the inside (move) by dropping edge handles that would crowd it.
         var (c0x, c0y) = _view.DocumentToView(t.Transform.Apply(0, 0).X, t.Transform.Apply(0, 0).Y);
@@ -702,6 +801,31 @@ public sealed partial class CanvasInputController
     {
         var t = _session.ActiveTransform;
         if (t is null) return;
+        if (t.Mode != TransformMode.Free)
+        {
+            double mx = docX - _startDocX, my = docY - _startDocY;
+            if (_session.PixelMode)
+            {
+                mx = Math.Round(mx);
+                my = Math.Round(my);
+            }
+            if (t.Mode == TransformMode.Perspective && _cornersAtPress.Length == 4)
+            {
+                var c = ((double X, double Y)[])_cornersAtPress.Clone();
+                if (_handle is >= 0 and < 4) c[_handle] = (c[_handle].X + mx, c[_handle].Y + my);
+                else if (_handle == 8) c = c.Select(q => (q.X + mx, q.Y + my)).ToArray();
+                else return;
+                t.SetCorners(c); // crossed or flat corners are refused: the picture stays as it was
+            }
+            else if (t.Mode == TransformMode.Warp && _warpAtPress is { } g)
+            {
+                if (_handle >= 100) t.SetWarpPoint(_handle - 100, g.Points[_handle - 100].X + mx, g.Points[_handle - 100].Y + my);
+                else if (_handle == 8) t.SetWarp(g.Moved(mx, my));
+                else return;
+            }
+            RefreshTransformFrame();
+            return;
+        }
         double w = t.Source.Width, h = t.Source.Height;
         var start = _transformStart;
         if (_handle == 8 || _handle < 0)

@@ -175,7 +175,7 @@ public sealed class GameEditTests : IDisposable
         Click(w, w.GetVisualDescendants().OfType<Border>().First(b => b.Name == "GameTile_characters/player.png"));
         await Until(() => w.EditingGameImage);
         Assert.Equal((32, 24), (w.Session.Document.Width, w.Session.Document.Height));
-        Assert.Equal("DoodleNook — M009 — player.dnk", w.Title);
+        Assert.Equal($"DoodleNook — {MainWindow.Milestone} — player.dnk", w.Title);
         Assert.Equal(GameImageStatus.NotStarted, player.Status);
         Assert.False(Has(w, "GameCatalog"));
         Assert.True(Has(w, "GameChip"));
@@ -411,7 +411,7 @@ public sealed class GameEditTests : IDisposable
         Assert.Equal(w.Session.Document.Flatten().Pixels, PngCodec.Decode(File.ReadAllBytes(hero.PngPath)).Pixels);
         Assert.Same(hero, w.GameImage);
         Assert.True(w.EditingGameImage);
-        Assert.Equal("DoodleNook — M009 — hero.dnk", w.Title);
+        Assert.Equal($"DoodleNook — {MainWindow.Milestone} — hero.dnk", w.Title);
         Assert.Equal(GameImageStatus.InProgress, hero.Status);
         Assert.Equal(GameImageStatus.NotStarted, template.Status);
 
@@ -671,11 +671,11 @@ public sealed class GameEditTests : IDisposable
     public void The_window_title_shows_the_milestone()
     {
         var w = Open(1280, 800, WorkspaceKind.Painting);
-        Assert.Equal("M009", MainWindow.Milestone);
-        Assert.Equal("DoodleNook — M009", w.Title);
+        Assert.Equal("M010", MainWindow.Milestone);
+        Assert.Equal("DoodleNook — M010", w.Title);
         w.Session.AddLayer();
         Pump();
-        Assert.StartsWith("DoodleNook — M009 — Untitled", w.Title);
+        Assert.StartsWith("DoodleNook — M010 — Untitled", w.Title);
         w.Close();
     }
 }

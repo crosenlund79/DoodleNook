@@ -181,6 +181,8 @@ public sealed partial class EditorSession
         _engine = new StrokeEngine(document);
         _pixel = new PixelStroke(document);
         _retouch = new RetouchStroke(document);
+        _liquify?.Cancel(); // a Liquify session belongs to its picture
+        _liquify = null;
         CloneSource = null; // a source belongs to its picture
         CloneOffset = null;
         Foreground = Allowed(Foreground);
@@ -303,7 +305,9 @@ public sealed partial class EditorSession
         var doc = Document;
         long state = doc.History.CurrentStateId;
         if (_sampled is { } c && ReferenceEquals(c.Doc, doc) && c.State == state && c.Frame == doc.CurrentFrame) return c.Image;
-        var image = doc.Flatten();
+        // What is on screen is already composited: copy it (fast). With onion skins showing it would include them, so then
+        // compose a clean copy instead.
+        var image = doc.IsAnimated && Onion.Enabled ? doc.Flatten() : doc.Projection.Clone();
         _sampled = (doc, state, doc.CurrentFrame, image);
         return image;
     }
@@ -338,10 +342,15 @@ public sealed partial class EditorSession
     public bool IsPixelTool(ToolKind t) => t is ToolKind.PixelPencil or ToolKind.PixelEraser or ToolKind.PixelLine or ToolKind.PixelRect or ToolKind.PixelEllipse;
 
     /// <summary>Size shown in the toolbar: brush/eraser diameter, or the pixel brush size in Pixel Art.</summary>
-    public double CurrentSize => IsPixelTool(Tool) ? Pixel.Size : IsRetouchTool(Tool) ? RetouchSize : CurrentPaintSettings.Size;
+    public double CurrentSize => ActiveLiquify is not null ? Liquify.Size : IsPixelTool(Tool) ? Pixel.Size : IsRetouchTool(Tool) ? RetouchSize : CurrentPaintSettings.Size;
 
     public void SetSize(double size)
     {
+        if (ActiveLiquify is not null)
+        {
+            SetLiquifyOptions(Liquify with { Size = Math.Round(size) });
+            return;
+        }
         if (IsPixelTool(Tool))
         {
             SetPixelOptions(Pixel with { Size = (int)Math.Clamp(Math.Round(size), 1, 64) });
@@ -648,6 +657,7 @@ public sealed partial class EditorSession
     public bool Undo()
     {
         EndStroke();
+        if (ActiveLiquify is not null) return UndoLiquifyStroke(); // inside Liquify: its last stroke
         if (CancelTransform()) return true;
         return Document.Undo();
     }
@@ -655,6 +665,7 @@ public sealed partial class EditorSession
     public bool Redo()
     {
         EndStroke();
+        if (ActiveLiquify is not null) return false;
         CommitTransform();
         return Document.Redo();
     }
@@ -1117,11 +1128,27 @@ public sealed partial class EditorSession
 
     public bool CommitTransform()
     {
+        if (ActiveLiquify is not null) return ApplyLiquify(); // finishing pending work applies Liquify, like a transform
         if (ActiveTransform is not { } t) return false;
         t.Commit();
         _transform = null;
         Changed();
         return true;
+    }
+
+    /// <summary>Free, Perspective or Warp for the running transform (Mission 010).</summary>
+    public void SetTransformMode(TransformMode mode)
+    {
+        if (ActiveTransform is not { } t) return;
+        t.SetMode(mode);
+        Changed();
+    }
+
+    /// <summary>Perspective or Warp back to where they started.</summary>
+    public void ResetTransformMode()
+    {
+        ActiveTransform?.ResetMode();
+        Changed();
     }
 
     public bool CancelTransform()

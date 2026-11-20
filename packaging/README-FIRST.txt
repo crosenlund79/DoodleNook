@@ -1,5 +1,5 @@
-DoodleNook — Mission 009 "Game Edit Mode"
-=========================================
+DoodleNook — Mission 010 "The Finishing Touches"
+================================================
 
 Start
 -----
@@ -45,6 +45,19 @@ The Artist's Workshop
   converts artwork to another palette with a preview you can adjust. Transparency is never changed.
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
+
+The Finishing Touches (new)
+---------------------------
+* Quick palette (right-click or the pen button; the Alt+1 wheel): drag the centre to size the brush (short moves
+  fine-tune, long drags change a lot, Shift for extra fine). The brush pill under the wheel chooses another brush:
+  recent ones first, your favourites and all brushes, your own included. Each brush remembers the size you last used.
+* Smudge, Clone and Repair: one button in the Painting and Editing tool strips (right-click it for the others;
+  Shift+B, Shift+S, J). Clone: Alt+click where to copy from, then paint. Repair: paint over a speck to fill it
+  from its surroundings, or Alt+click a source to bring in its texture.
+* Liquify: Edit > Liquify... (Ctrl+Shift+X). Drag to push, inflate, pinch, twirl, smooth or restore. Enter applies,
+  Esc cancels, Ctrl+Z takes back a stroke, Alt reverses.
+* Perspective and Warp: Edit > Perspective / Warp, or Free / Perspective / Warp in the transform's bar (Ctrl+T).
+  Drag the corners or the grid's points; Enter applies, Esc cancels.
 
 Game Edit Mode
 --------------

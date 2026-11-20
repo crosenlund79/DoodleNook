@@ -257,3 +257,53 @@ public class RetouchTests
         Assert.True(filled[20 * 4] > filled[10 * 4]); // from one side to the other
     }
 }
+
+/// <summary>Mission 010 tools on an animation: they change the current drawing only (a held drawing is the same drawing
+/// in every frame it is held, as with painting).</summary>
+public class FinishingTouchesAnimationTests
+{
+    [Fact]
+    public void Retouching_and_liquify_change_only_the_current_drawing_and_respect_holds()
+    {
+        var doc = Document.NewAnimation(120, 80, null, frames: 1);
+        var layer = doc.ActiveLayer;
+        var engine = new StrokeEngine(doc);
+        engine.Begin(Paint(Hard(30), new ColorRgb(200, 40, 40)), S(20, 40));
+        engine.Add(S(100, 40));
+        engine.End();
+        doc.ExtendHold(layer, 0);                 // frames 0 and 1 show the same drawing
+        doc.SetCurrentFrame(1);
+        doc.NewFrame(NewFrameContent.Duplicate);  // frame 2: an independent copy
+        Assert.Equal(3, doc.FrameCount);
+        Assert.Same(doc.CelAt(layer, 0), doc.CelAt(layer, 1));
+        Assert.NotSame(doc.CelAt(layer, 1), doc.CelAt(layer, 2));
+        var held = (uint[])doc.CelAt(layer, 0)!.Image.Pixels.Clone();
+        var copy = (uint[])doc.CelAt(layer, 2)!.Image.Pixels.Clone();
+
+        // Smudge on frame 2: only that drawing changes.
+        doc.SetCurrentFrame(2);
+        var r = new RetouchStroke(doc);
+        r.Begin(new RetouchStyle(RetouchKind.Smudge, 20, 0.9, 0.5, PressureCurve.Normal), S(60, 40));
+        r.Add([S(60, 70)]);
+        r.End();
+        Assert.NotEqual(copy, doc.CelAt(layer, 2)!.Image.Pixels);
+        Assert.Equal(held, doc.CelAt(layer, 0)!.Image.Pixels);
+
+        // Liquify on frame 1: the held drawing changes, so frames 0 and 1 both show it; frame 2 doesn't.
+        doc.SetCurrentFrame(1);
+        var smudged = (uint[])doc.CelAt(layer, 2)!.Image.Pixels.Clone();
+        var l = Operations.LiquifySession.Begin(doc, layer, Operations.LiquifySampling.Smooth)!;
+        l.Size = 50;
+        l.Strength = 1;
+        l.BeginStroke(60, 40);
+        l.StrokeTo(60, 75);
+        l.EndStroke();
+        Assert.True(l.Apply());
+        Assert.NotEqual(held, doc.CelAt(layer, 0)!.Image.Pixels);
+        Assert.Same(doc.CelAt(layer, 0), doc.CelAt(layer, 1));
+        Assert.Equal(smudged, doc.CelAt(layer, 2)!.Image.Pixels);
+        Assert.Equal(3, doc.FrameCount); // timing untouched
+        doc.Undo();
+        Assert.Equal(held, doc.CelAt(layer, 0)!.Image.Pixels);
+    }
+}

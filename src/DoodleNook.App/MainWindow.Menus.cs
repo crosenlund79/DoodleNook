@@ -84,6 +84,9 @@ public partial class MainWindow
             new("pattern", sel ? "Save selection as pattern…" : "Save layer as pattern…", null, () => _ = SaveSelectionAsAssetAsync(PickerKind.Patterns)),
             MenuEntry.Separator,
             new("transform", "Free transform", "Ctrl+T", FreeTransform),
+            new("tf-persp", "Perspective", null, () => TransformIn(Engine.Operations.TransformMode.Perspective)),
+            new("tf-warp", "Warp", null, () => TransformIn(Engine.Operations.TransformMode.Warp)),
+            new("liquify", "Liquify…", "Shift+Ctrl+X", () => _ = StartLiquifyAsync()),
             new("flip", "Flip horizontal", null, () => FlipSelection(true)),
             new(null, "Flip vertical", null, () => FlipSelection(false)),
             new("rotate", "Rotate 90° clockwise", null, () => RotateSelection(90)),
@@ -356,6 +359,8 @@ public partial class MainWindow
             ("G / Shift+G / U", "Paint bucket (colour or pattern) / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
             ("S", "Stamp tool · [ and ] change the stamp's size"),
             ("T", "Text tool (Painting, Editing) · click to type, click text to edit it"),
+            ("Shift+B / Shift+S / J", "Smudge / Clone (Alt+click: where to copy from) / Repair (Painting, Editing)"),
+            ("Ctrl+Shift+X", "Liquify · drag to reshape · Enter / Esc · Ctrl+Z takes back a stroke · Alt reverses"),
             ("Shift+drag · Shift+click", "Straight brush line · line from the end of the last stroke"),
             ("Ctrl+G / Ctrl+Shift+G", "Group layer / Ungroup"),
             ("Ctrl+R · Ctrl+; · Ctrl+Shift+;", "Rulers · show guides · snapping"),
@@ -365,7 +370,7 @@ public partial class MainWindow
             ("Right-click · pen button", "Quick palette at the pen"),
             ("X / D", "Swap / default colours · Alt: eyedropper with any tool"),
             ("Ctrl+Z / Ctrl+Shift+Z", "Undo / Redo (also Ctrl+Y)"),
-            ("Ctrl+T · Enter / Esc", "Free transform · apply / cancel"),
+            ("Ctrl+T · Enter / Esc", "Free transform (Perspective, Warp in its bar) · apply / cancel"),
             ("Ctrl+A / D / Shift+I", "Select all / Deselect / Invert"),
             ("Ctrl+C / X / V", "Copy / Cut / Paste as new layer"),
             ("Delete · Alt/Ctrl+Backspace", "Clear · fill with foreground / background"),
@@ -402,7 +407,7 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 009 “Game Edit Mode”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 010 “The Finishing Touches”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
                         "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, and Game Edit Mode for replacing a game's graphics.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

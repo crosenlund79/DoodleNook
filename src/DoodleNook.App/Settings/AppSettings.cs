@@ -25,6 +25,7 @@ public sealed class AppSettings
     public Dictionary<string, double>? BrushSizes { get; set; }
     public List<string>? RecentBrushes { get; set; }
     public RetouchToolOptions? Retouch { get; set; }
+    public LiquifyOptions? Liquify { get; set; }
     public PressureFeel PressureFeel { get; set; } = PressureFeel.Normal;
     public string? Foreground { get; set; }
     public string? Background { get; set; }
@@ -131,6 +132,7 @@ public sealed class AppSettings
         session.RestoreOnion(OnionRaster, OnionPixel);
         if (Stamp is not null) session.SetStampOptions(Stamp);
         if (Retouch is not null) session.SetRetouchOptions(Retouch with { RepairFromSource = false });
+        if (Liquify is not null) session.SetLiquifyOptions(Liquify);
         if (PatternFill is not null) session.SetPatternOptions(PatternFill);
         if (TextTool is not null) session.SetTextOptions(TextTool);
         if (DesignShape is not null) session.SetDesignShapeOptions(DesignShape);
@@ -168,6 +170,7 @@ public sealed class AppSettings
         TransformInterpolation = session.TransformInterpolation;
         Stamp = session.StampOptions;
         Retouch = session.Retouch;
+        Liquify = session.Liquify;
         PatternFill = session.PatternOptions;
         ActivePalette = session.ActivePaletteId;
         OnionRaster = session.OnionRaster;

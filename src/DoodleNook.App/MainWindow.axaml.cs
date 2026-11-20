@@ -204,11 +204,11 @@ public partial class MainWindow : Window
         RefreshTitle();
     }
 
-    /// <summary>The milestone shown in the window title ("M009"), from Directory.Build.props (one place to change).</summary>
+    /// <summary>The milestone shown in the window title ("M010"), from Directory.Build.props (one place to change).</summary>
     public static string Milestone =>
         typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "Milestone")?.Value ?? "";
 
-    /// <summary>"DoodleNook — M009", then the picture's name once it has one or has changes ("DoodleNook — M009 — player.dnk •").</summary>
+    /// <summary>"DoodleNook — M010", then the picture's name once it has one or has changes ("DoodleNook — M010 — character.dnk •").</summary>
     internal string WindowTitle
     {
         get

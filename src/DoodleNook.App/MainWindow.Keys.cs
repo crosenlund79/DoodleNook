@@ -114,6 +114,15 @@ public partial class MainWindow
                 return true;
 
             // ---------------------------------------------------------- confirm / cancel
+            case Key.Enter when s.ActiveLiquify is not null:
+                ApplyLiquify();
+                return true;
+            case Key.Escape when s.ActiveLiquify is not null:
+                CancelLiquify();
+                return true;
+            case Key.X when ctrl && shift:
+                _ = StartLiquifyAsync();
+                return true;
             case Key.Enter:
                 if (s.ActiveTransform is not null) ApplyTransform();
                 else if (!ApplyCrop()) return false;

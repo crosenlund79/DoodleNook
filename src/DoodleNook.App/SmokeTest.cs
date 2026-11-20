@@ -533,9 +533,50 @@ internal static class SmokeTest
             await Shot("smoke-K-game-edit.png");
             window.LeaveGameEditMode();
         }
+        // 15. Mission 010 — The Finishing Touches: smudge, clone, liquify, perspective and the quick palette's brush memory.
+        {
+            var two = new RasterImage(400, 300);
+            for (int y = 0; y < 300; y++)
+                for (int x = 0; x < 400; x++)
+                    two[x, y] = Pixel.Opaque(x < 200 ? ColorRgb.Parse("#C8473E") : ColorRgb.Parse("#3F6A82"));
+            session.ReplaceDocument(Engine.Documents.Document.FromImage(two, "Finishing"), null);
+            window.Canvas.FitToView();
+            await Task.Delay(50);
+            var fdoc = session.Document;
+            session.SelectTool(ToolKind.Smudge);
+            session.SetRetouchOptions(session.Retouch with { SmudgeSize = 40, SmudgeStrength = 0.8 });
+            Drag(170, 150, 260, 150);
+            Check("Smudge carries paint along the stroke (one undo step)", Pixel.R(fdoc.ActiveLayer.Image[225, 150]) > 100 && fdoc.History.UndoCount == 1,
+                $"R {Pixel.R(fdoc.ActiveLayer.Image[225, 150])}");
+            session.SelectTool(ToolKind.Clone);
+            session.SetRetouchOptions(session.Retouch with { CloneSize = 30, CloneSoftness = 0 });
+            session.SetCloneSource(100, 100);
+            Drag(300, 220, 302, 220);
+            Check("Clone copies from the Alt+click source", fdoc.ActiveLayer.Image[301, 220] == Pixel.Opaque(ColorRgb.Parse("#C8473E")) && fdoc.History.UndoCount == 2);
+            session.BeginLiquify();
+            session.SetLiquifyOptions(session.Liquify with { Mode = Engine.Operations.LiquifyMode.Push, Size = 80, Strength = 1 });
+            Drag(190, 60, 240, 60);
+            bool liquified = fdoc.ActiveLayer.Image[215, 60] != Pixel.Opaque(ColorRgb.Parse("#3F6A82"));
+            session.ApplyLiquify();
+            Check("Liquify reshapes and Apply is one undo step", liquified && session.ActiveLiquify is null && fdoc.History.UndoCount == 3);
+            fdoc.SetSelection(Engine.Documents.SelectionMask.Rectangle(400, 300, new Engine.Imaging.PixelRect(150, 200, 100, 60)), "Select");
+            window.TransformIn(Engine.Operations.TransformMode.Perspective);
+            var corners = session.ActiveTransform?.Corners;
+            bool tilted = corners is { Length: 4 } && session.ActiveTransform!.SetCorners([(corners[0].X + 30, corners[0].Y), (corners[1].X - 30, corners[1].Y), corners[2], corners[3]]);
+            window.ApplyTransform();
+            Check("Perspective tilts the selected pixels", tilted && session.ActiveTransform is null && Pixel.A(fdoc.ActiveLayer.Image[155, 202]) == 0);
+            session.ApplyPreset("pencil");
+            session.SetSize(33);
+            session.ApplyPreset("ink");
+            session.ApplyPreset("pencil");
+            Check("each brush keeps the size it was last used at (quick palette)", session.Brush.Size == 33 && session.RecentBrushes.Take(2).SequenceEqual(["pencil", "ink"]));
+            await Shot("smoke-L-finishing.png");
+            fdoc.MarkSaved();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M009", window.Title);
+            && MainWindow.Milestone == "M010", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

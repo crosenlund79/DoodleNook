@@ -416,9 +416,39 @@ public sealed partial class CanvasView : Control, ICustomHitTest
             }
             context.DrawGeometry(null, dark, geo);
             context.DrawGeometry(null, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), geo);
-            var handles = pts.Concat(Enumerable.Range(0, 4).Select(i => (pts[i] + pts[(i + 1) % 4]) / 2));
-            foreach (var h in handles)
-                context.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), new Rect(h.X - 5, h.Y - 5, 10, 10));
+            if (o.TransformHandles is null)
+            {
+                var handles = pts.Concat(Enumerable.Range(0, 4).Select(i => (pts[i] + pts[(i + 1) % 4]) / 2));
+                foreach (var h in handles)
+                    context.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), new Rect(h.X - 5, h.Y - 5, 10, 10));
+            }
+        }
+        if (o.TransformGrid is { } grid)
+        {
+            var accent = new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.2);
+            foreach (var line in grid)
+            {
+                var geo = new StreamGeometry();
+                using (var ctx = geo.Open())
+                {
+                    ctx.BeginFigure(V(line[0].X, line[0].Y), false);
+                    for (int i = 1; i < line.Length; i++) ctx.LineTo(V(line[i].X, line[i].Y));
+                    ctx.EndFigure(false);
+                }
+                context.DrawGeometry(null, dark, geo);
+                context.DrawGeometry(null, accent, geo);
+            }
+        }
+        if (o.TransformHandles is { } shapeHandles)
+        {
+            // Perspective: square corner handles; Warp: round grid points.
+            bool round = o.TransformGrid is not null;
+            foreach (var (hx, hy) in shapeHandles)
+            {
+                var c = V(hx, hy);
+                if (round) context.DrawEllipse(Brushes.White, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), c, 5.5, 5.5);
+                else context.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), new Rect(c.X - 6, c.Y - 6, 12, 12));
+            }
         }
         DrawDesignOverlays(context, dark);
         DrawCursor(context, dark);
@@ -461,7 +491,7 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         {
             var (ax, ay) = Input.ResizeAnchor;
             var p = new Point(ax, ay);
-            double r = _session.IsPixelTool(_session.Tool) ? _session.Pixel.Size * View.Scale / 2 : Math.Max(1, _session.CurrentPaintSettings.Size * View.Scale / 2);
+            double r = Math.Max(1, _session.CurrentSize * View.Scale / 2);
             context.DrawEllipse(null, new Pen(black, 3), p, r, r);
             context.DrawEllipse(null, new Pen(Brushes.White, 1.5), p, r, r);
             var label = new FormattedText($"{_session.CurrentSize:0} px", System.Globalization.CultureInfo.InvariantCulture,
@@ -487,7 +517,7 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         if (shape != CursorShape.BrushOutline) return;
 
         bool erasing = Input.Gesture is Gesture.Paint or Gesture.PixelPaint ? Input.StrokeErases : _session.Tool is ToolKind.Eraser or ToolKind.PixelEraser;
-        if (_session.IsPixelTool(_session.Tool))
+        if (_session.IsPixelTool(_session.Tool) && _session.ActiveLiquify is null)
         {
             // The exact pixels the pixel brush will cover.
             var (dx, dy) = View.ViewToDocument(h.X, h.Y);
@@ -500,11 +530,13 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         }
 
         var brush = _session.CurrentPaintSettings;
-        double radius = brush.Size * View.Scale / 2;
+        // Brush and eraser: their own shape; Smudge, Clone, Repair and Liquify: a round brush of their size.
+        bool round = _session.ActiveLiquify is not null || EditorSession.IsRetouchTool(_session.Tool);
+        double radius = (round ? _session.CurrentSize : brush.Size) * View.Scale / 2;
         if (radius >= 3)
         {
-            double ry = radius * (_session.PaintTool == ToolKind.Brush ? brush.Roundness : 1);
-            double angle = (_session.PaintTool == ToolKind.Brush ? brush.Angle : 0) + View.Rotation;
+            double ry = radius * (_session.PaintTool == ToolKind.Brush && !round ? brush.Roundness : 1);
+            double angle = (_session.PaintTool == ToolKind.Brush && !round ? brush.Angle : 0) + View.Rotation;
             using (context.PushTransform(Matrix.CreateRotation(angle * Math.PI / 180) * Matrix.CreateTranslation(at.X, at.Y)))
             {
                 context.DrawEllipse(null, new Pen(black, 2.5), new Point(0, 0), radius, ry);
@@ -612,6 +644,12 @@ public sealed partial class CanvasView : Control, ICustomHitTest
                     _lastSprayMs = _clock.Elapsed.TotalMilliseconds;
                     _spray.Start();
                 }
+            }
+            else if (Input.Gesture == Gesture.Liquify)
+            {
+                // Inflate, Pinch, Twirl, Smooth and Restore keep working while the pen rests.
+                _lastSprayMs = _clock.Elapsed.TotalMilliseconds;
+                _spray.Start();
             }
             GestureStarted?.Invoke(Input.Gesture);
         }
