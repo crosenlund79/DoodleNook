@@ -45,6 +45,9 @@ public sealed partial class Document
     public event Action? AnimationChanged;
 
     internal RasterImage? OnionImage => _onion;
+
+    /// <summary>True while onion skins are shown.</summary>
+    public bool OnionVisible => _onion is not null;
     internal PixelRect OnionBounds => _onionBounds;
 
     // ================================================================ conversion
@@ -445,8 +448,9 @@ public sealed partial class Document
         return true;
     }
 
-    /// <summary>Holds a drawing (or empty cell) one frame longer: this layer's later cells move one frame later. The
-    /// animation grows by a frame when needed (other layers keep showing their last drawing there).</summary>
+    /// <summary>Holds a drawing (or empty cell) one frame longer: this layer's later cells move one frame later. An empty
+    /// cell pushed past the end is simply dropped; otherwise the animation grows by a frame (other layers keep showing
+    /// their last drawing there).</summary>
     public bool ExtendHold(Layer layer, int frame)
     {
         if (!ValidCell(layer, frame)) return false;
@@ -455,7 +459,12 @@ public sealed partial class Document
         var (_, e) = HoldRange(layer, frame);
         var c = layer.Cells!;
         c.Insert(e + 1, c[frame]);
-        if (c.Count > a.FrameCount)
+        if (c.Count > a.FrameCount && c[^1] is null)
+        {
+            // Only an empty cell was pushed past the end: the hold simply fills the empty cell after it.
+            c.RemoveAt(c.Count - 1);
+        }
+        else if (c.Count > a.FrameCount)
         {
             foreach (var other in _layers)
                 if (!ReferenceEquals(other, layer)) other.Cells!.Add(other.Cells![^1]);

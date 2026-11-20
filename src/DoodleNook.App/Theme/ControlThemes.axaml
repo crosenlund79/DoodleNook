@@ -85,9 +85,12 @@
                 CornerRadius="{TemplateBinding CornerRadius}"
                 BoxShadow="{DynamicResource DnPopShadow}"
                 Padding="{TemplateBinding Padding}">
-          <ContentPresenter Content="{TemplateBinding Content}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}"
-                            Foreground="{TemplateBinding Foreground}" />
+          <!-- Long menus and pop-overs scroll when the window is short (Kamvas 13 at 150 %). -->
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Foreground="{TemplateBinding Foreground}" />
+          </ScrollViewer>
         </Border>
       </ControlTemplate>
     </Setter>

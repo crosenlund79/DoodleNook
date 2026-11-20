@@ -169,6 +169,7 @@ public sealed class EditorSession
     {
         EndStroke();
         CommitTransform();
+        if (CelClipboard is { } clip && (clip.Image.Width != document.Width || clip.Image.Height != document.Height)) CelClipboard = null;
         Document = document;
         FilePath = filePath;
         _engine = new StrokeEngine(document);
@@ -181,6 +182,23 @@ public sealed class EditorSession
     {
         FilePath = filePath;
         Document.MarkSaved();
+        Changed();
+    }
+
+    /// <summary>A background save of <paramref name="saved"/> finished: only the state captured then counts as saved.</summary>
+    public void MarkSaved(Document saved, string filePath, long stateId)
+    {
+        if (!ReferenceEquals(saved, Document)) return; // another picture was opened meanwhile
+        FilePath = filePath;
+        Document.MarkSaved(stateId);
+        Changed();
+    }
+
+    /// <summary>Opens recovered work: unsaved, with the original file name so Save puts it back where it belongs.</summary>
+    public void ReplaceWithRecovered(Document document, string? originalPath)
+    {
+        ReplaceDocument(document, originalPath);
+        document.MarkUnsaved();
         Changed();
     }
 
@@ -496,6 +514,158 @@ public sealed class EditorSession
         EndStroke();
         CommitTransform();
         return action();
+    }
+
+    // ================================================================ animation
+
+    /// <summary>Onion-skin settings for hand-drawn and for pixel-art animation (kept separately).</summary>
+    public OnionSkinSettings OnionRaster { get; private set; } = OnionSkinSettings.Default;
+    public OnionSkinSettings OnionPixel { get; private set; } = OnionSkinSettings.Default with { Opacity = 0.3, Falloff = false };
+
+    /// <summary>The onion-skin settings that apply now (pixel or hand-drawn).</summary>
+    public OnionSkinSettings Onion => PixelMode ? OnionPixel : OnionRaster;
+
+    /// <summary>A copied drawing (Copy drawing / Paste drawing in the timeline).</summary>
+    public Cel? CelClipboard { get; private set; }
+
+    public event Action? OnionChanged;
+
+    public void SetOnion(OnionSkinSettings settings)
+    {
+        settings = settings.Normalized();
+        if (PixelMode) OnionPixel = settings;
+        else OnionRaster = settings;
+        OnionChanged?.Invoke();
+    }
+
+    public void ToggleOnion() => SetOnion(Onion with { Enabled = !Onion.Enabled });
+
+    public void RestoreOnion(OnionSkinSettings? raster, OnionSkinSettings? pixel)
+    {
+        if (raster is not null) OnionRaster = raster.Normalized();
+        if (pixel is not null) OnionPixel = pixel.Normalized();
+        OnionChanged?.Invoke();
+    }
+
+    private void Prepare()
+    {
+        EndStroke();
+        CommitTransform();
+    }
+
+    /// <summary>Shows another frame (stroke and transform are finished first).</summary>
+    public void GoToFrame(int frame)
+    {
+        Prepare();
+        Document.SetCurrentFrame(frame);
+    }
+
+    /// <summary>Previous/next frame, wrapping around the ends (handy for flipping between drawings).</summary>
+    public void StepFrame(int direction)
+    {
+        if (!Document.IsAnimated) return;
+        int n = Document.FrameCount;
+        GoToFrame(((Document.CurrentFrame + direction) % n + n) % n);
+    }
+
+    /// <summary>New frame after the current one: an empty cell to draw the next pose, or a copy of the drawing.</summary>
+    public void NewFrame(bool duplicate)
+    {
+        Prepare();
+        if (!Document.IsAnimated && duplicate && Document.ActiveLayer.ContentBounds.IsEmpty) duplicate = false;
+        Document.NewFrame(duplicate ? NewFrameContent.Duplicate : NewFrameContent.Blank);
+    }
+
+    public void InsertFrame(int at, bool duplicate)
+    {
+        Prepare();
+        Document.InsertFrame(at, duplicate ? NewFrameContent.Duplicate : NewFrameContent.Blank);
+    }
+
+    public void DeleteFrame(int frame)
+    {
+        Prepare();
+        if (!Document.DeleteFrame(frame)) Tell("An animation always keeps at least one frame");
+    }
+
+    public void MoveFrame(int from, int to)
+    {
+        Prepare();
+        Document.MoveFrame(from, to);
+    }
+
+    public void MakeAnimation()
+    {
+        Prepare();
+        if (Document.MakeAnimation()) Tell("This picture is now a one-frame animation");
+    }
+
+    public void SetFrameDuration(int frame, int? durationMs)
+    {
+        Prepare();
+        Document.SetFrameDuration(frame, durationMs);
+    }
+
+    public void SetTiming(double fps, bool loop, bool pingPong)
+    {
+        Prepare();
+        Document.SetTiming(fps, loop, pingPong);
+    }
+
+    public bool ExtendHold(Layer layer, int frame)
+    {
+        Prepare();
+        return Document.ExtendHold(layer, frame);
+    }
+
+    public bool ShortenHold(Layer layer, int frame)
+    {
+        Prepare();
+        return Document.ShortenHold(layer, frame);
+    }
+
+    public void MakeIndependent(Layer layer, int frame)
+    {
+        Prepare();
+        if (Document.MakeIndependent(layer, frame)) Tell("This drawing is now independent: changing it no longer changes the earlier frames");
+    }
+
+    public void NewBlankDrawing(Layer layer, int frame)
+    {
+        Prepare();
+        Document.NewBlankCel(layer, frame);
+    }
+
+    public void DeleteDrawing(Layer layer, int frame)
+    {
+        Prepare();
+        Document.DeleteCel(layer, frame);
+    }
+
+    public bool MoveDrawing(Layer layer, int from, int to)
+    {
+        Prepare();
+        return Document.MoveCel(layer, from, to);
+    }
+
+    public void CopyDrawing(Layer layer, int frame)
+    {
+        if (Document.CelAt(layer, frame) is not { } cel)
+        {
+            Tell("This cell is empty — nothing to copy");
+            return;
+        }
+        CelClipboard = Document.CopyOf(cel);
+        Tell("Drawing copied");
+        Changed();
+    }
+
+    public void PasteDrawing(Layer layer, int frame)
+    {
+        if (CelClipboard is not { } cel) return;
+        Prepare();
+        if (!Document.IsAnimated) Document.MakeAnimation();
+        if (!Document.PasteCel(layer, frame, cel)) Tell("The copied drawing is a different size from this picture");
     }
 
     // ================================================================ selection and clipboard

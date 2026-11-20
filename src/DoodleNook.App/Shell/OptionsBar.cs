@@ -287,12 +287,18 @@ public sealed class OptionsBuilder
             yield return Seg([(Symmetry.None, "sym", "Off", "No mirroring"), (Symmetry.Vertical, null, "↔", "Mirror left ↔ right"), (Symmetry.Horizontal, null, "↕", "Mirror top ↕ bottom"), (Symmetry.Both, null, "4×", "Mirror both ways")],
                 () => s.Pixel.Symmetry, v => s.SetSymmetry(v));
         yield return UiKit.Sep();
+        bool animation = _app.Workspace.Kind == WorkspaceKind.Animation;
         yield return Toggle("grid", "Grid", "Show the pixel grid when zoomed in (Ctrl+')", () => _app.WsState.ShowGrid, _app.SetShowGrid);
-        yield return Toggle("tiled", "Tiled", "Repeat the sprite around itself to check seamless tiles", () => _app.WsState.Tiled, _app.SetTiled);
+        if (!animation)
+            yield return Toggle("tiled", "Tiled", "Repeat the sprite around itself to check seamless tiles", () => _app.WsState.Tiled, _app.SetTiled);
         var zoom = new ViewZoomGroup(_app);
         _refresh.Add(zoom.Refresh);
         yield return zoom;
-        yield return Toggle("image", "Preview", "Show a 1:1 preview of the sprite", () => _app.WsState.Preview, _app.SetPreview);
+        if (animation)
+            yield return Toggle("film", "Preview", "A small looping preview of the whole animation",
+                () => _app.AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation), _app.SetPreviewPanel);
+        else
+            yield return Toggle("image", "Preview", "Show a 1:1 preview of the sprite", () => _app.WsState.Preview, _app.SetPreview);
     }
 }
 

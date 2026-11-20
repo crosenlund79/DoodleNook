@@ -252,6 +252,14 @@ public partial class MainWindow
     public async Task NewAsync()
     {
         if (!await ConfirmDiscardAsync("starting a new picture")) return;
+        if (Workspace.Kind == WorkspaceKind.Animation)
+        {
+            // In Animation Studio, "new" means a new animation (the dialog has the drawing style too).
+            bool pixelArt = PixelAnimation;
+            var c = await _dialogs.AskNewAnimationAsync(pixelArt, pixelArt ? 64 : 1280, pixelArt ? 64 : 720);
+            if (c is not null) CreateNewAnimation(c);
+            return;
+        }
         var doc = Session.Document;
         bool pixel = Workspace.Kind == WorkspaceKind.PixelArt;
         int w = pixel && doc.Width > 512 ? 32 : doc.Width, h = pixel && doc.Height > 512 ? 32 : doc.Height;
@@ -283,6 +291,7 @@ public partial class MainWindow
             var doc = file.Name.EndsWith(DnkFile.Extension, StringComparison.OrdinalIgnoreCase)
                 ? DnkFile.Read(stream)
                 : Document.FromImage(ImageFiles.Decode(stream), ImageFiles.LayerNameFor(file.Name));
+            Animator.Stop();
             Session.ReplaceDocument(doc, null);
             ShowToast($"Opened {file.Name}");
         }
@@ -298,8 +307,10 @@ public partial class MainWindow
         try
         {
             var doc = ImageFiles.Open(path);
+            Animator.Stop();
             Session.ReplaceDocument(doc, path);
-            ShowToast($"Opened {Path.GetFileName(path)} · {doc.Width} × {doc.Height}{(doc.Layers.Count > 1 ? $" · {doc.Layers.Count} layers" : "")}");
+            string hint = doc.IsAnimated && Workspace.Kind != WorkspaceKind.Animation ? " · Alt+6 opens Animation Studio" : "";
+            ShowToast($"Opened {Path.GetFileName(path)} · {doc.Width} × {doc.Height}{(doc.Layers.Count > 1 ? $" · {doc.Layers.Count} layers" : "")}{(doc.IsAnimated ? $" · {doc.FrameCount} frames" : "")}{hint}");
             return true;
         }
         catch (Exception ex)
@@ -374,8 +385,13 @@ public partial class MainWindow
         Session.CommitTransform();
         try
         {
-            if (ImageFiles.IsProject(path)) ImageFiles.SaveProject(Session.Document, path, Version);
-            else if (Session.Document.Layers.Count == 1 && ImageFiles.FormatForPath(path) is { } f) ImageFiles.Export(Session.Document, path, f);
+            if (ImageFiles.IsProject(path))
+            {
+                await SaveProjectInBackgroundAsync(path);
+                ShowToast($"Saved {Path.GetFileName(path)}");
+                return true;
+            }
+            if (Session.Document.Layers.Count == 1 && ImageFiles.FormatForPath(path) is { } f) ImageFiles.Export(Session.Document, path, f);
             else throw new InvalidOperationException("Pictures with layers are saved as .dnk; use File › Export for a flat copy.");
             Session.MarkSaved(path);
             ShowToast($"Saved {Path.GetFileName(path)}");

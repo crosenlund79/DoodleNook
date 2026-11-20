@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DoodleNook.App.Editor;
 using DoodleNook.App.Shell;
+using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Operations;
 using DoodleNook.Engine.Painting;
@@ -30,6 +32,15 @@ public sealed class AppSettings
     public SelectionToolOptions? Selection { get; set; }
     public PixelToolOptions? Pixel { get; set; }
     public Interpolation TransformInterpolation { get; set; } = Interpolation.Bilinear;
+
+    public OnionSkinSettings? OnionRaster { get; set; }
+    public OnionSkinSettings? OnionPixel { get; set; }
+
+    /// <summary>Recovery copies of unsaved work every this many seconds (0 = off).</summary>
+    public int AutosaveSeconds { get; set; } = 60;
+
+    /// <summary>The last Export animation choices.</summary>
+    public AnimationExportSettings AnimationExport { get; set; } = new();
 
     public WorkspaceKind LastWorkspace { get; set; } = WorkspaceKind.QuickSketch;
     public Dictionary<WorkspaceKind, WorkspaceState> Workspaces { get; set; } = new();
@@ -96,6 +107,7 @@ public sealed class AppSettings
         if (Selection is not null) session.SetSelectionOptions(Selection with { WandTolerance = Math.Clamp(Selection.WandTolerance, 0, 255) });
         if (Pixel is not null) session.SetPixelOptions(Pixel with { Size = Math.Clamp(Pixel.Size, 1, 64) });
         session.SetTransformInterpolation(TransformInterpolation);
+        session.RestoreOnion(OnionRaster, OnionPixel);
         if (Brush is null || Eraser is null) return;
         var fg = ColorRgb.TryParse(Foreground, out var f) ? f : EditorSession.DefaultForeground;
         var bg = ColorRgb.TryParse(Background, out var b) ? b : EditorSession.DefaultBackground;
@@ -121,5 +133,28 @@ public sealed class AppSettings
         Selection = session.Selection;
         Pixel = session.Pixel;
         TransformInterpolation = session.TransformInterpolation;
+        OnionRaster = session.OnionRaster;
+        OnionPixel = session.OnionPixel;
     }
 }
+
+public enum AnimationExportFormat
+{
+    SpriteSheet,
+    PngSequence,
+    Gif,
+}
+
+/// <summary>Remembered choices of the Export animation dialog.</summary>
+public sealed record AnimationExportSettings(
+    AnimationExportFormat Format = AnimationExportFormat.SpriteSheet,
+    SheetLayout Layout = SheetLayout.Horizontal,
+    int Columns = 4,
+    int Spacing = 0,
+    int Padding = 0,
+    int Margin = 0,
+    int Scale = 1,
+    bool Json = true,
+    bool Loop = true,
+    bool Dither = true,
+    bool Background = false);

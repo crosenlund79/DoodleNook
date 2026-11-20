@@ -228,7 +228,7 @@ public sealed class ToolStrip : Border
     {
         _tools.Children.Clear();
         _buttons.Clear();
-        foreach (var kind in _app.Workspace.Tools)
+        foreach (var kind in _app.CurrentTools)
         {
             var info = Workspaces.Tools[kind];
             var k = kind;
@@ -386,6 +386,7 @@ public sealed class QuickBar : Border
     private readonly Button _erase, _undo, _redo;
     private readonly TextBlock _layerName = new() { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 120, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly OptionsBuilder _options;
+    private Button? _layersChip;
     private string? _previewKey;
     private string? _contextKey;
 
@@ -436,7 +437,7 @@ public sealed class QuickBar : Border
         layersContent.Children.Add(new DnIcon { Kind = "layers" });
         layersContent.Children.Add(_layerName);
         layersContent.Children.Add(new DnIcon { Kind = "chevd" });
-        var layers = UiKit.Button(null, null, "Layers: choose the layer you paint on, add, hide, reorder");
+        var layers = _layersChip = UiKit.Button(null, null, "Layers: choose the layer you paint on, add, hide, reorder");
         layers.Content = layersContent;
         layers.Name = "LayersChip";
         var layersPanel = new LayersPanel(s, 360) { Width = 300 };
@@ -462,6 +463,12 @@ public sealed class QuickBar : Border
     }
 
     private Document? _watched;
+
+    /// <summary>Customize workspace can hide the layers button.</summary>
+    public void SetLayersChipVisible(bool visible)
+    {
+        if (_layersChip is not null) _layersChip.IsVisible = visible;
+    }
 
     private void Watch()
     {

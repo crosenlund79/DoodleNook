@@ -118,6 +118,27 @@ public static class UiKit
         return (b, Refresh);
     }
 
+    /// <summary>A check box: a toggle that shows its state with a ticked or empty box (for settings in dialogs and pop-overs,
+    /// where a highlighted button alone would not read as an option).</summary>
+    public static (Button Button, Action Refresh) Check(string label, string? tip, Func<bool> get, Action<bool> set)
+    {
+        var b = Button(null, null, tip);
+        b.HorizontalContentAlignment = HorizontalAlignment.Left;
+        void Refresh()
+        {
+            bool on = get();
+            b.Content = Content(on ? "boxcheck" : "box", label);
+            b.Classes.Set("checked", on);
+        }
+        b.Click += (_, _) =>
+        {
+            set(!get());
+            Refresh();
+        };
+        Refresh();
+        return (b, Refresh);
+    }
+
     /// <summary>The playground's ".sl" slider: label, track and value text.</summary>
     public static (StackPanel Root, Action Refresh) Slider(string? label, double min, double max, Func<double> get, Action<double> set,
         Func<double, string> format, double trackWidth = 96, bool log = false, Action? finished = null, string? tip = null)

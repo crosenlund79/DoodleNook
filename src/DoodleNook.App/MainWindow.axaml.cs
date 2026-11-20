@@ -20,8 +20,8 @@ using DoodleNook.Engine.Imaging;
 namespace DoodleNook.App;
 
 /// <summary>
-/// The DoodleNook window: one document, one canvas and five workspaces (Pure Sketch, Quick Sketch, Painting, Editing,
-/// Pixel Art) that only change the tools and panels around the canvas. This file sets the window up and owns the
+/// The DoodleNook window: one document, one canvas and six workspaces (Pure Sketch, Quick Sketch, Painting, Editing,
+/// Pixel Art, Animation Studio) that only change the tools and panels around the canvas. This file sets the window up and owns the
 /// overlays; the workspace layouts, commands, files, keyboard and menus are in the other MainWindow.*.cs files.
 /// </summary>
 public partial class MainWindow : Window
@@ -112,6 +112,8 @@ public partial class MainWindow : Window
         _diagnosticsPanel.Child = _diagnostics;
         CanvasHost.Children.Add(_diagnosticsPanel);
 
+        InitAnimation();
+
         _radial = new RadialPalette(this) { Name = "RadialPalette" };
         CanvasHost.Children.Add(_radial);
 
@@ -147,10 +149,22 @@ public partial class MainWindow : Window
         AddHandler(KeyUpEvent, OnKeyUpTunnel, RoutingStrategies.Tunnel);
         Deactivated += (_, _) => Canvas.InterruptGesture();
         Closing += OnClosing;
-        Opened += (_, _) =>
+        Opened += async (_, _) =>
         {
             if (OperatingSystem.IsWindows() && TryGetPlatformHandle() is { } handle)
                 PenSetupStatus = WindowsPen.Configure(handle.Handle);
+            if (_persistSettings)
+            {
+                try
+                {
+                    StartRecovery(new Files.RecoveryStore());
+                }
+                catch (Exception)
+                {
+                    // Without a recovery folder DoodleNook still works; it just can't keep recovery copies.
+                }
+                await OfferRecoveryAsync();
+            }
         };
 
         Workspace = Workspaces.Get(_settings.LastWorkspace);
@@ -271,6 +285,15 @@ public partial class MainWindow : Window
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (_saveTask is { IsCompleted: false })
+        {
+            // A save is still being written: finish it first, then close.
+            e.Cancel = true;
+            try { await _saveTask; }
+            catch (Exception) { /* its caller reported it */ }
+            Close();
+            return;
+        }
         if (!_closeConfirmed && Program.Options.SmokeTestDirectory is null && Session.Document.IsDirty)
         {
             e.Cancel = true;
@@ -290,5 +313,8 @@ public partial class MainWindow : Window
             CapturePlacement();
             _settings.Save();
         }
+        Animator.Pause();
+        _autosaveTimer.Stop();
+        _recovery?.EndSession();
     }
 }

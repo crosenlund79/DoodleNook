@@ -18,6 +18,8 @@ public partial class MainWindow
     private DockArea? _paintDock;
     private DockArea? _editDock;
     private Border? _paletteHost;
+    private DockArea? _animationDock;
+    private Animation.TimelinePanel? _timeline;
 
     /// <summary>The workspace being shown.</summary>
     public WorkspaceInfo Workspace { get; private set; } = Workspaces.Get(WorkspaceKind.QuickSketch);
@@ -27,6 +29,17 @@ public partial class MainWindow
 
     /// <summary>Raised after the workspace changed (bars rebuild their tools and menus).</summary>
     public event Action? WorkspaceChanged;
+
+    /// <summary>Raised when Customize workspace changed which optional controls are shown.</summary>
+    public event Action? CustomizationChanged;
+
+    /// <summary>True when Animation Studio animates pixel art (pixel tools, exact display).</summary>
+    public bool PixelAnimation => Workspace.Kind == WorkspaceKind.Animation && WsState.PixelAnimation;
+
+    /// <summary>The tools of the current workspace (and drawing style).</summary>
+    public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation);
+
+    internal Animation.TimelinePanel? Timeline => _timeline;
 
     /// <summary>Whether the bars are hidden (Tab). Pure Sketch has no bars to hide.</summary>
     public bool UiHidden => Workspace.Kind != WorkspaceKind.PureSketch && WsState.UiHidden;
@@ -38,6 +51,7 @@ public partial class MainWindow
         Canvas.InterruptGesture();
         HideFlyouts();
         _radial.Close();
+        Animator.Pause();
         Canvas.Input?.CancelCrop();
         Session.CommitTransform();
         CaptureWorkspaceState();
@@ -47,6 +61,8 @@ public partial class MainWindow
         ApplyWorkspace();
         if (kind == WorkspaceKind.PureSketch)
             ShowToast($"Pure Sketch · right-click or the pen button for the quick palette · Tab returns to {Workspaces.Get(_previousWorkspace).Name}");
+        else if (kind == WorkspaceKind.Animation && !Session.Document.IsAnimated)
+            ShowToast("Animation Studio · press N (New frame) to start animating this picture");
         else ShowToast(Workspace.Name);
     }
 
@@ -66,14 +82,17 @@ public partial class MainWindow
     {
         var ws = Workspace;
         var st = WsState;
-        bool pixel = ws.Kind == WorkspaceKind.PixelArt;
+        bool pixel = ws.Kind == WorkspaceKind.PixelArt || PixelAnimation;
+        bool animation = ws.Kind == WorkspaceKind.Animation;
 
         Session.SetPixelMode(pixel);
         Canvas.PixelExact = pixel;
         Canvas.IntegerZoom = pixel;
-        Canvas.Input!.PixelRightPaintsBackground = pixel && st.RightClickPaintsBackground;
-        var tool = st.Tool is { } t && ws.Tools.Contains(t) ? t : ws.DefaultTool;
+        Canvas.Input!.PixelRightPaintsBackground = ws.Kind == WorkspaceKind.PixelArt && st.RightClickPaintsBackground;
+        var tools = CurrentTools;
+        var tool = st.Tool is { } t && tools.Contains(t) ? t : tools.Contains(ws.DefaultTool) ? ws.DefaultTool : tools[0];
         Session.SelectTool(tool);
+        Animator.Active = animation;
 
         TopHost.Child = ws.Kind switch
         {
@@ -81,7 +100,8 @@ public partial class MainWindow
             WorkspaceKind.QuickSketch => _quickBar ??= new QuickBar(this) { Name = "QuickBar" },
             _ => _titleBar ??= new TitleBar(this) { Name = "TitleBar" },
         };
-        OptionsHost.Child = ws.Kind is WorkspaceKind.Painting or WorkspaceKind.Editing or WorkspaceKind.PixelArt
+        OptionsHost.Child = ws.Kind is WorkspaceKind.Painting or WorkspaceKind.Editing or WorkspaceKind.PixelArt or WorkspaceKind.Animation
+                            && st.IsShown(CustomOptions.OptionsBar, ws.Kind)
             ? _optionsBar ??= new OptionsBar(this) { Name = "OptionsBar" }
             : null;
         ToolHost.Child = ws.Kind == WorkspaceKind.PureSketch ? null : _toolStrip ??= new ToolStrip(this) { Name = "ToolStrip" };
@@ -90,9 +110,11 @@ public partial class MainWindow
             WorkspaceKind.Painting => _paintDock ??= BuildPaintDock(),
             WorkspaceKind.Editing => _editDock ??= BuildEditDock(),
             WorkspaceKind.PixelArt => _paletteHost ??= BuildPaletteHost(),
+            WorkspaceKind.Animation when st.IsShown(CustomOptions.LayersDock, ws.Kind) => _animationDock ??= BuildAnimationDock(),
             _ => null,
         };
-        BottomHost.Child = ws.Kind == WorkspaceKind.Editing ? _statusBar ??= new StatusBar(this) { Name = "StatusBar" } : null;
+        BottomHost.Child = animation ? _timeline ??= new Animation.TimelinePanel(this)
+            : st.IsShown(CustomOptions.StatusBar, ws.Kind) ? _statusBar ??= new StatusBar(this) { Name = "StatusBar" } : null;
         (RightHost.Child as DockArea)?.Refresh();
 
         WorkspaceChanged?.Invoke();
@@ -111,6 +133,44 @@ public partial class MainWindow
         ]) { Name = "PaintDock" };
         dock.CollapsedChanged += ApplyChromeVisibility;
         return dock;
+    }
+
+    private DockArea BuildAnimationDock()
+    {
+        var dock = new DockArea(this, [new DockSection("layers", "Layers", "layers", new LayersPanel(Session, 520))]) { Name = "AnimationDock" };
+        dock.CollapsedChanged += ApplyChromeVisibility;
+        return dock;
+    }
+
+    /// <summary>Applies Customize workspace choices without leaving the workspace.</summary>
+    internal void ApplyCustomization()
+    {
+        CaptureWorkspaceState();
+        ApplyWorkspace();
+        CustomizationChanged?.Invoke();
+    }
+
+    /// <summary>Shows or hides Animation Studio's preview panel (remembered, like a pinned option).</summary>
+    public void SetPreviewPanel(bool shown)
+    {
+        _settings.StateFor(WorkspaceKind.Animation).SetShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation, shown);
+        ApplyChromeVisibility();
+        _optionsBar?.Refresh();
+        CustomizationChanged?.Invoke();
+    }
+
+    /// <summary>Switches Animation Studio between hand-drawn and pixel-art animation.</summary>
+    public void SetPixelAnimation(bool pixel)
+    {
+        var st = _settings.StateFor(WorkspaceKind.Animation);
+        if (st.PixelAnimation == pixel) return;
+        st.PixelAnimation = pixel;
+        if (Workspace.Kind == WorkspaceKind.Animation)
+        {
+            st.Tool = null;
+            ApplyWorkspace();
+            ShowToast(pixel ? "Pixel-art animation: pixel tools, exact pixels" : "Hand-drawn animation: brushes and pressure");
+        }
     }
 
     private DockArea BuildEditDock()
@@ -164,11 +224,14 @@ public partial class MainWindow
         ToolHost.IsVisible = !hidden && ToolHost.Child is not null;
         RightHost.IsVisible = !hidden && RightHost.Child is not null;
         BottomHost.IsVisible = !hidden && BottomHost.Child is not null;
-        _viewChip.IsVisible = !hidden && kind is WorkspaceKind.QuickSketch or WorkspaceKind.Painting;
+        _viewChip.IsVisible = !hidden && WsState.IsShown(CustomOptions.ViewChip, kind);
         _showUi.IsVisible = hidden;
         _corner.IsVisible = pure;
         _pixelPreview.IsVisible = kind == WorkspaceKind.PixelArt && WsState.Preview;
         if (_pixelPreview.IsVisible) _pixelPreview.Update();
+        _animationPreview.IsVisible = !hidden && kind == WorkspaceKind.Animation && WsState.IsShown(CustomOptions.PreviewPanel, kind);
+        _quickBar?.SetLayersChipVisible(_settings.StateFor(WorkspaceKind.QuickSketch).IsShown(CustomOptions.LayersChip, WorkspaceKind.QuickSketch));
+        if (kind == WorkspaceKind.Animation) _timeline?.ApplyLayout();
 
         // The dock column: a fixed, draggable width when expanded; just the icon strip when collapsed.
         var col = MainGrid.ColumnDefinitions[3];
@@ -191,9 +254,9 @@ public partial class MainWindow
 
     private void ApplyViewOptions()
     {
-        bool pixel = Workspace.Kind == WorkspaceKind.PixelArt;
+        bool pixel = Workspace.Kind == WorkspaceKind.PixelArt || PixelAnimation;
         Canvas.ShowGrid = pixel && WsState.ShowGrid;
-        Canvas.Tiled = pixel && WsState.Tiled;
+        Canvas.Tiled = Workspace.Kind == WorkspaceKind.PixelArt && WsState.Tiled;
         Canvas.InvalidateVisual();
     }
 
@@ -202,7 +265,7 @@ public partial class MainWindow
         WsState.ShowGrid = on;
         ApplyViewOptions();
         _optionsBar?.Refresh();
-        if (Workspace.Kind != WorkspaceKind.PixelArt) ShowToast("The pixel grid shows in Pixel Art");
+        if (Workspace.Kind != WorkspaceKind.PixelArt && !PixelAnimation) ShowToast("The pixel grid shows in Pixel Art and pixel-art animation");
     }
 
     public void SetTiled(bool on)

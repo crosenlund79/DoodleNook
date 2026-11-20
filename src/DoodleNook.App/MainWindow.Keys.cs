@@ -40,8 +40,8 @@ public partial class MainWindow
         var input = Canvas.Input!;
         var s = Session;
 
-        // Workspaces: Alt+1 … Alt+5.
-        if (alt && !ctrl && key is >= Key.D1 and <= Key.D5)
+        // Workspaces: Alt+1 … Alt+6.
+        if (alt && !ctrl && key is >= Key.D1 and <= Key.D6)
         {
             input.AltHeld = false;
             SetWorkspace((WorkspaceKind)(key - Key.D1));
@@ -53,6 +53,8 @@ public partial class MainWindow
             _radial.Close();
             return true;
         }
+
+        if (Workspace.Kind == WorkspaceKind.Animation && HandleAnimationKey(key, ctrl, shift, alt, symbol)) return true;
 
         switch (key)
         {
@@ -251,6 +253,60 @@ public partial class MainWindow
         if (symbol == "]")
         {
             s.StepSize(+1);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Animation Studio's keys. They only apply in Animation Studio and never replace an existing shortcut: Enter still
+    /// applies a transform or crop first, and the arrows still nudge with the Move tool or during a transform.
+    /// </summary>
+    private bool HandleAnimationKey(Key key, bool ctrl, bool shift, bool alt, string? symbol)
+    {
+        var s = Session;
+        bool busy = s.ActiveTransform is not null || Canvas.Input?.PendingCrop is not null;
+        if (ctrl || alt) return false;
+        switch (key)
+        {
+            case Key.Enter when !busy:
+                Animator.Toggle();
+                return true;
+            case Key.Escape when Animator.IsPlaying && !busy:
+                Animator.Stop();
+                return true;
+            case Key.OemComma:
+            case Key.Left when !busy && s.Tool != ToolKind.Move:
+                Animator.Pause();
+                s.StepFrame(-1);
+                return true;
+            case Key.OemPeriod:
+            case Key.Right when !busy && s.Tool != ToolKind.Move:
+                Animator.Pause();
+                s.StepFrame(+1);
+                return true;
+            case Key.Home:
+                Animator.Pause();
+                s.GoToFrame(0);
+                return true;
+            case Key.End:
+                Animator.Pause();
+                s.GoToFrame(s.Document.FrameCount - 1);
+                return true;
+            case Key.N:
+                Animator.Pause();
+                s.NewFrame(duplicate: shift);
+                return true;
+            case Key.O when !shift:
+                s.ToggleOnion();
+                ShowToast(s.Onion.Enabled ? "Onion skin on" : "Onion skin off");
+                return true;
+        }
+        // Non-US keyboards: the characters themselves.
+        if (symbol == "," || symbol == ".")
+        {
+            Animator.Pause();
+            s.StepFrame(symbol == "," ? -1 : +1);
             return true;
         }
         return false;

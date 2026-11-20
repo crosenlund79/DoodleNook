@@ -15,15 +15,19 @@ namespace DoodleNook.App;
 /// <summary>The menus. Every entry is a real command; entries that can't run right now are disabled.</summary>
 public partial class MainWindow
 {
-    internal IReadOnlyList<string> MenuNames => Workspace.Kind == WorkspaceKind.PixelArt
-        ? ["File", "Edit", "Sprite", "Layer", "Select", "View", "Window", "Help"]
-        : ["File", "Edit", "Image", "Layer", "Select", "View", "Window", "Help"];
+    internal IReadOnlyList<string> MenuNames => Workspace.Kind switch
+    {
+        WorkspaceKind.PixelArt => ["File", "Edit", "Sprite", "Layer", "Select", "View", "Window", "Help"],
+        WorkspaceKind.Animation => ["File", "Edit", "Image", "Animation", "Layer", "Select", "View", "Window", "Help"],
+        _ => ["File", "Edit", "Image", "Layer", "Select", "View", "Window", "Help"],
+    };
 
     internal IEnumerable<MenuEntry> MenuFor(string name) => name switch
     {
         "File" => FileMenu(),
         "Edit" => EditMenu(),
         "Image" or "Sprite" => ImageMenu(),
+        "Animation" => AnimationMenu(),
         "Layer" => LayerMenu(),
         "Select" => SelectMenu(),
         "View" => ViewMenu(),
@@ -35,16 +39,19 @@ public partial class MainWindow
     private IEnumerable<MenuEntry> FileMenu() =>
     [
         new("new", "New picture…", "Ctrl+N", () => _ = NewAsync()),
+        new("film", "New animation…", null, () => _ = NewAnimationAsync()),
         new("open", "Open…", "Ctrl+O", () => _ = OpenAsync()),
         MenuEntry.Separator,
         new("save", "Save", "Ctrl+S", () => _ = SaveAsync()),
         new("saveas", "Save as…", "Ctrl+Shift+S", () => _ = SaveAsAsync()),
         MenuEntry.Separator,
+        new("film", "Export animation…", null, () => _ = ExportAnimationAsync(), Session.Document.IsAnimated),
         new("export", "Export as PNG…", null, () => _ = ExportAsync(ExportFormat.Png)),
         new("export", "Export as JPEG…", null, () => _ = ExportAsync(ExportFormat.Jpeg)),
         new("export", "Export as WebP…", null, () => _ = ExportAsync(ExportFormat.WebP)),
         new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
         MenuEntry.Separator,
+        new("settings", "Preferences…", null, () => _ = PreferencesAsync()),
         new("exit", "Exit", "Alt+F4", Close),
     ];
 
@@ -206,6 +213,9 @@ public partial class MainWindow
             list.Add(new(WsState.DockCollapsed ? "chevl" : "chevr", WsState.DockCollapsed ? "Expand panels" : "Collapse panels to icons", null, ToggleDockCollapsed));
         }
         list.Add(MenuEntry.Separator);
+        list.Add(new("settings", "Customize workspace…", null, () => _ = CustomizeWorkspaceAsync(), CustomOptions.For(Workspace.Kind).Any()));
+        list.Add(new(null, "Reset workspace layout", null, ResetWorkspaceLayout));
+        list.Add(MenuEntry.Separator);
         list.Add(new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics, Checked: _diagnosticsPanel.IsVisible));
         return list;
     }
@@ -223,6 +233,11 @@ public partial class MainWindow
     private IEnumerable<MenuEntry> HelpMenu() =>
     [
         new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()),
+        MenuEntry.Separator,
+        MenuEntry.Heading("Sample animations"),
+        new("film", "Bouncing ball (hand-drawn)", null, () => _ = OpenSampleAsync(SampleAnimation.BouncingBall)),
+        new("pixpencil", "Pixel slime (pixel art)", null, () => _ = OpenSampleAsync(SampleAnimation.PixelSlime)),
+        MenuEntry.Separator,
         new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics),
         new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()),
     ];
@@ -241,6 +256,7 @@ public partial class MainWindow
             new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
             MenuEntry.Separator,
             new("trash", "Clear layer", null, ClearLayer),
+            new("settings", "Customize workspace…", null, () => _ = CustomizeWorkspaceAsync()),
             MenuEntry.Separator,
             new("fit", "Fit on screen", "Ctrl+0", () => Canvas.FitToView()),
             new("zoom", "Actual pixels (100%)", "Ctrl+1", Canvas.ZoomToActualPixels),
@@ -254,6 +270,7 @@ public partial class MainWindow
         list.Add(MenuEntry.Separator);
         list.Add(new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics));
         list.Add(new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()));
+        list.Add(new("settings", "Preferences…", null, () => _ = PreferencesAsync()));
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
         list.Add(MenuEntry.Separator);
         list.Add(new("exit", "Exit", "Alt+F4", Close));
@@ -301,7 +318,7 @@ public partial class MainWindow
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowSpacing = 3, ColumnSpacing = 16 };
         (string Keys, string What)[] rows =
         [
-            ("Alt+1 … Alt+5", "Pure Sketch · Quick Sketch · Painting · Editing · Pixel Art"),
+            ("Alt+1 … Alt+6", "Pure Sketch · Quick Sketch · Painting · Editing · Pixel Art · Animation Studio"),
             ("B / E / I / H", "Brush (pixel pencil) / Eraser / Eyedropper / Hand"),
             ("V / M / L / W / C", "Move / Rectangle select (Shift: ellipse) / Lasso / Magic wand / Crop"),
             ("G / Shift+G / U", "Paint bucket / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
@@ -323,11 +340,18 @@ public partial class MainWindow
             ("Arrows (Move tool)", "Nudge 1 px (Shift: 10 px)"),
             ("Ctrl+N / O / S / Shift+S", "New / Open / Save / Save as"),
             ("Tab · F11 · F12", "Hide interface (Pure Sketch: go back) · full screen · pen diagnostics"),
+            ("Animation Studio", ""),
+            ("Enter · Esc", "Play / pause · stop playing (back to the start frame)"),
+            (", and . · ← and →", "Previous / next frame (arrows move the selection with the Move tool)"),
+            ("Home / End", "First / last frame"),
+            ("N / Shift+N", "New blank frame / duplicate frame"),
+            ("O", "Onion skin on or off"),
         ];
         for (int i = 0; i < rows.Length; i++)
         {
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var k = new TextBlock { Text = rows[i].Keys, FontWeight = FontWeight.SemiBold, FontSize = 12 };
+            if (rows[i].What.Length == 0) k.Margin = new Thickness(0, 8, 0, 0); // a heading row
             var w = new TextBlock { Text = rows[i].What, Classes = { "dim" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
             Grid.SetRow(k, i);
             Grid.SetRow(w, i);
@@ -339,7 +363,7 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} — Mission 005 “The Canvas Comes Alive”.\nFive workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing and Pixel Art.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} — Mission 006 “Make It Move”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
         [("ok", "Close", true)], "ok", "ok");

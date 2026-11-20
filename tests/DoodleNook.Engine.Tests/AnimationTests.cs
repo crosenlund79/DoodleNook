@@ -123,6 +123,29 @@ public class AnimationModelTests
     }
 
     [Fact]
+    public void Extending_a_hold_into_empty_cells_fills_them_without_growing_the_animation()
+    {
+        var doc = Document.NewAnimation(40, 30, null, frames: 4);
+        var layer = doc.ActiveLayer;
+        Dot(doc, 10, 10);
+        Assert.True(doc.ExtendHold(layer, 0));
+        Assert.True(doc.ExtendHold(layer, 0));
+        Assert.Equal(4, doc.FrameCount);
+        Assert.Equal((0, 2), doc.HoldRange(layer, 0));
+        Assert.Null(doc.CelAt(layer, 3));
+        // A drawing after the hold is pushed later instead, and the animation grows to keep it.
+        doc.SetCurrentFrame(3);
+        Dot(doc, 20, 20);
+        var last = doc.CelAt(layer, 3);
+        Assert.True(doc.ExtendHold(layer, 0));
+        Assert.Equal(5, doc.FrameCount);
+        Assert.Same(last, doc.CelAt(layer, 4));
+        Assert.True(doc.Undo());
+        Assert.Equal(4, doc.FrameCount);
+        Assert.Same(last, doc.CelAt(layer, 3));
+    }
+
+    [Fact]
     public void Shortening_a_hold_removes_a_trailing_frame_that_shows_nothing_new()
     {
         var doc = Document.NewAnimation(40, 30, null);

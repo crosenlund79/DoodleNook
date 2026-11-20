@@ -9,6 +9,7 @@ public enum WorkspaceKind
     Painting,
     Editing,
     PixelArt,
+    Animation,
 }
 
 /// <summary>A tool as shown in tool strips, menus and tooltips.</summary>
@@ -38,7 +39,18 @@ public static class Workspaces
             [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.PixelEllipse,
              ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand], ToolKind.PixelPencil,
             "Exact pixels, a grid, palettes and whole-number zoom for game art."),
+        new(WorkspaceKind.Animation, "F", "Animation Studio", "wsF",
+            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Lasso, ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
+            "Frame-by-frame animation: a timeline, onion skins and playback."),
     ];
+
+    /// <summary>Animation Studio's tools when animating pixel art.</summary>
+    public static readonly ToolKind[] PixelAnimationTools =
+        [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.RectSelect, ToolKind.Move, ToolKind.Hand];
+
+    /// <summary>The tools shown in a workspace (Animation Studio swaps in pixel tools for pixel-art animation).</summary>
+    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation) =>
+        ws.Kind == WorkspaceKind.Animation && pixelAnimation ? PixelAnimationTools : ws.Tools;
 
     public static WorkspaceInfo Get(WorkspaceKind kind) => All[(int)kind];
 
@@ -65,15 +77,62 @@ public static class Workspaces
     };
 
     /// <summary>The tool a key selects in a workspace (Photoshop-style letters, resolved within the workspace's tools).</summary>
-    public static ToolKind? ToolForKey(WorkspaceInfo ws, string letter, bool shift)
+    public static ToolKind? ToolForKey(WorkspaceInfo ws, string letter, bool shift, bool pixelAnimation = false)
     {
         string key = shift ? "Shift+" + letter : letter;
-        foreach (var t in ws.Tools)
+        var tools = ToolsOf(ws, pixelAnimation);
+        foreach (var t in tools)
             if (Tools[t].Shortcut == key) return t;
         // Fall back to tools other workspaces offer for this key (e.g. M in Quick Sketch).
-        if (!shift && letter == "M" && ws.Tools.Contains(ToolKind.RectSelect)) return ToolKind.RectSelect;
+        if (!shift && letter == "M" && tools.Contains(ToolKind.RectSelect)) return ToolKind.RectSelect;
         return null;
     }
+}
+
+/// <summary>
+/// An optional control or panel the user can show through <em>Customize workspace</em>. Only real, working controls
+/// are listed; the defaults keep each workspace minimal (see docs/design/INTERFACE-PHILOSOPHY.md).
+/// </summary>
+public sealed record CustomOption(string Id, string Label, string Description, WorkspaceKind[] Workspaces, WorkspaceKind[] OnByDefault);
+
+public static class CustomOptions
+{
+    public const string ViewChip = "view-chip";
+    public const string OptionsBar = "options-bar";
+    public const string StatusBar = "status-bar";
+    public const string LayersChip = "layers-chip";
+    public const string PixelPreview = "pixel-preview";
+    public const string FrameButtons = "frame-buttons";
+    public const string OnionOpacity = "onion-opacity";
+    public const string FrameDuration = "frame-duration";
+    public const string PreviewPanel = "preview-panel";
+    public const string LayersDock = "layers-dock";
+    public const string TimelineThumbnails = "timeline-thumbnails";
+
+    private static readonly WorkspaceKind[] None = [];
+
+    public static readonly IReadOnlyList<CustomOption> All =
+    [
+        new(OptionsBar, "Tool options bar", "Size, opacity and the current tool's settings under the menus",
+            [WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt, WorkspaceKind.Animation],
+            [WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt, WorkspaceKind.Animation]),
+        new(ViewChip, "View controls on the canvas", "Zoom, fit, rotate and flip buttons in a small chip at the bottom left",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Animation], [WorkspaceKind.QuickSketch, WorkspaceKind.Painting]),
+        new(StatusBar, "Status bar", "Picture size, layer, frame and cursor position along the bottom",
+            [WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt], [WorkspaceKind.Editing]),
+        new(LayersChip, "Layers button", "The layers pop-over button in the bar", [WorkspaceKind.QuickSketch], [WorkspaceKind.QuickSketch]),
+        new(PixelPreview, "1:1 preview", "The sprite at real size in the corner of the canvas", [WorkspaceKind.PixelArt], [WorkspaceKind.PixelArt]),
+        new(FrameButtons, "Frame navigation buttons", "First, previous, next and last frame buttons in the timeline (otherwise: , and . or the arrow keys)",
+            [WorkspaceKind.Animation], None),
+        new(OnionOpacity, "Onion-skin opacity slider", "Change onion-skin strength directly in the timeline bar", [WorkspaceKind.Animation], None),
+        new(FrameDuration, "Frame duration control", "Set how long the current frame is shown, in the timeline bar", [WorkspaceKind.Animation], None),
+        new(PreviewPanel, "Animation preview", "A small looping preview of the whole animation over the canvas", [WorkspaceKind.Animation], None),
+        new(LayersDock, "Layers panel", "The full layers panel docked on the right (the timeline already lists the layers)", [WorkspaceKind.Animation], None),
+        new(TimelineThumbnails, "Drawing thumbnails in the timeline", "Small pictures of each drawing when the timeline is tall enough",
+            [WorkspaceKind.Animation], [WorkspaceKind.Animation]),
+    ];
+
+    public static IEnumerable<CustomOption> For(WorkspaceKind kind) => All.Where(o => o.Workspaces.Contains(kind));
 }
 
 /// <summary>Remembered interface arrangement of one workspace.</summary>
@@ -88,4 +147,53 @@ public sealed class WorkspaceState
     public bool Tiled { get; set; }
     public bool Preview { get; set; } = true;
     public bool RightClickPaintsBackground { get; set; }
+
+    /// <summary>Customize workspace choices that differ from the defaults (option id → shown). Unknown ids are ignored.</summary>
+    public Dictionary<string, bool> Options { get; set; } = new();
+
+    /// <summary>Animation Studio: the timeline's height in layout pixels, and whether it is collapsed to its bar.</summary>
+    public double TimelineHeight { get; set; } = 168;
+    public bool TimelineCollapsed { get; set; }
+
+    /// <summary>Animation Studio: pixel-art animation (pixel tools, exact display) instead of hand-drawn.</summary>
+    public bool PixelAnimation { get; set; }
+
+    /// <summary>Animation Studio: timeline cell width (zoom).</summary>
+    public double TimelineCellWidth { get; set; } = 34;
+
+    /// <summary>Animation Studio: the preview panel's width.</summary>
+    public double PreviewWidth { get; set; } = 240;
+
+    /// <summary>Whether an optional control is shown in this workspace (the user's choice, or the default).</summary>
+    public bool IsShown(string optionId, WorkspaceKind kind)
+    {
+        var option = CustomOptions.All.FirstOrDefault(o => o.Id == optionId);
+        if (option is null || !option.Workspaces.Contains(kind)) return false;
+        return Options.TryGetValue(optionId, out bool shown) ? shown : option.OnByDefault.Contains(kind);
+    }
+
+    public void SetShown(string optionId, WorkspaceKind kind, bool shown)
+    {
+        var option = CustomOptions.All.FirstOrDefault(o => o.Id == optionId);
+        if (option is null) return;
+        if (shown == option.OnByDefault.Contains(kind)) Options.Remove(optionId);
+        else Options[optionId] = shown;
+    }
+
+    /// <summary>Back to the shipped layout (keeps the current tool and drawing style).</summary>
+    public void ResetLayout()
+    {
+        Options.Clear();
+        UiHidden = false;
+        DockCollapsed = false;
+        DockWidth = 264;
+        ClosedSections.Clear();
+        ShowGrid = true;
+        Tiled = false;
+        Preview = true;
+        TimelineHeight = 168;
+        TimelineCollapsed = false;
+        TimelineCellWidth = 34;
+        PreviewWidth = 240;
+    }
 }
