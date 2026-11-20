@@ -149,7 +149,7 @@ public sealed class AnimationFileTests : IDisposable
     }
 
     [Fact]
-    public void A_snapshot_is_unaffected_by_edits_made_while_it_is_written()
+    public async Task A_snapshot_is_unaffected_by_edits_made_while_it_is_written()
     {
         var doc = SampleAnimation();
         var expected = Enumerable.Range(0, doc.FrameCount).Select(f => doc.RenderFrame(f).Pixels).ToList();
@@ -162,7 +162,7 @@ public sealed class AnimationFileTests : IDisposable
         doc.SetCurrentFrame(3);
         Dot(doc, 60, 10);
         var path = Path.Combine(_dir, "snap.dnk");
-        Task.Run(() => DnkFile.Save(snapshot, path)).Wait();
+        await Task.Run(() => DnkFile.Save(snapshot, path), TestContext.Current.CancellationToken);
 
         var back = DnkFile.Load(path);
         for (int f = 0; f < back.FrameCount; f++) Assert.Equal(expected[f], back.RenderFrame(f).Pixels);
