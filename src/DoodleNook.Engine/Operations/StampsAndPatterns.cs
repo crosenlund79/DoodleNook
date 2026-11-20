@@ -133,7 +133,8 @@ public static class StampsAndPatterns
         edit.Capture(box);
         var px = layer.Image.Pixels;
         int w = doc.Width;
-        for (int y = box.Y; y < box.Bottom; y++)
+        bool alphaLocked = layer.AlphaLocked;
+        void Row(int y)
         {
             for (int x = box.X; x < box.Right; x++)
             {
@@ -144,7 +145,7 @@ public static class StampsAndPatterns
                 if (s < 255) src = Scale(src, s / 255f);
                 int i = y * w + x;
                 uint baseline = px[i];
-                if (layer.AlphaLocked)
+                if (alphaLocked)
                 {
                     byte ba = Pixel.A(baseline);
                     if (ba == 0) continue;
@@ -154,6 +155,11 @@ public static class StampsAndPatterns
                 else px[i] = Pixel.Over(src, baseline);
             }
         }
+        // Every pixel depends only on its own inputs, so big areas (pattern fills, large stamps) are painted a row per
+        // thread; the result is the same as painting them one after another.
+        if ((long)box.Width * box.Height >= 128 * 1024) Parallel.For(box.Y, box.Bottom, Row);
+        else
+            for (int y = box.Y; y < box.Bottom; y++) Row(y);
         edit.Changed(box);
         return edit.Commit();
     }

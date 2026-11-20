@@ -12,6 +12,7 @@ namespace DoodleNook.Engine.Tests;
 /// recompositing every visible layer under the brush. Results go to tests/DoodleNook.Engine.Tests/out/performance.json
 /// and the test log. The assertions are deliberately generous; they only catch gross regressions.
 /// </summary>
+[Collection(MeasurementCollection.Name)]
 public class PerformanceTests
 {
     private static Document Layered(int width, int height, int layers)

@@ -14,6 +14,7 @@ namespace DoodleNook.Engine.Tests;
 /// extraction, brush-preview rendering and loading the library. Results go to
 /// tests/DoodleNook.Engine.Tests/out/workshop-performance.json. Assertions are generous: they only catch gross regressions.
 /// </summary>
+[Collection(MeasurementCollection.Name)]
 public class WorkshopPerformanceTests
 {
     private static readonly CreativeLibrary Lib = new();

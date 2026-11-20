@@ -13,6 +13,7 @@ namespace DoodleNook.Engine.Tests;
 /// background and drawings on every frame. Results go to tests/DoodleNook.Engine.Tests/out/animation-performance.json.
 /// Assertions are generous: they only catch gross regressions.
 /// </summary>
+[Collection(MeasurementCollection.Name)]
 public class AnimationPerformanceTests
 {
     private static Document Build(int width, int height, int frames, bool pixel)

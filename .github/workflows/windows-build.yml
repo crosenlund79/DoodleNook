@@ -36,7 +36,9 @@ jobs:
         run: dotnet build DoodleNook.slnx -c Release --no-restore
 
       - name: Run automated tests
-        run: dotnet test DoodleNook.slnx -c Release --no-build --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
+        # -m:1 runs the engine and app test projects one after the other, so the engine's performance measurements
+        # (written to tests/DoodleNook.Engine.Tests/out/) don't share the CPU with the app tests.
+        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
 
       - name: Publish self-contained Windows app
         run: >

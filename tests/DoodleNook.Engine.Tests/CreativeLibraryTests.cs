@@ -295,6 +295,50 @@ public sealed class CreativeLibraryTests : IDisposable
     }
 
     [Fact]
+    public void Large_pattern_fills_painted_row_by_row_in_parallel_match_a_pixel_by_pixel_reference()
+    {
+        // 700 × 500 is above the size where rows are painted in parallel; every pixel must be what painting them one at a
+        // time gives: the pattern (rotated, scaled, faded) composited over the layer, through a soft selection, with the
+        // transparency lock on.
+        var lib = new CreativeLibrary();
+        var tile = lib.PatternImage(BuiltInAssets.Prefix + "brick")!;
+        var doc = new Document(700, 500, null);
+        var layer = doc.ActiveLayer;
+        for (int y = 0; y < 500; y++)
+            for (int x = 0; x < 700; x++)
+                if ((x / 50 + y / 50) % 2 == 0) layer.Image[x, y] = Pixel.FromStraight(90, 140, 200, (byte)(120 + (x + y) % 120));
+        doc.SetLayerProperties(layer, layer.Properties with { AlphaLocked = true });
+        doc.SetSelection(Selections.Ellipse(doc, 20, 10, 690, 490, antialias: true), "Select");
+        var before = layer.Image.Clone();
+        var o = new PatternFillOptions(Scale: 1.7, OffsetX: 13, OffsetY: -7, Rotation: 23, Opacity: 0.8);
+        Assert.True(StampsAndPatterns.FillSelection(doc, layer, tile, o));
+        Assert.True(Enumerable.Range(0, before.Pixels.Length).Count(i => before.Pixels[i] != layer.Image.Pixels[i]) > 100_000);
+        for (int y = 0; y < 500; y++)
+            for (int x = 0; x < 700; x++)
+            {
+                uint expected = before[x, y];
+                int sel = doc.SelectionAt(x, y);
+                byte ba = Pixel.A(expected);
+                if (sel > 0 && ba > 0)
+                {
+                    // Same rounding as the operation: the pattern's opacity first, then the selection's softness.
+                    uint p = Fade(Fade(StampsAndPatterns.PatternAt(tile, o, x, y, pixelExact: false), 0.8f), sel < 255 ? sel / 255f : 1);
+                    if (Pixel.A(p) > 0)
+                    {
+                        var (r, g, b, _) = Pixel.ToStraight(Pixel.Over(p, expected));
+                        expected = Pixel.FromStraight(r, g, b, ba);
+                    }
+                }
+                Assert.Equal(expected, layer.Image[x, y]);
+            }
+        Assert.True(doc.Undo());
+        Assert.Equal(before.Pixels, layer.Image.Pixels);
+    }
+
+    private static uint Fade(uint p, float k) => k >= 1 ? p : k <= 0 ? 0 :
+        Pixel.Pack((byte)(Pixel.A(p) * k + 0.5f), (byte)(Pixel.R(p) * k + 0.5f), (byte)(Pixel.G(p) * k + 0.5f), (byte)(Pixel.B(p) * k + 0.5f));
+
+    [Fact]
     public void Pattern_bucket_fills_only_the_clicked_region()
     {
         var doc = new Document(30, 20, null);
