@@ -72,6 +72,20 @@ public class DesignScreenshots
             w.Close();
         }
 
+        // Section 17: the default Painting and Quick Sketch workspaces, with the same scene as Mission 007's screenshots
+        // (workshop-*-painting.png), to compare: one more tool (Text) in Painting, nothing else.
+        foreach (var (name, width, height, scaling) in new[] { ("desktop27", 2560.0, 1440.0, 1.0), ("desktop1080", 1920.0, 1080.0, 1.0), ("kamvas13-150", 1280.0, 720.0, 1.5) })
+        {
+            var d = WorkshopScreenshots.Painting(width, height, scaling);
+            d.MouseMove(DocToWindow(d, 1000, 760));
+            WorkshopScreenshots.Save(d, $"design-{name}-painting-default");
+            d.SetWorkspace(WorkspaceKind.QuickSketch);
+            Pump();
+            d.MouseMove(DocToWindow(d, 1000, 760));
+            WorkshopScreenshots.Save(d, $"design-{name}-quick-sketch-default");
+            d.Close();
+        }
+
         var k = MenuScene(1280, 720, 1.5);
         // Text tool, typing.
         k.Session.SelectTool(ToolKind.Text);

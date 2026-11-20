@@ -207,28 +207,56 @@ public static class Compositor
         }
     }
 
+    private const int CacheSize = 4096; // a power of two
+
     private static void Adjust(Document doc, PixelRect area, Surface dst, Adjustment adjustment, int opacity, uint[]? mask, uint[]? baseSrc)
     {
         int w = doc.Width;
         var d = dst.Pixels;
         var conformer = doc.PaletteConformer;
-        for (int y = area.Y; y < area.Bottom; y++)
+        // Pictures repeat colours (paper, flat fills, neighbouring pixels): a small direct-mapped cache of
+        // pixel → adjusted pixel saves most of the colour conversions. Slot 0 of a key means "empty" (0 is never adjusted).
+        var keys = ArrayPool<uint>.Shared.Rent(CacheSize);
+        var values = ArrayPool<uint>.Shared.Rent(CacheSize);
+        Array.Clear(keys, 0, CacheSize);
+        try
         {
-            int row = y * w;
-            int di = dst.Index(area.X, y);
-            for (int x = area.X; x < area.Right; x++, di++)
+            for (int y = area.Y; y < area.Bottom; y++)
             {
-                uint p = d[di];
-                if (p == 0) continue;
-                int k = opacity;
-                if (mask is not null) k = k * Layer.MaskValue(mask[row + x]) / 255;
-                if (baseSrc is not null) k = k * Pixel.A(baseSrc[row + x]) / 255;
-                if (k == 0) continue;
-                uint m = adjustment.MapPixel(p);
-                if (k < 255) m = Mix(p, m, k);
-                // A palette-locked picture: adjustments give palette colours too (alpha unchanged).
-                d[di] = conformer is null ? m : conformer.Conform(m);
+                int row = y * w;
+                int di = dst.Index(area.X, y);
+                for (int x = area.X; x < area.Right; x++, di++)
+                {
+                    uint p = d[di];
+                    if (p == 0) continue;
+                    int k = opacity;
+                    if (mask is not null) k = k * Layer.MaskValue(mask[row + x]) / 255;
+                    if (baseSrc is not null) k = k * Pixel.A(baseSrc[row + x]) / 255;
+                    if (k == 0) continue;
+                    int slot = (int)((p * 2654435761u) >> 20) & (CacheSize - 1);
+                    uint m;
+                    if (keys[slot] == p) m = values[slot];
+                    else
+                    {
+                        m = adjustment.MapPixel(p);
+                        // A palette-locked picture: adjustments give palette colours too (alpha unchanged).
+                        if (conformer is not null) m = conformer.Conform(m);
+                        keys[slot] = p;
+                        values[slot] = m;
+                    }
+                    if (k < 255)
+                    {
+                        m = Mix(p, m, k);
+                        if (conformer is not null) m = conformer.Conform(m);
+                    }
+                    d[di] = m;
+                }
             }
+        }
+        finally
+        {
+            ArrayPool<uint>.Shared.Return(keys);
+            ArrayPool<uint>.Shared.Return(values);
         }
     }
 

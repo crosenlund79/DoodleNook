@@ -65,7 +65,7 @@ public sealed class DesignWorkflowTests : IDisposable
     // ================================================================== A — a game menu button
 
     [AvaloniaFact]
-    public void Workflow_A_game_menu_button()
+    public async Task Workflow_A_game_menu_button()
     {
         var w = Window(WorkspaceKind.Painting, 800, 600);
         var doc = w.Session.Document;
@@ -111,13 +111,40 @@ public sealed class DesignWorkflowTests : IDisposable
         Assert.Equal(group.Id, label.ParentId);
         Assert.Equal(group.Id, button.ParentId);
 
-        var back = SaveAndReopen(w, "menu");
-        Assert.Equal(doc.Flatten().Pixels, back.Flatten().Pixels);
-        Assert.Equal(LayerKind.Text, back.Layers.Single(l => l.Name == "PLAY").Kind);
-        // The export (a flat picture): gold button face, dark label, text still editable in the project.
-        var flat = back.Flatten();
+        // 6–7. Save the project and reopen it.
+        var path = Path.Combine(_dir, "menu.dnk");
+        Assert.True(await w.SaveToPathAsync(path));
+        var flatBefore = doc.Flatten().Pixels;
+        Assert.True(await w.OpenPathAsync(path));
+        Pump();
+        var reopened = w.Session.Document;
+        Assert.NotSame(doc, reopened);
+        Assert.Equal(flatBefore, reopened.Flatten().Pixels);
+        var label2 = reopened.Layers.Single(l => l.Name == "PLAY");
+        Assert.Equal(LayerKind.Text, label2.Kind);
+        Assert.NotNull(((ShapeContent)reopened.Layers.Single(l => l.Kind == LayerKind.Shape).Content!).Shadow);
+
+        // 8. Modify the text: click it with the Text tool and type.
+        w.Canvas.FitToView();
+        Pump();
+        s.SelectTool(ToolKind.Text);
+        var (lx, ly) = reopened.BoxOf(label2)!.Value.Center;
+        Drag(w, MouseButton.Left, RawInputModifiers.None, (lx, ly));
+        Assert.Same(label2, w.TextEditor.Layer);
+        Find<TextBox>(w, "TextEditorBox").Text = "START";
+        Pump();
+        w.TextEditor.Finish();
+        Assert.Equal("START", ((TextContent)label2.Content!).Text);
+        Assert.Equal("Edit text", reopened.History.NextUndoName);
+
+        // 9. Export PNG: a flat picture with the gold button and the dark label.
+        var png = Path.Combine(_dir, "menu.png");
+        w.ExportToPath(png, DoodleNook.App.Files.ExportFormat.Png);
+        var flat = DoodleNook.App.Files.ImageFiles.Decode(png);
+        Assert.Equal(reopened.Flatten().Pixels, flat.Pixels);
         Assert.Equal((233, 169, 77, 255), Pixel.ToStraight(flat[270, 300]));
-        Assert.Contains(Enumerable.Range((int)labelBox.X, (int)labelBox.Width), x => Pixel.ToStraight(flat[x, (int)labelBox.Center.Y]) is (43, 34, 48, 255));
+        var labelBox2 = reopened.BoxOf(label2)!.Value;
+        Assert.Contains(Enumerable.Range((int)labelBox2.X, (int)labelBox2.Width), x => Pixel.ToStraight(flat[x, (int)labelBox2.Center.Y]) is (43, 34, 48, 255));
         w.Close();
     }
 
@@ -157,12 +184,27 @@ public sealed class DesignWorkflowTests : IDisposable
         Assert.True(Pixel.A(img[380, 243]) > 0);
         Assert.Equal(0, Pixel.A(img[380, 262]));
 
+        // 4–6. Turn perspective off: freehand drawing follows the hand again, nothing is held to a line.
+        s.SelectTool(ToolKind.Brush);
+        Pump();
+        Click(w, Find<Button>(w, "AssistantsButton"));
+        Click(w, Entry(w, "Off"));
+        UiKit.HideOpenFlyouts();
+        Pump();
+        Assert.Equal(0, doc.Perspective.Points);
+        var free = s.AddLayer();
+        Line(w, Ink, 3, (100, 350), (150, 330), (200, 360), (250, 330), (300, 360));
+        Assert.True(Pixel.A(free.Image[200, 360]) > 0); // the wobble is drawn as drawn
+        Assert.True(Pixel.A(free.Image[150, 330]) > 0);
+        Line(w, Ink, 3, (400, 380), (420, 330), (440, 380));
+        Assert.True(Pixel.A(free.Image[420, 330]) > 0);
+
         // A guide from the ruler; neither guides nor perspective lines are part of the picture.
         doc.SetGuides([new Guide(false, 300)], "Add guide");
         var flat = doc.Flatten();
         Assert.Equal((255, 255, 255, 255), Pixel.ToStraight(flat[100, 300]));
         var back = SaveAndReopen(w, "perspective");
-        Assert.Equal(doc.Perspective, back.Perspective);
+        Assert.Equal(0, back.Perspective.Points);
         Assert.Equal(doc.Guides, back.Guides);
         w.Close();
     }
@@ -205,13 +247,32 @@ public sealed class DesignWorkflowTests : IDisposable
         Assert.NotEqual((63, 106, 130, 255), shirt);
         Assert.Equal((255, 255, 255, 255), Pixel.ToStraight(doc.Flatten()[20, 20]));
 
-        // Group visibility and opacity act on the whole character; undo puts it back.
+        // Group visibility and opacity act on the whole character.
+        var withAdjustment = doc.Flatten().Pixels;
         s.SetLayerProperty(group, p => p with { Visible = false });
         Assert.Equal((255, 255, 255, 255), Pixel.ToStraight(doc.Flatten()[150, 250]));
-        w.Session.Undo();
+        s.SetLayerProperty(group, p => p with { Visible = true });
         s.SetLayerProperty(group, p => p with { Opacity = 0.5 });
         var half = Pixel.ToStraight(doc.Flatten()[150, 250]);
         Assert.True(half.R > shirt.R && half.R < 255);
+        var finished = doc.Flatten().Pixels;
+
+        // Undo and redo through everything: each step comes back exactly.
+        var states = new List<uint[]>();
+        int steps = doc.History.UndoCount;
+        for (int i = 0; i < steps; i++)
+        {
+            states.Add(doc.Flatten().Pixels);
+            Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control);
+        }
+        Assert.DoesNotContain(doc.Layers, l => l.IsGroup || l.HasMask || l.Kind == LayerKind.Adjustment);
+        for (int i = steps - 1; i >= 0; i--)
+        {
+            Key(w, Avalonia.Input.Key.Z, RawInputModifiers.Control | RawInputModifiers.Shift);
+            Assert.Equal(states[i], doc.Flatten().Pixels);
+        }
+        Assert.Equal(finished, doc.Flatten().Pixels);
+        Assert.NotEqual(withAdjustment, finished);
 
         var back = SaveAndReopen(w, "character");
         Assert.Equal(doc.Flatten().Pixels, back.Flatten().Pixels);
@@ -241,6 +302,9 @@ public sealed class DesignWorkflowTests : IDisposable
         var flat = doc.Flatten();
         Assert.All(flat.Pixels, p => Assert.True(c.IsPaletteColour(p), $"{p:X8} is not a palette colour"));
         Assert.Contains(shape.Image.Pixels, p => Pixel.A(p) is > 0 and < 255); // soft edges keep their alpha
+        // Alpha is exactly what the same shape has without the lock.
+        var free = ShapeRasterizer.Render((ShapeContent)shape.Content!, doc.Width, doc.Height).Image;
+        Assert.Equal(free.Pixels.Select(Pixel.A), shape.Image.Pixels.Select(Pixel.A));
 
         // The export decodes to exact palette colours.
         var png = PngCodec.Decode(PngCodec.Encode(flat));
@@ -256,18 +320,33 @@ public sealed class DesignWorkflowTests : IDisposable
     // ================================================================== E — a title on an existing animation
 
     [AvaloniaFact]
-    public void Workflow_E_title_on_an_existing_animation()
+    public async Task Workflow_E_title_on_an_existing_animation()
     {
+        // 1. A Mission 006/007 animation: the bouncing ball as a version 2 file, opened from disk.
+        var old = Path.Combine(_dir, "bounce-v2.dnk");
+        DnkFile.Save(SampleAnimations.BouncingBall(), old);
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(old))
+        using (var json = zip.GetEntry("document.json")!.Open())
+            Assert.Equal(2, System.Text.Json.JsonDocument.Parse(json).RootElement.GetProperty("version").GetInt32());
         var w = Open(1280, 800, WorkspaceKind.Animation);
         w.UseLibrary(new CreativeLibrary(Path.Combine(_dir, "Library")));
-        w.Session.ReplaceDocument(SampleAnimations.BouncingBall(), null);
+        w.Animator.ManualClock = true;
+        Assert.True(await w.OpenPathAsync(old));
         Pump();
         var doc = w.Session.Document;
         int frames = doc.FrameCount;
         var timing = Enumerable.Range(0, frames).Select(doc.Animation!.DurationOverride).ToList();
         var before = Enumerable.Range(0, frames).Select(f => doc.RenderFrame(f).Pixels).ToList();
+        var holds = Holds(doc);
 
-        // The Text tool is one Customize-workspace tick away in Animation Studio.
+        // 2. Playback.
+        w.Session.GoToFrame(0);
+        w.Animator.Play();
+        w.Animator.Tick(1000 / doc.Animation.Fps * 1.5);
+        Assert.Equal(1, doc.CurrentFrame);
+        w.Animator.Stop();
+
+        // 3. A compatible new layer: a title with the Text tool (one Customize-workspace tick in Animation Studio).
         Assert.DoesNotContain(ToolKind.Text, w.CurrentTools);
         w.WsState.SetShown(CustomOptions.TextTool, WorkspaceKind.Animation, true);
         w.ApplyCustomization();
@@ -281,36 +360,46 @@ public sealed class DesignWorkflowTests : IDisposable
         var title = doc.ActiveLayer;
         Assert.Equal(LayerKind.Text, title.Kind);
         Assert.False(title.IsTrack); // the same on every frame
-        Pump();
-
-        // Every frame shows it; timing and drawings are untouched; frames still work.
-        var titleArea = title.ContentBounds;
+        var area = title.ContentBounds;
         for (int f = 0; f < frames; f++)
         {
             var frame = doc.RenderFrame(f).Pixels;
-            int w0 = doc.Width;
-            bool titleShown = false;
-            for (int y = titleArea.Y; y < titleArea.Bottom && !titleShown; y++)
-                for (int x = titleArea.X; x < titleArea.Right; x++)
-                    if (frame[y * w0 + x] != before[f][y * w0 + x])
+            bool shown = false;
+            for (int y = area.Y; y < area.Bottom && !shown; y++)
+                for (int x = area.X; x < area.Right; x++)
+                    if (frame[y * doc.Width + x] != before[f][y * doc.Width + x])
                     {
-                        titleShown = true;
+                        shown = true;
                         break;
                     }
-            Assert.True(titleShown, $"frame {f} has no title");
+            Assert.True(shown, $"frame {f} has no title");
         }
         Assert.Equal(timing, Enumerable.Range(0, frames).Select(doc.Animation!.DurationOverride).ToList());
-        w.Session.NewFrame(false);
-        Assert.Equal(frames + 1, doc.FrameCount);
-        w.Session.Undo();
 
-        var back = SaveAndReopen(w, "animated");
+        // 4. Export: an animated GIF with every frame and its timing.
+        var gif = Path.Combine(_dir, "bounce.gif");
+        GifEncoder.Save(AnimationExport.RenderFrames(doc, includePaper: true), gif, new GifOptions());
+        using (var codec = SkiaSharp.SKCodec.Create(gif))
+            Assert.Equal(frames, codec.FrameCount);
+
+        // 5–6. Save and reopen: frame timing, the frames, and which frames share a drawing (holds) are preserved.
+        var saved = Path.Combine(_dir, "bounce-v4.dnk");
+        Assert.True(await w.SaveToPathAsync(saved));
+        Assert.True(await w.OpenPathAsync(saved));
+        Pump();
+        var back = w.Session.Document;
         Assert.Equal(frames, back.FrameCount);
         Assert.Equal(timing, Enumerable.Range(0, frames).Select(back.Animation!.DurationOverride).ToList());
+        Assert.Equal(holds, Holds(back));
         for (int f = 0; f < frames; f++) Assert.Equal(doc.RenderFrame(f).Pixels, back.RenderFrame(f).Pixels);
-        // Removing the title gives back exactly the original frames.
         back.DeleteLayer(back.Layers.Single(l => l.Kind == LayerKind.Text));
         for (int f = 0; f < frames; f++) Assert.Equal(before[f], back.RenderFrame(f).Pixels);
         w.Close();
     }
+
+    /// <summary>For each drawing layer, which frames show the same drawing as the frame before (holds) or nothing.</summary>
+    private static List<string> Holds(Document doc) =>
+        doc.Layers.Where(l => l.IsTrack).Select(l => string.Concat(Enumerable.Range(0, doc.FrameCount).Select(f =>
+            l.Track[f] is null ? '.' : f > 0 && ReferenceEquals(l.Track[f], l.Track[f - 1]) ? '=' : '#'))).ToList();
+
 }

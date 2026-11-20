@@ -1,5 +1,5 @@
-DoodleNook — Mission 007 "The Artist's Workshop"
-================================================
+DoodleNook — Mission 008 "The Designer's Toolkit"
+===================================================
 
 Start
 -----
@@ -23,7 +23,7 @@ A few shortcuts
 B brush · E eraser · I or hold Alt eyedropper · hold Space to pan · [ and ] brush size
 Ctrl+Z undo · Ctrl+Shift+Z or Ctrl+Y redo · mouse wheel zoom · Ctrl+0 fit · Ctrl+1 100 %
 Ctrl+N new · Ctrl+O open · Ctrl+S save · Tab hide interface · F11 full screen
-S stamp · G paint bucket · Alt+1 … Alt+6 workspaces · F1 all shortcuts
+S stamp · G paint bucket · T text · Alt+1 … Alt+6 workspaces · F1 all shortcuts
 
 Animation Studio (Alt+6)
 ------------------------
@@ -45,6 +45,17 @@ The Artist's Workshop
   converts artwork to another palette with a preview you can adjust. Transparency is never changed.
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
+
+The Designer's Toolkit
+----------------------
+* Text: the Text tool (T, in Painting and Editing). Click to type, click text to edit it; font, size, bold, italic,
+  alignment and Effects (outline, shadow, spacing) are in the options bar. Text stays editable when saved.
+* Editable shapes: the Shapes tool (U) › Editable. Move, resize and turn them later with the Move tool (V).
+* Groups (Ctrl+G), masks (the mask button under the layers; paint black to hide, white to show) and adjustment
+  layers (the ◐ button under the layers): all in the layers panel and the Layer menu.
+* Rulers (Ctrl+R; drag from a ruler to add a guide), guides (Ctrl+;) and snapping (Ctrl+Shift+;) are in the View menu.
+* Drawing assistants (the ▾ next to the mirror button, or View › Drawing assistants…): symmetry with a movable
+  centre and radial symmetry, one- and two-point perspective, snapping. Hold Shift for a straight brush line.
 
 Files and settings
 ------------------
