@@ -69,7 +69,7 @@ public partial class MainWindow
             new("trash", "Delete frame", null, () => s.DeleteFrame(f), animated && n > 1),
             new("clock", "Frame duration…", null, () => _ = FrameDurationAsync(f)),
             new("copy", "Make drawing independent", null, () => s.MakeIndependent(layer, f), held),
-            new(null, "More frame and drawing commands: right-click the timeline", null, null, false),
+            new(null, "More: right-click the timeline", null, null, false),
             MenuEntry.Separator,
             new("onion", "Onion skin", "O", s.ToggleOnion, Checked: s.Onion.Enabled),
             new(null, "Onion-skin settings…", null, () => _timeline?.OpenOnionSettings(), here),

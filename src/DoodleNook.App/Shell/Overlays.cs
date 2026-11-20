@@ -212,6 +212,9 @@ public sealed class RadialPalette : Panel
 /// Click to cycle 1×, 2× and 3×.</summary>
 public sealed class PixelPreview : Border
 {
+    // Styled like a plain Border (the "float" card), not as a type of its own.
+    protected override Type StyleKeyOverride => typeof(Border);
+
     private readonly MainWindow _app;
     private readonly Image _image = new() { Stretch = Stretch.Fill };
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(120) };

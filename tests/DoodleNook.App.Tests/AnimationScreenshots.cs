@@ -86,6 +86,20 @@ public class AnimationScreenshots
         WindowTests.Pump();
         k.Close();
 
+        // Every optional Animation Studio control switched on (Customize workspace), at both sizes.
+        foreach (var (name, width, height, scaling) in new[] { ("kamvas13-150", 1280.0, 720.0, 1.5), ("desktop27", 2560.0, 1440.0, 1.0) })
+        {
+            var c = Studio(width, height, scaling, SampleAnimation.BouncingBall);
+            foreach (var id in new[] { CustomOptions.FrameButtons, CustomOptions.OnionOpacity, CustomOptions.FrameDuration, CustomOptions.PreviewPanel, CustomOptions.LayersDock })
+                c.WsState.SetShown(id, WorkspaceKind.Animation, true);
+            c.ApplyCustomization();
+            c.Session.GoToFrame(6);
+            c.MouseMove(WindowTests.DocToWindow(c, 470, 120));
+            Save(c, $"animation-customized-{name}");
+            c.WsState.ResetLayout();
+            c.Close();
+        }
+
         // The pixel-art sample with its onion skin.
         var p = Studio(1280, 720, 1.5, SampleAnimation.PixelSlime);
         p.Session.GoToFrame(3);

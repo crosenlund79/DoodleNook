@@ -20,6 +20,9 @@ namespace DoodleNook.App.Animation;
 /// </summary>
 public sealed class AnimationPreview : Border
 {
+    // Styled like a plain Border (the "float" card), not as a type of its own.
+    protected override Type StyleKeyOverride => typeof(Border);
+
     private readonly MainWindow _app;
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(15) };

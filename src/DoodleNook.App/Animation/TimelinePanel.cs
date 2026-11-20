@@ -284,7 +284,18 @@ public sealed class TimelinePanel : Border
         Refresh();
     }
 
-    private double MaxHeightNow => Math.Max(MinTimelineHeight + 40, (_app.Bounds.Height > 0 ? _app.Bounds.Height : 800) * 0.6);
+    /// <summary>The tallest the timeline may be now: at most 60 % of the window, and never so tall that the tool strip
+    /// (title and options bars above it) no longer fits beside the canvas.</summary>
+    private double MaxHeightNow
+    {
+        get
+        {
+            double window = _app.Bounds.Height > 0 ? _app.Bounds.Height : 800;
+            double tools = _app.CurrentTools.Length * 39 + 64; // tool buttons, colour chips and margins
+            const double bars = 82;                          // title bar + options bar
+            return Math.Max(MinTimelineHeight + 40, Math.Min(window * 0.6, window - bars - tools));
+        }
+    }
 
     public void SetTimelineHeight(double height)
     {

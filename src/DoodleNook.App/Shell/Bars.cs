@@ -217,7 +217,14 @@ public sealed class ToolStrip : Border
         var dock = new DockPanel { Margin = new Thickness(0, 7) };
         DockPanel.SetDock(_chips, Dock.Bottom);
         dock.Children.Add(_chips);
-        dock.Children.Add(_tools);
+        // On a short window (e.g. a tall timeline at 150 %) the tools scroll instead of running into the colour chips.
+        dock.Children.Add(new ScrollViewer
+        {
+            Content = _tools,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
+            ClipToBounds = true,
+        });
         Child = dock;
         app.WorkspaceChanged += Rebuild;
         app.Session.StateChanged += Refresh;
