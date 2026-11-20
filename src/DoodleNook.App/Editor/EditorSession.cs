@@ -30,6 +30,11 @@ public enum ToolKind
 
     /// <summary>Editable text (Mission 008).</summary>
     Text,
+
+    // Mission 010: retouching (one group in the tool strip).
+    Smudge,
+    Clone,
+    Repair,
 }
 
 public enum PressureFeel
@@ -48,6 +53,12 @@ public sealed record PatternToolOptions(bool UsePattern = false, string? Pattern
 
 /// <summary>Options of the selection tools.</summary>
 public sealed record SelectionToolOptions(SelectionMode Mode = SelectionMode.Replace, bool AntiAlias = true, int WandTolerance = 32, bool WandContiguous = true, bool SampleMerged = false);
+
+/// <summary>Options of the retouching tools (Mission 010). Softness is the opposite of hardness: 0 a hard edge, 1 a soft one.</summary>
+public sealed record RetouchToolOptions(
+    double SmudgeSize = 40, double SmudgeStrength = 0.6, double SmudgeSoftness = 0.6, bool FingerPaint = false,
+    double CloneSize = 50, double CloneOpacity = 1, double CloneSoftness = 0.5, bool SampleAll = false,
+    double RepairSize = 24, double RepairSoftness = 0.4, bool RepairFromSource = false);
 
 /// <summary>Options of the pixel-art tools.</summary>
 public sealed record PixelToolOptions(int Size = 1, bool PixelPerfect = true, Symmetry Symmetry = Symmetry.None, bool Grid = true, bool Tiled = false, bool Preview = true, bool FilledShapes = false);
@@ -85,8 +96,10 @@ public sealed partial class EditorSession
         document.PaletteChanged += OnPaletteChanged;
         _engine = new StrokeEngine(document);
         _pixel = new PixelStroke(document);
+        _retouch = new RetouchStroke(document);
         BrushPresetId = "pencil";
         Brush = Presets[0].Settings;
+        RecentBrushes.Add(BrushPresetId);
     }
 
     public Document Document { get; private set; }
@@ -134,7 +147,7 @@ public sealed partial class EditorSession
     /// <summary>The user's saved swatches (kept between sessions).</summary>
     public List<ColorRgb> Swatches { get; } = [.. DefaultRecent];
 
-    public bool IsStrokeActive => _engine.IsActive || _pixel.IsActive;
+    public bool IsStrokeActive => _engine.IsActive || _pixel.IsActive || _retouch.IsActive;
     public StrokeEngine Engine => _engine;
 
     /// <summary>Settings of the painting tool currently shown in the toolbar.</summary>
@@ -167,6 +180,9 @@ public sealed partial class EditorSession
         FilePath = filePath;
         _engine = new StrokeEngine(document);
         _pixel = new PixelStroke(document);
+        _retouch = new RetouchStroke(document);
+        CloneSource = null; // a source belongs to its picture
+        CloneOffset = null;
         Foreground = Allowed(Foreground);
         Background = Allowed(Background);
         DocumentReplaced?.Invoke();
@@ -212,7 +228,108 @@ public sealed partial class EditorSession
         if (tool != ToolKind.Move) CommitTransform();
         Tool = tool;
         if (tool is ToolKind.Brush or ToolKind.Eraser) PaintTool = tool;
+        if (IsRetouchTool(tool)) LastRetouchTool = tool;
         Changed();
+    }
+
+    // ================================================================ retouching (Mission 010)
+
+    private RetouchStroke _retouch;
+    private (Document Doc, long State, int Frame, RasterImage Image)? _sampled;
+
+    public RetouchToolOptions Retouch { get; private set; } = new();
+
+    /// <summary>The retouching tool shown by the tool strip's retouch button (the last one used).</summary>
+    public ToolKind LastRetouchTool { get; private set; } = ToolKind.Smudge;
+
+    public static bool IsRetouchTool(ToolKind t) => t is ToolKind.Smudge or ToolKind.Clone or ToolKind.Repair;
+
+    /// <summary>Where Clone (and Repair from a source) copies from, chosen with Alt+click (document coordinates).</summary>
+    public (double X, double Y)? CloneSource { get; private set; }
+
+    /// <summary>The source's offset from the brush, fixed by the first stroke after choosing the source and kept for later
+    /// strokes (so separate strokes continue the same copy).</summary>
+    public (int Dx, int Dy)? CloneOffset { get; private set; }
+
+    /// <summary>True when the current tool copies from a source (Clone, or Repair set to use one).</summary>
+    public bool ToolUsesSource => Tool == ToolKind.Clone || (Tool == ToolKind.Repair && Retouch.RepairFromSource);
+
+    public void SetRetouchOptions(RetouchToolOptions o)
+    {
+        Retouch = o with
+        {
+            SmudgeSize = Math.Clamp(o.SmudgeSize, 1, BrushSettings.MaxSize), CloneSize = Math.Clamp(o.CloneSize, 1, BrushSettings.MaxSize),
+            RepairSize = Math.Clamp(o.RepairSize, 1, BrushSettings.MaxSize), SmudgeStrength = Math.Clamp(o.SmudgeStrength, 0.05, 1),
+            CloneOpacity = Math.Clamp(o.CloneOpacity, 0.05, 1), SmudgeSoftness = Math.Clamp(o.SmudgeSoftness, 0, 1),
+            CloneSoftness = Math.Clamp(o.CloneSoftness, 0, 1), RepairSoftness = Math.Clamp(o.RepairSoftness, 0, 1),
+        };
+        Changed();
+    }
+
+    /// <summary>Alt+click with Clone or Repair: copy from here (the next stroke fixes the offset).</summary>
+    public void SetCloneSource(double x, double y)
+    {
+        CloneSource = (Math.Clamp(x, 0, Document.Width - 1), Math.Clamp(y, 0, Document.Height - 1));
+        CloneOffset = null;
+        if (Tool == ToolKind.Repair && !Retouch.RepairFromSource) Retouch = Retouch with { RepairFromSource = true }; // Alt+click asks for a source
+        Tell($"Copying from {CloneSource.Value.X:0}, {CloneSource.Value.Y:0} · now paint where it should go");
+        Changed();
+    }
+
+    public void ClearCloneSource()
+    {
+        CloneSource = null;
+        CloneOffset = null;
+        Changed();
+    }
+
+    /// <summary>The size of the current retouching tool, and setting it.</summary>
+    private double RetouchSize => Tool switch { ToolKind.Clone => Retouch.CloneSize, ToolKind.Repair => Retouch.RepairSize, _ => Retouch.SmudgeSize };
+
+    private void SetRetouchSize(double size)
+    {
+        size = Math.Round(Math.Clamp(size, 1, BrushSettings.MaxSize), size < 10 ? 1 : 0);
+        SetRetouchOptions(Tool switch
+        {
+            ToolKind.Clone => Retouch with { CloneSize = size },
+            ToolKind.Repair => Retouch with { RepairSize = size },
+            _ => Retouch with { SmudgeSize = size },
+        });
+    }
+
+    /// <summary>What the picture looks like (all visible layers), for copying "what you see"; kept until the picture changes.</summary>
+    private RasterImage SampledPicture()
+    {
+        var doc = Document;
+        long state = doc.History.CurrentStateId;
+        if (_sampled is { } c && ReferenceEquals(c.Doc, doc) && c.State == state && c.Frame == doc.CurrentFrame) return c.Image;
+        var image = doc.Flatten();
+        _sampled = (doc, state, doc.CurrentFrame, image);
+        return image;
+    }
+
+    private void BeginRetouch(StrokeSample first)
+    {
+        var o = Retouch;
+        (int Dx, int Dy)? source = null;
+        if (ToolUsesSource)
+        {
+            if (CloneSource is not { } src)
+            {
+                Tell(Tool == ToolKind.Clone ? "Alt+click where to copy from, then paint" : "Alt+click where to take the texture from, then paint");
+                return;
+            }
+            CloneOffset ??= ((int)Math.Round(src.X - first.X), (int)Math.Round(src.Y - first.Y));
+            source = CloneOffset;
+        }
+        RasterImage? sampled = source is not null && o.SampleAll ? SampledPicture() : null;
+        var style = Tool switch
+        {
+            ToolKind.Smudge => new RetouchStyle(RetouchKind.Smudge, o.SmudgeSize, o.SmudgeStrength, 1 - o.SmudgeSoftness, Curve, FingerPaint: o.FingerPaint ? Foreground : null),
+            ToolKind.Clone => new RetouchStyle(RetouchKind.Clone, o.CloneSize, o.CloneOpacity, 1 - o.CloneSoftness, Curve, Source: source, Sampled: sampled),
+            _ => new RetouchStyle(RetouchKind.Repair, o.RepairSize, 1, 1 - o.RepairSoftness, Curve, Source: source, Sampled: sampled),
+        };
+        _retouch.Begin(style, first);
     }
 
     /// <summary>The "Erase" toggle: switches between brush and eraser.</summary>
@@ -221,13 +338,18 @@ public sealed partial class EditorSession
     public bool IsPixelTool(ToolKind t) => t is ToolKind.PixelPencil or ToolKind.PixelEraser or ToolKind.PixelLine or ToolKind.PixelRect or ToolKind.PixelEllipse;
 
     /// <summary>Size shown in the toolbar: brush/eraser diameter, or the pixel brush size in Pixel Art.</summary>
-    public double CurrentSize => IsPixelTool(Tool) ? Pixel.Size : CurrentPaintSettings.Size;
+    public double CurrentSize => IsPixelTool(Tool) ? Pixel.Size : IsRetouchTool(Tool) ? RetouchSize : CurrentPaintSettings.Size;
 
     public void SetSize(double size)
     {
         if (IsPixelTool(Tool))
         {
             SetPixelOptions(Pixel with { Size = (int)Math.Clamp(Math.Round(size), 1, 64) });
+            return;
+        }
+        if (IsRetouchTool(Tool))
+        {
+            SetRetouchSize(size);
             return;
         }
         UpdatePaintSettings(s => s with { Size = Math.Round(Math.Clamp(size, BrushSettings.MinSize, BrushSettings.MaxSize), size < 10 ? 1 : 0) });
@@ -287,14 +409,49 @@ public sealed partial class EditorSession
         Changed();
     }
 
+    // Mission 010: each brush keeps the size it was last used at, and the last few brushes are at hand (quick palette).
+    private readonly Dictionary<string, double> _brushSizes = new();
+
+    /// <summary>The size each brush was last used at (a brush's other preset settings are never changed by switching).</summary>
+    public IReadOnlyDictionary<string, double> BrushSizes => _brushSizes;
+
+    /// <summary>The most recently chosen brushes, newest first (the current one included).</summary>
+    public List<string> RecentBrushes { get; } = new();
+
+    /// <summary>Chooses a brush: its preset settings, at the size it was last used at (the preset's own size the first
+    /// time). The brush being left keeps its current size for next time.</summary>
     public void ApplyPreset(string id)
     {
         var preset = Library.FindBrush(id);
         if (preset is null) return;
+        _brushSizes[BrushPresetId] = Brush.Size;
         BrushPresetId = id;
-        Brush = preset.Settings with { Smoothing = Brush.Smoothing };
+        Brush = preset.Settings with
+        {
+            Smoothing = Brush.Smoothing,
+            Size = _brushSizes.TryGetValue(id, out var size) ? Math.Clamp(size, BrushSettings.MinSize, BrushSettings.MaxSize) : preset.Settings.Size,
+        };
+        RememberBrush(id);
         if (Tool != ToolKind.Brush) SelectTool(ToolKind.Brush);
         else Changed();
+    }
+
+    private void RememberBrush(string id)
+    {
+        RecentBrushes.Remove(id);
+        RecentBrushes.Insert(0, id);
+        if (RecentBrushes.Count > 8) RecentBrushes.RemoveRange(8, RecentBrushes.Count - 8);
+    }
+
+    /// <summary>Restores the remembered brush sizes and recent brushes (unknown brushes are skipped).</summary>
+    public void RestoreBrushMemory(IReadOnlyDictionary<string, double>? sizes, IEnumerable<string>? recent)
+    {
+        _brushSizes.Clear();
+        foreach (var (id, size) in sizes ?? new Dictionary<string, double>())
+            if (double.IsFinite(size)) _brushSizes[id] = Math.Clamp(size, BrushSettings.MinSize, BrushSettings.MaxSize);
+        RecentBrushes.Clear();
+        RecentBrushes.AddRange((recent ?? []).Where(r => Library.FindBrush(r) is not null).Distinct().Take(8));
+        if (!RecentBrushes.Contains(BrushPresetId)) RecentBrushes.Insert(0, BrushPresetId);
     }
 
     /// <summary>Restores settings saved from an earlier session.</summary>
@@ -441,13 +598,22 @@ public sealed partial class EditorSession
     {
         CommitTransform();
         if (!CanEditActiveLayer()) return;
+        if (IsRetouchTool(Tool) && !forceEraser)
+        {
+            BeginRetouch(first);
+            return;
+        }
         bool erase = forceEraser || Tool == ToolKind.Eraser;
         var settings = erase ? Eraser : Brush;
         if (!erase) RememberColor(Foreground);
         _engine.Begin(new StrokeStyle(settings, Curve, Foreground, erase ? PaintMode.Erase : PaintMode.Paint, Symmetry, Library.Resolve(settings), Assist.Placement), first);
     }
 
-    public void ContinueStroke(ReadOnlySpan<StrokeSample> samples) => _engine.Add(samples);
+    public void ContinueStroke(ReadOnlySpan<StrokeSample> samples)
+    {
+        if (_retouch.IsActive) _retouch.Add(samples);
+        else _engine.Add(samples);
+    }
 
     public void Spray(double ms) => _engine.Spray(ms);
 
@@ -455,12 +621,14 @@ public sealed partial class EditorSession
     {
         if (_engine.IsActive) _engine.End();
         if (_pixel.IsActive) _pixel.End();
+        if (_retouch.IsActive) _retouch.End();
     }
 
     public void CancelStroke()
     {
         _engine.Cancel();
         _pixel.Cancel();
+        _retouch.Cancel();
     }
 
     /// <summary>Starts a pixel-pencil or pixel-eraser stroke at a pixel.</summary>

@@ -271,6 +271,13 @@ public sealed class ToolStrip : Border
         _buttons.Clear();
         foreach (var kind in _app.CurrentTools)
         {
+            if (Workspaces.Groups.ContainsKey(kind))
+            {
+                var g = GroupButton(kind);
+                _tools.Children.Add(g);
+                _buttons.Add((g, kind));
+                continue;
+            }
             var info = Workspaces.Tools[kind];
             var k = kind;
             var b = UiKit.Button(info.Icon, tip: $"{info.Name}{(info.Shortcut is { } s ? $" ({s})" : "")}\n{info.Hint}", click: () => _app.Session.SelectTool(k), classes: "tool");
@@ -282,10 +289,53 @@ public sealed class ToolStrip : Border
         Refresh();
     }
 
+    /// <summary>One button for a group of tools (Smudge, Clone, Repair): it shows the group's last-used tool and selects it;
+    /// right-click (or the pen's button) lists the group. A small corner mark says there is more.</summary>
+    private Button GroupButton(ToolKind group)
+    {
+        var b = UiKit.Button(null, tip: null, click: () => _app.Session.SelectTool(Shown(group)), classes: "tool");
+        b.Name = "Tool" + group;
+        var menu = UiKit.PopFlyout(new Panel(), PlacementMode.RightEdgeAlignedTop);
+        menu.Opening += (_, _) => menu.Content = Menus.Build(Workspaces.Groups[group].Select(t =>
+        {
+            var info = Workspaces.Tools[t];
+            return new MenuEntry(info.Icon, info.Name, info.Shortcut, () => _app.Session.SelectTool(t), Checked: _app.Session.Tool == t);
+        }), menu.Hide, 200);
+        b.ContextFlyout = menu;
+        ShowGroup(b, group);
+        return b;
+    }
+
+    private ToolKind Shown(ToolKind group) =>
+        Workspaces.Groups[group].Contains(_app.Session.LastRetouchTool) ? _app.Session.LastRetouchTool : group;
+
+    private void ShowGroup(Button b, ToolKind group)
+    {
+        var info = Workspaces.Tools[Shown(group)];
+        var others = string.Join(", ", Workspaces.Groups[group].Where(t => t != info.Kind).Select(t => Workspaces.Tools[t].Name));
+        ToolTip.SetTip(b, $"{info.Name}{(info.Shortcut is { } sc ? $" ({sc})" : "")}\n{info.Hint.Split(" · right-click")[0]}\nRight-click: {others}");
+        var corner = new Avalonia.Controls.Shapes.Path
+        {
+            Data = Geometry.Parse("M5,0 L5,5 L0,5 Z"), Fill = new SolidColorBrush(DnColors.Text2),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, -6, -6),
+        };
+        b.Content = new Panel { Children = { new DnIcon { Kind = info.Icon }, corner } };
+        b.Tag = info.Kind;
+    }
+
     private void Refresh()
     {
         var s = _app.Session;
-        foreach (var (b, k) in _buttons) b.Classes.Set("on", s.Tool == k);
+        foreach (var (b, k) in _buttons)
+        {
+            if (Workspaces.Groups.ContainsKey(k))
+            {
+                if (b.Tag is not ToolKind shown || shown != Shown(k)) ShowGroup(b, k);
+                b.Classes.Set("on", Workspaces.GroupOf(s.Tool) == k);
+                continue;
+            }
+            b.Classes.Set("on", s.Tool == k);
+        }
         _fg.Background = UiKit.Brush(s.Foreground);
         _bg.Background = UiKit.Brush(s.Background);
         _lockBadge.IsVisible = s.PaletteLocked;

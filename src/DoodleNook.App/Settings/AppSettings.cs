@@ -20,6 +20,11 @@ public sealed class AppSettings
     public BrushSettings? Brush { get; set; }
     public BrushSettings? Eraser { get; set; }
     public string? BrushPreset { get; set; }
+
+    // Mission 010: the size each brush was last used at, and the recently used brushes (quick palette).
+    public Dictionary<string, double>? BrushSizes { get; set; }
+    public List<string>? RecentBrushes { get; set; }
+    public RetouchToolOptions? Retouch { get; set; }
     public PressureFeel PressureFeel { get; set; } = PressureFeel.Normal;
     public string? Foreground { get; set; }
     public string? Background { get; set; }
@@ -125,6 +130,7 @@ public sealed class AppSettings
         session.SetTransformInterpolation(TransformInterpolation);
         session.RestoreOnion(OnionRaster, OnionPixel);
         if (Stamp is not null) session.SetStampOptions(Stamp);
+        if (Retouch is not null) session.SetRetouchOptions(Retouch with { RepairFromSource = false });
         if (PatternFill is not null) session.SetPatternOptions(PatternFill);
         if (TextTool is not null) session.SetTextOptions(TextTool);
         if (DesignShape is not null) session.SetDesignShapeOptions(DesignShape);
@@ -135,6 +141,7 @@ public sealed class AppSettings
         var fg = ColorRgb.TryParse(Foreground, out var f) ? f : EditorSession.DefaultForeground;
         var bg = ColorRgb.TryParse(Background, out var b) ? b : EditorSession.DefaultBackground;
         session.RestoreSettings(Brush, Eraser, BrushPreset ?? "pencil", PressureFeel, fg, bg, Parse(RecentColors), Parse(Swatches));
+        session.RestoreBrushMemory(BrushSizes, RecentBrushes);
     }
 
     private static IEnumerable<ColorRgb>? Parse(List<string>? list) =>
@@ -145,6 +152,9 @@ public sealed class AppSettings
         Brush = session.Brush;
         Eraser = session.Eraser;
         BrushPreset = session.BrushPresetId;
+        BrushSizes = session.BrushSizes.ToDictionary(kv => kv.Key, kv => kv.Value);
+        BrushSizes[session.BrushPresetId] = session.Brush.Size;
+        RecentBrushes = session.RecentBrushes.ToList();
         PressureFeel = session.PressureFeel;
         Foreground = session.Foreground.ToHex();
         Background = session.Background.ToHex();
@@ -157,6 +167,7 @@ public sealed class AppSettings
         Pixel = session.Pixel;
         TransformInterpolation = session.TransformInterpolation;
         Stamp = session.StampOptions;
+        Retouch = session.Retouch;
         PatternFill = session.PatternOptions;
         ActivePalette = session.ActivePaletteId;
         OnionRaster = session.OnionRaster;

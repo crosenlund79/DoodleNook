@@ -29,11 +29,11 @@ public static class Workspaces
             [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Lasso, ToolKind.Move, ToolKind.Fill, ToolKind.Hand], ToolKind.Brush,
             "A slim toolbar for spontaneous doodling."),
         new(WorkspaceKind.Painting, "C", "Painting", "wsC",
-            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Stamp, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
+            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Smudge, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Stamp, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
             "Brushes, colour and layers for finished artwork."),
         new(WorkspaceKind.Editing, "D", "Editing", "wsD",
             [ToolKind.Move, ToolKind.RectSelect, ToolKind.EllipseSelect, ToolKind.Lasso, ToolKind.MagicWand, ToolKind.Crop, ToolKind.Eyedropper,
-             ToolKind.Brush, ToolKind.Eraser, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Hand], ToolKind.RectSelect,
+             ToolKind.Brush, ToolKind.Eraser, ToolKind.Smudge, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Hand], ToolKind.RectSelect,
             "Selections, transforms, crop, resize and colour adjustments."),
         new(WorkspaceKind.PixelArt, "E", "Pixel Art", "wsE",
             [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.PixelEllipse,
@@ -50,9 +50,15 @@ public static class Workspaces
 
     /// <summary>The tools shown in a workspace (Animation Studio swaps in pixel tools for pixel-art animation; the
     /// stamp tool can be added through Customize workspace where it isn't there by default).</summary>
-    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation, bool optionalStamp = false, bool optionalText = false)
+    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation, bool optionalStamp = false, bool optionalText = false, bool optionalRetouch = false)
     {
         var tools = ws.Kind == WorkspaceKind.Animation && pixelAnimation ? PixelAnimationTools : ws.Tools;
+        // Mission 010: the retouch group (Smudge, Clone, Repair) after the eraser, where it isn't there by default.
+        if (optionalRetouch && !tools.Contains(ToolKind.Smudge) && !(ws.Kind == WorkspaceKind.Animation && pixelAnimation) && ws.Kind != WorkspaceKind.PixelArt)
+        {
+            int at = Array.IndexOf(tools, ToolKind.Eraser) + 1;
+            tools = [.. tools[..at], ToolKind.Smudge, .. tools[at..]];
+        }
         // Optional tools go before the Hand (always last).
         if (optionalText && !tools.Contains(ToolKind.Text))
             tools = [.. tools.Where(t => t != ToolKind.Hand), ToolKind.Text, .. tools.Where(t => t == ToolKind.Hand)];
@@ -62,6 +68,21 @@ public static class Workspaces
     }
 
     public static WorkspaceInfo Get(WorkspaceKind kind) => All[(int)kind];
+
+    /// <summary>Tool groups: one button in the tool strip shows the group's last-used tool; right-click (or the pen's
+    /// button) lists the others. The key is the tool named in the workspace lists.</summary>
+    public static readonly IReadOnlyDictionary<ToolKind, ToolKind[]> Groups = new Dictionary<ToolKind, ToolKind[]>
+    {
+        [ToolKind.Smudge] = [ToolKind.Smudge, ToolKind.Clone, ToolKind.Repair],
+    };
+
+    /// <summary>The group a tool belongs to (its key), or the tool itself.</summary>
+    public static ToolKind GroupOf(ToolKind t)
+    {
+        foreach (var (key, members) in Groups)
+            if (members.Contains(t)) return key;
+        return t;
+    }
 
     public static readonly IReadOnlyDictionary<ToolKind, ToolInfo> Tools = new Dictionary<ToolKind, ToolInfo>
     {
@@ -85,6 +106,9 @@ public static class Workspaces
         [ToolKind.PixelEllipse] = new(ToolKind.PixelEllipse, "Ellipse", "ellipse", "Shift+U", "Drag a pixel ellipse"),
         [ToolKind.Stamp] = new(ToolKind.Stamp, "Stamp", "stamp", "S", "Click to place the current stamp · [ and ] size · pick stamps in the options bar"),
         [ToolKind.Text] = new(ToolKind.Text, "Text", "text", "T", "Click to add text · click text to edit it · drag its handles to size and turn it"),
+        [ToolKind.Smudge] = new(ToolKind.Smudge, "Smudge", "smudge", "Shift+B", "Drag to push and blend the paint · right-click for Clone and Repair"),
+        [ToolKind.Clone] = new(ToolKind.Clone, "Clone", "clone", "Shift+S", "Alt+click where to copy from, then paint where it should go"),
+        [ToolKind.Repair] = new(ToolKind.Repair, "Repair", "repair", "J", "Paint over a speck or mark: it is filled from around it (or from a source: Alt+click)"),
     };
 
     /// <summary>The tool a key selects in a workspace (Photoshop-style letters, resolved within the workspace's tools).</summary>
@@ -96,7 +120,12 @@ public static class Workspaces
     {
         string key = shift ? "Shift+" + letter : letter;
         foreach (var t in tools)
+        {
             if (Tools[t].Shortcut == key) return t;
+            if (Groups.TryGetValue(t, out var members))
+                foreach (var m in members)
+                    if (Tools[m].Shortcut == key) return m;
+        }
         // Fall back to tools other workspaces offer for this key (e.g. M in Quick Sketch).
         if (!shift && letter == "M" && tools.Contains(ToolKind.RectSelect)) return ToolKind.RectSelect;
         return null;
@@ -126,6 +155,7 @@ public static class CustomOptions
     public const string FavouriteBrushes = "favourite-brushes";
     public const string ReferenceBoard = "reference-board";
     public const string TextTool = "text-tool";
+    public const string RetouchTools = "retouch-tools";
 
     private static readonly WorkspaceKind[] None = [];
 
@@ -154,6 +184,8 @@ public static class CustomOptions
             [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Animation], None),
         new(TextTool, "Text tool", "Editable text (Painting and Editing always have it)",
             [WorkspaceKind.QuickSketch, WorkspaceKind.PixelArt, WorkspaceKind.Animation], None),
+        new(RetouchTools, "Smudge, Clone and Repair", "The retouching tools as one button in the tool strip (Painting and Editing always have them)",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.Animation], None),
         new(ReferenceBoard, "Reference board", "Your reference pictures in a floating panel (also Window › Reference board)",
             [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt, WorkspaceKind.Animation], None),
     ];

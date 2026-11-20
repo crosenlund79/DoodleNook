@@ -344,6 +344,25 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         if (o.Stamp is { } stamp && _session.Tool == ToolKind.Stamp && Input.Gesture == Gesture.None)
             DrawStampPreview(context, stamp.Image, stamp.Placement);
 
+        // Clone / Repair: where the copy comes from (a discreet ring and cross; it moves with the brush once painting).
+        if (_session.ToolUsesSource && _session.CloneSource is { } src)
+        {
+            var (sx, sy) = src;
+            if (_session.CloneOffset is { } off && Input.Hover is { } h)
+            {
+                var (hx, hy) = View.ViewToDocument(h.X, h.Y);
+                (sx, sy) = (hx + off.Dx, hy + off.Dy);
+            }
+            var c = V(sx, sy);
+            double radius = Math.Max(4, _session.CurrentSize / 2 * View.Scale);
+            context.DrawEllipse(null, dark, c, radius, radius);
+            context.DrawEllipse(null, new Pen(Brushes.White, 1.2, new DashStyle([3, 3], 0)), c, radius, radius);
+            context.DrawLine(dark, c + new Vector(-6, 0), c + new Vector(6, 0));
+            context.DrawLine(dark, c + new Vector(0, -6), c + new Vector(0, 6));
+            context.DrawLine(white, c + new Vector(-6, 0), c + new Vector(6, 0));
+            context.DrawLine(white, c + new Vector(0, -6), c + new Vector(0, 6));
+        }
+
         if (o.Crop is { } crop)
         {
             var g = Quad(crop.X, crop.Y, crop.Right, crop.Bottom);

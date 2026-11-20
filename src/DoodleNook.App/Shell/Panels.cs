@@ -287,12 +287,17 @@ public sealed class BrushPanel : StackPanel
     private readonly List<Action> _refresh = new();
     private readonly Control _grainRow, _flowRow;
     private string? _tilesFor;
+    private readonly bool _picker;
+    private readonly Action? _picked;
 
     /// <param name="compact">Docked version: the presets, with the settings behind a toggle.</param>
-    public BrushPanel(EditorSession session, Action? close = null, bool compact = false, MainWindow? app = null)
+    /// <param name="picker">Only the brushes (recent first), for the quick palette; <paramref name="picked"/> runs after a choice.</param>
+    public BrushPanel(EditorSession session, Action? close = null, bool compact = false, MainWindow? app = null, bool picker = false, Action? picked = null)
     {
         _session = session;
         _app = app;
+        _picker = picker;
+        _picked = picked;
         Width = 252;
         Spacing = 6;
         _tileScroll = new ScrollViewer { Content = _tiles, MaxHeight = compact ? 260 : 300, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
@@ -310,7 +315,7 @@ public sealed class BrushPanel : StackPanel
             _tilesFor = null;
             Refresh();
         };
-        if (app is not null)
+        if (app is not null && !picker)
         {
             var lab = UiKit.Button("lab", "Brush Laboratory…", "Create your own brushes: tip, texture, pressure, scatter, with a test canvas", () =>
             {
@@ -336,7 +341,7 @@ public sealed class BrushPanel : StackPanel
             settings.IsVisible = false;
             Children.Add(more);
         }
-        Children.Add(settings);
+        if (!picker) Children.Add(settings);
 
         Control SliderRow(string label, double min, double max, Func<BrushSettings, double> get, Action<double> set, Func<double, string> fmt)
         {
@@ -399,13 +404,19 @@ public sealed class BrushPanel : StackPanel
         _tileScroll.IsVisible = !eraser;
         var lib = _session.Library;
         string query = _search.Text?.Trim() ?? "";
-        string key = $"{_session.BrushPresetId}|{query}|{string.Join(",", lib.Brushes.Select(b => b.Id + (lib.IsFavoriteBrush(b.Id) ? "*" : "") + b.Name))}";
+        string key = $"{_session.BrushPresetId}|{query}|{string.Join(",", lib.Brushes.Select(b => b.Id + (lib.IsFavoriteBrush(b.Id) ? "*" : "") + b.Name))}" +
+                     (_picker ? "|" + string.Join(",", _session.RecentBrushes) : "");
         if (eraser || _tilesFor == key) return;
         _tilesFor = key;
         _tiles.Children.Clear();
         var brushes = lib.Brushes.Where(b => query.Length == 0 || b.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                                                              || b.Category.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
         var sections = new List<(string Title, List<BrushPreset> Items)>();
+        if (_picker && query.Length == 0)
+        {
+            var recent = _session.RecentBrushes.Select(lib.FindBrush).OfType<BrushPreset>().Take(6).ToList();
+            if (recent.Count > 1) sections.Add(("Recent", recent));
+        }
         var favourites = brushes.Where(b => lib.IsFavoriteBrush(b.Id)).ToList();
         if (favourites.Count > 0) sections.Add(("★ Favourites", favourites));
         foreach (var cat in BrushCategories.Order)
@@ -453,7 +464,11 @@ public sealed class BrushPanel : StackPanel
             },
         };
         var id = p.Id;
-        tile.Click += (_, _) => _session.ApplyPreset(id);
+        tile.Click += (_, _) =>
+        {
+            _session.ApplyPreset(id);
+            _picked?.Invoke();
+        };
         ToolTip.SetTip(tile, $"{p.Name}: {p.Description}{(p.BuiltIn ? "" : " (your brush)")}\nRight-click: favourite, edit, duplicate…");
         var menu = UiKit.PopFlyout(new Panel(), PlacementMode.Pointer);
         menu.Opening += (_, _) => menu.Content = Menus.Build(TileMenu(id), menu.Hide, 230);

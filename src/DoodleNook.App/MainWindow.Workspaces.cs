@@ -38,7 +38,7 @@ public partial class MainWindow
 
     /// <summary>The tools of the current workspace (and drawing style).</summary>
     public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation, WsState.IsShown(CustomOptions.StampTool, Workspace.Kind),
-        WsState.IsShown(CustomOptions.TextTool, Workspace.Kind));
+        WsState.IsShown(CustomOptions.TextTool, Workspace.Kind), WsState.IsShown(CustomOptions.RetouchTools, Workspace.Kind));
 
     internal Animation.TimelinePanel? Timeline => _timeline;
 
@@ -91,7 +91,7 @@ public partial class MainWindow
         Canvas.IntegerZoom = pixel;
         Canvas.Input!.PixelRightPaintsBackground = ws.Kind == WorkspaceKind.PixelArt && st.RightClickPaintsBackground;
         var tools = CurrentTools;
-        var tool = st.Tool is { } t && tools.Contains(t) ? t : tools.Contains(ws.DefaultTool) ? ws.DefaultTool : tools[0];
+        var tool = st.Tool is { } t && tools.Contains(Workspaces.GroupOf(t)) ? t : tools.Contains(ws.DefaultTool) ? ws.DefaultTool : tools[0];
         Session.SelectTool(tool);
         Animator.Active = animation;
 

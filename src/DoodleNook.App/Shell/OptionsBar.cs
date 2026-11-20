@@ -34,7 +34,8 @@ public sealed partial class OptionsBuilder
         bool crop = _app.Canvas.Input?.PendingCrop is not null;
         bool transform = s.ActiveTransform is not null;
         return $"{tool}|{sel}|{crop}|{transform}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}" +
-               $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}|{DesignKey(tool)}";
+               $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}|{DesignKey(tool)}" +
+               (EditorSession.IsRetouchTool(tool) ? $"|{s.CloneSource is not null}|{s.Retouch.RepairFromSource}" : "");
     }
 
     public void Refresh()
@@ -107,6 +108,11 @@ public sealed partial class OptionsBuilder
                 break;
             case ToolKind.Eyedropper:
                 items.Add(Hint("Click to pick · right-click picks the background colour · Alt+click with any tool"));
+                break;
+            case ToolKind.Smudge:
+            case ToolKind.Clone:
+            case ToolKind.Repair:
+                items.AddRange(RetouchItems(tool, compact));
                 break;
             case ToolKind.Hand:
                 items.Add(Hint("Drag to pan · hold R and drag to rotate the view · wheel zooms"));
@@ -359,6 +365,61 @@ public sealed partial class OptionsBuilder
             });
             yield return Action(null, "Select all", "Select everything (Ctrl+A)", s.SelectAll);
         }
+    }
+
+    /// <summary>Smudge, Clone and Repair (Mission 010): a few plain controls; the source is chosen on the canvas (Alt+click).</summary>
+    private IEnumerable<Control> RetouchItems(ToolKind tool, bool compact)
+    {
+        var s = S;
+        var r = () => s.Retouch;
+        yield return Slider("Size", 1, 500, () => s.CurrentSize, s.SetSize, v => $"{v:0} px", log: true, tip: "Size ([ and ]) · right-drag on the canvas");
+        switch (tool)
+        {
+            case ToolKind.Smudge:
+                yield return Slider("Strength", 0.05, 1, () => r().SmudgeStrength, v => s.SetRetouchOptions(r() with { SmudgeStrength = v }), v => $"{v * 100:0}%",
+                    tip: "How far the paint is carried: low blends gently, high drags colour a long way · pen pressure lightens it");
+                yield return Slider("Softness", 0, 1, () => r().SmudgeSoftness, v => s.SetRetouchOptions(r() with { SmudgeSoftness = v }), v => $"{v * 100:0}%",
+                    tip: "Soft edges blend into their surroundings; 0 % is a hard edge");
+                yield return Toggle("brush", "Finger painting", "Each smear starts with the foreground colour, mixed into the paint it meets",
+                    () => r().FingerPaint, v => s.SetRetouchOptions(r() with { FingerPaint = v }));
+                if (!compact) yield return Hint("Drag to push and blend the paint");
+                break;
+            case ToolKind.Clone:
+                yield return Slider("Opacity", 0.05, 1, () => r().CloneOpacity, v => s.SetRetouchOptions(r() with { CloneOpacity = v }), v => $"{v * 100:0}%",
+                    tip: "How much of the copy covers what is there · pen pressure lightens it");
+                yield return Slider("Softness", 0, 1, () => r().CloneSoftness, v => s.SetRetouchOptions(r() with { CloneSoftness = v }), v => $"{v * 100:0}%",
+                    tip: "Soft edges blend the copy in; 0 % is a hard edge");
+                yield return Toggle(null, "All layers", "Copy what you see (every visible layer) onto this layer · off: copy from this layer only",
+                    () => r().SampleAll, v => s.SetRetouchOptions(r() with { SampleAll = v }));
+                foreach (var c in SourceItems("Alt+click where to copy from, then paint")) yield return c;
+                break;
+            default:
+                yield return Slider("Softness", 0, 1, () => r().RepairSoftness, v => s.SetRetouchOptions(r() with { RepairSoftness = v }), v => $"{v * 100:0}%",
+                    tip: "Soft edges blend the repair in; 0 % is a hard edge");
+                yield return Seg([(false, null, "Surroundings", "Fill the spot from the colours around it: for specks, marks and small gaps"),
+                                  (true, "clone", "Source", "Bring in the texture of another area (Alt+click), matched to the colours around the spot")],
+                    () => r().RepairFromSource, v => s.SetRetouchOptions(r() with { RepairFromSource = v }));
+                if (r().RepairFromSource)
+                {
+                    yield return Toggle(null, "All layers", "Take the texture from what you see (every visible layer)",
+                        () => r().SampleAll, v => s.SetRetouchOptions(r() with { SampleAll = v }));
+                    foreach (var c in SourceItems("Alt+click where to take the texture from")) yield return c;
+                }
+                else if (!compact) yield return Hint("Paint over a speck or mark");
+                break;
+        }
+    }
+
+    private IEnumerable<Control> SourceItems(string none)
+    {
+        var s = S;
+        if (s.CloneSource is null)
+        {
+            yield return Hint(none);
+            yield break;
+        }
+        yield return Hint("Source chosen · Alt+click to change");
+        yield return Action("close", "Clear source", "Forget the source (Alt+click to choose a new one)", s.ClearCloneSource);
     }
 
     /// <summary>The playground's "next-step bar": what you usually do with a selection.</summary>

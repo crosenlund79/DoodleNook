@@ -177,10 +177,11 @@ public sealed partial class CanvasInputController
         Gesture.None when SpaceHeld || _session.Tool == ToolKind.Hand => CursorShape.Hand,
         Gesture.None when RotateHeld => CursorShape.Rotate,
         Gesture.None when _session.ActiveTransform is not null => CursorShape.Move,
+        Gesture.None when AltHeld && _session.Tool is ToolKind.Clone or ToolKind.Repair => CursorShape.Crosshair, // Alt+click picks the source
         Gesture.None when AltHeld && !IsSelectionTool(_session.Tool) => CursorShape.Eyedropper,
         _ => _session.Tool switch
         {
-            ToolKind.Brush or ToolKind.Eraser or ToolKind.PixelPencil or ToolKind.PixelEraser => CursorShape.BrushOutline,
+            ToolKind.Brush or ToolKind.Eraser or ToolKind.PixelPencil or ToolKind.PixelEraser or ToolKind.Smudge or ToolKind.Clone or ToolKind.Repair => CursorShape.BrushOutline,
             ToolKind.Eyedropper => CursorShape.Eyedropper,
             ToolKind.Move => CursorShape.Move,
             ToolKind.Text => CursorShape.Text,
@@ -295,6 +296,12 @@ public sealed partial class CanvasInputController
         }
         if (!p.Primary) return Gesture.None;
         bool alt = p.Alt || AltHeld;
+        if (alt && tool is ToolKind.Clone or ToolKind.Repair && _session.ActiveTransform is null)
+        {
+            var (sx, sy) = Doc(p);
+            _session.SetCloneSource(sx, sy); // Alt+click: copy from here
+            return Gesture.None;
+        }
         if (alt && !IsSelectionTool(tool) && _session.ActiveTransform is null) return Gesture.Pick;
         if (_session.ActiveTransform is not null && tool != ToolKind.Hand) return Gesture.Transform;
         if (ClassifyDesign(p, tool) is { } design) return design;
@@ -303,6 +310,9 @@ public sealed partial class CanvasInputController
         {
             case ToolKind.Brush:
             case ToolKind.Eraser:
+            case ToolKind.Smudge:
+            case ToolKind.Clone:
+            case ToolKind.Repair:
                 return Gesture.Paint;
             case ToolKind.PixelPencil:
             case ToolKind.PixelEraser:
