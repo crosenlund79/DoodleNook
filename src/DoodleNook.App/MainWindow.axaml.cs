@@ -236,10 +236,17 @@ public partial class MainWindow : Window
 
     private void UpdateOverlayPositions()
     {
-        double left = 14;
+        double left = 14, top = 14;
         if (Workspace.Kind == WorkspaceKind.PureSketch) left = 14 + 54;
         else if (UiHidden) left = 14 + 200;
-        _toast.Margin = new Thickness(left, 14, 0, 0);
+        if (RulersShown)
+        {
+            // Keep clear of the rulers.
+            left += RulerBar.Size;
+            top += RulerBar.Size;
+        }
+        _toast.Margin = new Thickness(left, top, 0, 0);
+        _viewChip.Margin = new Thickness(RulersShown ? 12 + RulerBar.Size : 12, 12, 12, 12);
         _diagnosticsPanel.Margin = new Thickness(14, 64, 0, 0);
     }
 

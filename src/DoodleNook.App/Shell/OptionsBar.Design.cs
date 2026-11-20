@@ -167,8 +167,8 @@ public sealed partial class OptionsBuilder
         yield return ObjectSlider<ShapeContent>(kind == ShapeType.Line ? "Width" : "Outline", 0.5, 200, c => c.StrokeWidth, (c, v) => c with { StrokeWidth = Math.Round(v, 1) },
             v => $"{v:0.#} px", "Outline width", () => s.DesignShape.OutlineWidth, v => s.SetDesignShapeOptions(s.DesignShape with { OutlineWidth = Math.Round(v, 1) }), log: true);
         if (kind == ShapeType.RoundedRectangle)
-            yield return ObjectSlider<ShapeContent>("Corners", 0, 400, c => c.CornerRadius, (c, v) => c with { CornerRadius = Math.Round(v) }, v => $"{v:0} px", "Corner radius",
-                () => s.DesignShape.CornerRadius, v => s.SetDesignShapeOptions(s.DesignShape with { CornerRadius = Math.Round(v) }), log: true);
+            yield return ObjectSlider<ShapeContent>("Corners", 0, 200, c => c.CornerRadius, (c, v) => c with { CornerRadius = Math.Round(v) }, v => $"{v:0} px", "Corner radius",
+                () => s.DesignShape.CornerRadius, v => s.SetDesignShapeOptions(s.DesignShape with { CornerRadius = Math.Round(v) }));
         if (kind == ShapeType.Polygon)
             yield return ObjectSlider<ShapeContent>("Sides", 3, 16, c => c.Sides, (c, v) => c with { Sides = (int)Math.Round(v) }, v => $"{v:0}", "Polygon sides",
                 () => s.DesignShape.Sides, v => s.SetDesignShapeOptions(s.DesignShape with { Sides = (int)Math.Round(v) }));

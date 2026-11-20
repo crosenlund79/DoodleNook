@@ -39,6 +39,7 @@ public partial class MainWindow
         CanvasHost.Children.Add(_rulerCorner);
         _textEditor = new TextEditorOverlay(this);
         CanvasHost.Children.Add(_textEditor);
+        InitMaskChip();
 
         Canvas.Input!.TextEditRequested += (layer, isNew) => _textEditor.Open(layer, isNew);
         Session.DocumentReplaced += () =>
@@ -61,6 +62,53 @@ public partial class MainWindow
         if (_rulerTop is null) return;
         bool show = RulersShown;
         _rulerTop.IsVisible = _rulerLeft.IsVisible = _rulerCorner.IsVisible = show;
+        UpdateOverlayPositions();
+    }
+
+    // ================================================================== the mask chip
+
+    private Border _maskChip = null!;
+    private TextBlock _maskChipText = null!;
+
+    /// <summary>While painting goes to a mask, a small chip at the top of the canvas says so (and switches back).</summary>
+    private void InitMaskChip()
+    {
+        _maskChipText = new TextBlock { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, FontSize = 12.5 };
+        var back = UiKit.Button(null, "Paint on the layer", "Paint on the layer's pixels again", () => Session.SetEditingMask(false));
+        back.Height = 26;
+        back.FontSize = 12;
+        _maskChip = new Border
+        {
+            Classes = { "float" },
+            Name = "MaskChip",
+            IsVisible = false,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Margin = new Avalonia.Thickness(0, 12, 0, 0),
+            Padding = new Avalonia.Thickness(10, 3, 4, 3),
+            CornerRadius = new Avalonia.CornerRadius(999),
+            Child = UiKit.Row(8, new Controls.DnIcon { Kind = "mask", Foreground = new Avalonia.Media.SolidColorBrush(Controls.DnColors.Accent) }, _maskChipText, back),
+        };
+        CanvasHost.Children.Add(_maskChip);
+        void Update()
+        {
+            var doc = Session.Document;
+            bool on = doc.EditingMask;
+            _maskChip.IsVisible = on;
+            if (on) _maskChipText.Text = $"Painting on the mask of “{doc.ActiveLayer.Name}” · black hides, white shows";
+            _maskChip.Margin = new Avalonia.Thickness(0, RulersShown ? 12 + RulerBar.Size : 12, 0, 0);
+        }
+        Document? watched = null;
+        void Watch()
+        {
+            if (watched is not null) watched.ActiveLayerChanged -= Update;
+            watched = Session.Document;
+            watched.ActiveLayerChanged += Update;
+            Update();
+        }
+        Session.DocumentReplaced += Watch;
+        Session.StateChanged += Update;
+        Watch();
     }
 
     public void SetShowRulers(bool on)
@@ -153,53 +201,58 @@ public partial class MainWindow
         var s = Session;
         var d = s.Document;
         var l = d.ActiveLayer;
-        var list = new List<MenuEntry>
+        var group = new List<MenuEntry>
         {
-            MenuEntry.Separator,
-            MenuEntry.Heading("Groups"),
             new("folder", "New group", null, s.NewGroup),
             new("folder", l.IsGroup ? "Group this group" : "Group layer", "Ctrl+G", s.GroupActiveLayer),
             new(null, "Ungroup", "Ctrl+Shift+G", s.Ungroup, l.IsGroup || l.ParentId != 0),
             new(null, "Move out of group", null, s.MoveOutOfGroup, l.ParentId != 0),
-            MenuEntry.Separator,
-            MenuEntry.Heading("Mask"),
         };
-        if (!l.HasMask)
+        var mask = l.HasMask
+            ? new List<MenuEntry>
+            {
+                new("mask", d.EditingMask ? "Paint on the layer" : "Paint on the mask", null, () => s.SetEditingMask(!d.EditingMask)),
+                new(null, "Use mask", null, s.ToggleMaskEnabled, Checked: l.MaskEnabled),
+                new("invert", "Invert mask", null, s.InvertMask),
+                new("check", "Apply mask", null, s.ApplyMask, l.IsPaintable),
+                new("trash", "Delete mask", null, s.DeleteMask),
+            }
+            : new List<MenuEntry>
+            {
+                new("mask", "Add mask", null, () => s.AddMask()),
+                new("mask", "Mask from selection", null, () => s.AddMask(fromSelection: true), d.Selection is not null),
+            };
+        var adjust = new List<MenuEntry>
         {
-            list.Add(new("mask", "Add mask", null, () => s.AddMask(), !l.IsGroup || true));
-            list.Add(new("mask", "Mask from selection", null, () => s.AddMask(fromSelection: true), d.Selection is not null));
-        }
-        else
+            new("adjust", "Brightness / Contrast…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.BrightnessContrast)),
+            new("adjust", "Hue / Saturation…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.HueSaturation)),
+            new("adjust", "Levels…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.Levels)),
+            new("adjust", "Colour balance…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.ColourBalance)),
+        };
+        var list = new List<MenuEntry>
         {
-            list.Add(new("mask", d.EditingMask ? "Paint on the layer" : "Paint on the mask", null, () => s.SetEditingMask(!d.EditingMask)));
-            list.Add(new(null, "Use mask", null, s.ToggleMaskEnabled, Checked: l.MaskEnabled));
-            list.Add(new("invert", "Invert mask", null, s.InvertMask));
-            list.Add(new("check", "Apply mask", null, s.ApplyMask, l.IsPaintable));
-            list.Add(new("trash", "Delete mask", null, s.DeleteMask));
-        }
-        list.Add(MenuEntry.Separator);
-        list.Add(MenuEntry.Heading("Adjustment layers"));
-        list.Add(new("adjust", "Brightness / Contrast layer…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.BrightnessContrast)));
-        list.Add(new("adjust", "Hue / Saturation layer…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.HueSaturation)));
-        list.Add(new("adjust", "Levels layer…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.Levels)));
-        list.Add(new("adjust", "Colour balance layer…", null, () => _ = NewAdjustmentLayerAsync(AdjustKind.ColourBalance)));
+            MenuEntry.Separator,
+            MenuEntry.Sub("folder", "Group", group),
+            MenuEntry.Sub("mask", l.HasMask ? "Mask" : "Mask (add…)", mask),
+            MenuEntry.Sub("adjust", "New adjustment layer", adjust),
+        };
         if (l.Kind == LayerKind.Adjustment) list.Add(new("props", "Edit adjustment…", null, () => _ = EditAdjustmentLayerAsync(l)));
         if (l.IsObject)
         {
-            list.Add(MenuEntry.Separator);
-            list.Add(MenuEntry.Heading(l.Kind == LayerKind.Text ? "Text" : "Shape"));
-            if (l.Kind == LayerKind.Text) list.Add(new("text", "Edit text", "double-click", EditActiveText));
-            list.Add(new("alignc", "Centre on the canvas", null, () =>
+            var obj = new List<MenuEntry>();
+            if (l.Kind == LayerKind.Text) obj.Add(new("text", "Edit text", null, EditActiveText));
+            obj.Add(new("alignc", "Centre on the canvas", null, () =>
             {
                 s.Align(AlignEdge.CenterX, false);
                 s.Align(AlignEdge.CenterY, false);
             }));
-            list.Add(new("alignc", "Centre on the layer below", null, () =>
+            obj.Add(new("alignc", "Centre on the layer below", null, () =>
             {
                 s.Align(AlignEdge.CenterX, true);
                 s.Align(AlignEdge.CenterY, true);
             }, d.LayerBelow(l) is not null));
-            list.Add(new("image", "Convert to pixels", null, s.ConvertToPixels));
+            obj.Add(new("image", "Convert to pixels", null, s.ConvertToPixels));
+            list.Add(MenuEntry.Sub(l.Kind == LayerKind.Text ? "text" : "shape", l.Kind == LayerKind.Text ? "Text" : "Shape", obj));
         }
         return list;
     }
@@ -211,9 +264,11 @@ public partial class MainWindow
         return
         [
             new("ruler", "Rulers", "Ctrl+R", () => SetShowRulers(!WsState.ShowRulers), Checked: WsState.ShowRulers),
-            new("guides", "Show guides", "Ctrl+;", () => s.SetShowGuides(!s.ShowGuides), Checked: s.ShowGuides),
-            new("lock", "Lock guides", null, s.ToggleGuidesLocked, d.Guides.Count > 0 || d.GuidesLocked, d.GuidesLocked),
-            new("trash", "Clear guides", null, s.ClearGuides, d.Guides.Count > 0 && !d.GuidesLocked),
+            MenuEntry.Sub("guides", "Guides", [
+                new("guides", "Show guides", "Ctrl+;", () => s.SetShowGuides(!s.ShowGuides), Checked: s.ShowGuides),
+                new("lock", "Lock guides", null, s.ToggleGuidesLocked, d.Guides.Count > 0 || d.GuidesLocked, d.GuidesLocked),
+                new("trash", "Clear guides", null, s.ClearGuides, d.Guides.Count > 0 && !d.GuidesLocked),
+            ]),
             new("magnet", "Snap", "Ctrl+Shift+;", () => s.SetAssistOptions(s.Assist with { Snap = !s.Assist.Snap }), Checked: s.Assist.Snap),
             new("assist", "Drawing assistants…", null, () => ShowAssistants()),
             MenuEntry.Separator,

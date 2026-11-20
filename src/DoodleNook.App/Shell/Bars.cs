@@ -19,7 +19,14 @@ public sealed record MenuEntry(string? Icon, string Label, string? Shortcut = nu
 
     public static MenuEntry Heading(string text) => new(null, text, Enabled: false) { IsHeading = true };
 
+    /// <summary>An entry that opens a small menu of its own beside it (keeps long menus short).</summary>
+    public static MenuEntry Sub(string? icon, string label, IReadOnlyList<MenuEntry> children, bool enabled = true) =>
+        new(icon, label, null, static () => { }, enabled) { Children = children };
+
     public bool IsHeading { get; init; }
+
+    /// <summary>The entries of a sub-menu (null: an ordinary entry).</summary>
+    public IReadOnlyList<MenuEntry>? Children { get; init; }
 }
 
 public static class Menus
@@ -43,10 +50,23 @@ public static class Menus
             var b = new Button
             {
                 Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Content = UiKit.Content(e.Checked ? "check" : e.Icon ?? "blank", e.Label, e.Shortcut),
+                Content = UiKit.Content(e.Checked ? "check" : e.Icon ?? "blank", e.Label, e.Children is null ? e.Shortcut : "▸"),
                 IsEnabled = e.Enabled && e.Run is not null,
             };
             b.Classes.Add("menu");
+            if (e.Children is { } children)
+            {
+                // A sub-menu opens beside the entry; choosing in it closes both.
+                var sub = UiKit.PopFlyout(new Panel(), PlacementMode.RightEdgeAlignedTop);
+                sub.Opening += (_, _) => sub.Content = Build(children, () =>
+                {
+                    sub.Hide();
+                    close();
+                }, width);
+                b.Flyout = sub;
+                stack.Children.Add(b);
+                continue;
+            }
             if (e.Checked) b.Classes.Add("on");
             var run = e.Run;
             b.Click += (_, _) =>
