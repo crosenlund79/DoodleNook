@@ -35,6 +35,9 @@ public sealed partial class Document
 
     public int FrameCount => _animation?.FrameCount ?? 1;
 
+    /// <summary>Memory the frame cache uses now (diagnostics and measurements).</summary>
+    public long FrameCacheBytes => _frameCacheBytes;
+
     /// <summary>Memory the frame cache may use for fast frame switching and playback.</summary>
     public long FrameCacheBudget { get; set; } = 512L * 1024 * 1024;
 

@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move" ]
   workflow_dispatch:
 
 permissions:
@@ -44,24 +44,28 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false
           -p:PublishReadyToRun=true -p:DebugType=none -o publish/DoodleNook
 
-      - name: Add read-me and licences
+      - name: Add read-me, licences and sample animations
         shell: pwsh
         run: |
           Copy-Item packaging/README-FIRST.txt publish/DoodleNook/
           Copy-Item THIRD-PARTY-NOTICES.txt publish/DoodleNook/
+          # The engine tests draw the two sample animations and save them as ordinary .dnk files.
+          New-Item -ItemType Directory -Force publish/DoodleNook/Samples | Out-Null
+          Copy-Item "tests/DoodleNook.Engine.Tests/out/samples/*.dnk" publish/DoodleNook/Samples/
 
       - name: Verify the package contents
         shell: pwsh
         run: |
           $dir = "publish/DoodleNook"
-          $required = "DoodleNook.exe", "libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "README-FIRST.txt", "THIRD-PARTY-NOTICES.txt"
+          $required = "DoodleNook.exe", "libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "README-FIRST.txt", "THIRD-PARTY-NOTICES.txt",
+                      "Samples/Bouncing ball.dnk", "Samples/Pixel slime.dnk"
           foreach ($f in $required) {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "Missing from package: $f" }
           }
           if (Get-ChildItem $dir -Filter *.pdb) { throw "Debug symbols should not be shipped" }
           $exe = Get-Item (Join-Path $dir "DoodleNook.exe")
           if ($exe.Length -lt 20MB) { throw "DoodleNook.exe is unexpectedly small ($($exe.Length) bytes) - not self-contained?" }
-          Get-ChildItem $dir | Format-Table Name, @{n="MB";e={[math]::Round($_.Length/1MB,1)}} -AutoSize
+          Get-ChildItem $dir -Recurse -File | Format-Table FullName, @{n="MB";e={[math]::Round($_.Length/1MB,2)}} -AutoSize
 
       - name: Create portable ZIP
         shell: pwsh
@@ -76,7 +80,7 @@ jobs:
           if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish its smoke test within 3 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all five workspaces, saved and reopened a .dnk and exported PNG/JPEG/WebP."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation and exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and a GIF."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7

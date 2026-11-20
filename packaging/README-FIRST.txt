@@ -1,5 +1,5 @@
-DoodleNook — Mission 004 "The Missing Ink"
-==========================================
+DoodleNook — Mission 006 "Make It Move"
+=======================================
 
 Start
 -----
@@ -23,11 +23,22 @@ A few shortcuts
 B brush · E eraser · I or hold Alt eyedropper · hold Space to pan · [ and ] brush size
 Ctrl+Z undo · Ctrl+Shift+Z or Ctrl+Y redo · mouse wheel zoom · Ctrl+0 fit · Ctrl+1 100 %
 Ctrl+N new · Ctrl+O open · Ctrl+S save · Tab hide interface · F11 full screen
+Alt+1 … Alt+6 workspaces · F1 all shortcuts
+
+Animation Studio (Alt+6)
+------------------------
+N new frame · Shift+N duplicate frame · Enter play/pause · Esc stop · , and . previous/next frame
+Home/End first/last frame · O onion skin on/off
+Two sample animations are in the Samples folder (also: Help › Sample animations).
+Window › Customize workspace chooses which optional controls each workspace shows.
 
 Files and settings
 ------------------
-Pictures are saved as PNG (with transparency when the canvas has no background).
-Brush settings, colours and the window position are remembered in %APPDATA%\DoodleNook\settings.json.
-To remove DoodleNook, delete this folder (and that settings folder if you like).
+Pictures and animations are saved as DoodleNook files (.dnk); export PNG, JPEG, WebP, sprite sheets,
+PNG sequences and animated GIFs from the File menu.
+Brush settings, colours, workspace layouts and the window position are remembered in
+%APPDATA%\DoodleNook\settings.json. Recovery copies of unsaved work (File › Preferences sets how often)
+are kept in %LOCALAPPDATA%\DoodleNook\Recovery and removed when you save or close normally.
+To remove DoodleNook, delete this folder (and those settings folders if you like).
 
 Nothing is collected or sent anywhere. Third-party licences: THIRD-PARTY-NOTICES.txt

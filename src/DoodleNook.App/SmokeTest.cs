@@ -6,7 +6,9 @@ using Avalonia.Threading;
 using DoodleNook.App.Editor;
 using DoodleNook.App.Files;
 using DoodleNook.App.Input;
+using DoodleNook.App.Settings;
 using DoodleNook.App.Shell;
+using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Imaging;
 
 namespace DoodleNook.App;
@@ -220,11 +222,44 @@ internal static class SmokeTest
         window.ReturnFromPureSketch();
         Check("Tab from Pure Sketch returns to the previous workspace", window.Workspace.Kind == WorkspaceKind.PixelArt);
 
+        // 9. Animation Studio: the sample, playback, onion skin, a new frame, save/reopen and the three exports.
+        session.Document.MarkSaved(); // nothing to ask about: the smoke test's sprite is disposable
+        await window.OpenSampleAsync(SampleAnimation.BouncingBall);
+        var anim = session.Document;
+        Check("Animation Studio opens the bouncing-ball sample", window.Workspace.Kind == WorkspaceKind.Animation && anim.FrameCount == 12);
+        window.Animator.Play();
+        var played = Stopwatch.StartNew();
+        await Task.Delay(600);
+        int playedTo = anim.CurrentFrame;
+        window.Animator.Stop();
+        Check("playback advances with time (about 7 frames in 0.6 s at 12 fps)", playedTo >= 3, $"frame {playedTo + 1} after {played.ElapsedMilliseconds} ms");
+        session.GoToFrame(4);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Check("onion skin shows next to the current frame", anim.OnionVisible);
+        await Shot("smoke-F-animation-studio.png");
+        session.SelectTool(ToolKind.Brush);
+        session.NewFrame(duplicate: true);
+        Drag(100, 60, 200, 60);
+        Check("new frame and drawing on it", anim.FrameCount == 13 && anim.CelAt(anim.ActiveLayer, 5) is { IsEmpty: false });
+        var animPath = Path.Combine(dir, "smoke-animation.dnk");
+        bool animSaved = await window.SaveToPathAsync(animPath);
+        var animBack = DnkFile.Load(animPath);
+        Check("animation saves and reopens (.dnk version 2)", animSaved && animBack.FrameCount == 13 && animBack.RenderFrame(5).Pixels.AsSpan().SequenceEqual(anim.RenderFrame(5).Pixels));
+        foreach (var format in new[] { AnimationExportFormat.SpriteSheet, AnimationExportFormat.PngSequence, AnimationExportFormat.Gif })
+        {
+            var target = Path.Combine(dir, format == AnimationExportFormat.Gif ? "smoke-animation.gif" : $"smoke-{format}.png".ToLowerInvariant());
+            var swExport = Stopwatch.StartNew();
+            var what = await window.ExportAnimationToPathAsync(target, new AnimationExportSettings(format, Background: true));
+            bool exists = format == AnimationExportFormat.PngSequence ? File.Exists(Path.Combine(dir, "smoke-pngsequence_0013.png")) : File.Exists(target);
+            Check($"export animation: {format}", exists, $"{what} in {swExport.ElapsedMilliseconds} ms");
+        }
+
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
         report["uploadedPixels"] = canvas.UploadedPixels;
         await Shot("smoke-window.png");
         Check("screenshots written", File.Exists(Path.Combine(dir, "smoke-window.png")) && File.Exists(Path.Combine(dir, "smoke-C-painting.png")));
+        session.ReplaceDocument(new Engine.Documents.Document(800, 600, ColorRgb.White, "Sketch"), null);
         window.SetWorkspace(WorkspaceKind.QuickSketch);
         return all;
     }

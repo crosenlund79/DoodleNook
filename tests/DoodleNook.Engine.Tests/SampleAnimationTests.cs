@@ -48,4 +48,22 @@ public class SampleAnimationTests
         var again = DnkFile.Read(ms);
         for (int f = 0; f < 8; f++) Assert.Equal(doc.RenderFrame(f).Pixels, again.RenderFrame(f).Pixels);
     }
+
+    /// <summary>Writes the samples as .dnk files (CI ships them in the package's Samples folder).</summary>
+    [Fact]
+    public void Write_sample_files_for_the_package()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DoodleNook.slnx"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        var outDir = Path.Combine(dir.FullName, "tests", "DoodleNook.Engine.Tests", "out", "samples");
+        Directory.CreateDirectory(outDir);
+        foreach (var (name, doc) in new[] { ("Bouncing ball.dnk", SampleAnimations.BouncingBall()), ("Pixel slime.dnk", SampleAnimations.PixelSlime()) })
+        {
+            var path = Path.Combine(outDir, name);
+            DnkFile.Save(doc, path, "sample");
+            var back = DnkFile.Load(path);
+            Assert.Equal(doc.FrameCount, back.FrameCount);
+        }
+    }
 }
