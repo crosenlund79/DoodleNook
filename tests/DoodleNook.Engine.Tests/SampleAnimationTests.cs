@@ -1,6 +1,7 @@
 using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Imaging;
+using DoodleNook.Engine.Library;
 using DoodleNook.Engine.Samples;
 
 namespace DoodleNook.Engine.Tests;
@@ -65,5 +66,33 @@ public class SampleAnimationTests
             var back = DnkFile.Load(path);
             Assert.Equal(doc.FrameCount, back.FrameCount);
         }
+
+        // Mission 007: a starter asset pack, a GIMP palette and a reference board, each read back as a user would.
+        SampleWorkshop.WriteAll(outDir);
+        var library = new CreativeLibrary();
+        var contents = AssetPack.Import(library, Path.Combine(outDir, SampleWorkshop.PackFile));
+        Assert.Equal(new AssetPackContents(3, 2, 1, 1), contents);
+        var needles = library.Brushes.Single(b => b.Name == "Pine needles");
+        Assert.NotNull(library.Resolve(needles.Settings)?.Tip);
+        Assert.NotNull(library.Resolve(library.Brushes.Single(b => b.Name == "Cobbled paint").Settings)?.Texture);
+        Assert.Equal(SampleWorkshop.PixelForest, library.Palettes.Single(p => p.Name == "Pixel forest").Colors);
+        var (paletteName, colours) = PaletteFiles.Read(Path.Combine(outDir, SampleWorkshop.PaletteFile));
+        Assert.Equal("Autumn walk", paletteName);
+        Assert.Equal(SampleWorkshop.AutumnWalk, colours);
+        var board = ReferenceBoard.Load(Path.Combine(outDir, SampleWorkshop.BoardFile));
+        Assert.Equal(5, board.Items.Count);
+        Assert.False(board.Items.Any(a => board.Items.Any(b => a != b && a.X < b.X + b.Width && b.X < a.X + a.Width && a.Y < b.Y + b.Height && b.Y < a.Y + a.Height)),
+            "sample references overlap");
+    }
+
+    [Fact]
+    public void Sample_pixel_assets_are_hard_edged_and_the_stone_tile_repeats()
+    {
+        foreach (var img in new[] { SampleWorkshop.PixelHeart(), SampleWorkshop.PixelStones() })
+            Assert.All(img.Pixels, p => Assert.True(Pixel.A(p) is 0 or 255));
+        var stones = SampleWorkshop.PixelStones();
+        // Seamless: the tile's edges continue across the wrap (no hard seam of a different colour family everywhere).
+        int differentAcrossSeam = Enumerable.Range(0, 16).Count(y => stones[0, y] != stones[15, y]);
+        Assert.True(differentAcrossSeam < 16, "the stone tile has a seam along its whole left/right edge");
     }
 }

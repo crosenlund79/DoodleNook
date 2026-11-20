@@ -1,5 +1,5 @@
-DoodleNook — Mission 006 "Make It Move"
-=======================================
+DoodleNook — Mission 007 "The Artist's Workshop"
+================================================
 
 Start
 -----
@@ -23,7 +23,7 @@ A few shortcuts
 B brush · E eraser · I or hold Alt eyedropper · hold Space to pan · [ and ] brush size
 Ctrl+Z undo · Ctrl+Shift+Z or Ctrl+Y redo · mouse wheel zoom · Ctrl+0 fit · Ctrl+1 100 %
 Ctrl+N new · Ctrl+O open · Ctrl+S save · Tab hide interface · F11 full screen
-Alt+1 … Alt+6 workspaces · F1 all shortcuts
+S stamp · G paint bucket · Alt+1 … Alt+6 workspaces · F1 all shortcuts
 
 Animation Studio (Alt+6)
 ------------------------
@@ -32,6 +32,18 @@ Home/End first/last frame · O onion skin on/off
 Two sample animations are in the Samples folder (also: Help › Sample animations).
 Window › Customize workspace chooses which optional controls each workspace shows.
 
+The Artist's Workshop
+---------------------
+* Brushes: the brush picker now has 17 brushes in Sketch, Ink, Paint and "Texture & stamps", a search box and
+  favourites (right-click a brush). "Brush Laboratory…" at the bottom of the picker (or Window › Brush Laboratory)
+  edits a brush with a scribble area that never touches your picture.
+* Stamps: the stamp tool (S, in Painting and Pixel Art). Edit › Save selection as stamp… makes your own.
+* Patterns: the paint bucket's Pattern button, or Edit › Fill with pattern. Edit › Save selection as pattern…
+* Palettes: Window › Palettes… (GIMP .gpl and .hex files in and out, colours from a picture).
+* Reference board: Window › Reference board. Pictures on it are never part of your artwork or exports.
+* In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
+  "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
+
 Files and settings
 ------------------
 Pictures and animations are saved as DoodleNook files (.dnk); export PNG, JPEG, WebP, sprite sheets,
@@ -39,6 +51,9 @@ PNG sequences and animated GIFs from the File menu.
 Brush settings, colours, workspace layouts and the window position are remembered in
 %APPDATA%\DoodleNook\settings.json. Recovery copies of unsaved work (File › Preferences sets how often)
 are kept in %LOCALAPPDATA%\DoodleNook\Recovery and removed when you save or close normally.
+Your own brushes, stamps, patterns, palettes and the reference board are kept in %APPDATA%\DoodleNook\Library
+(pictures are copied in, so moving or deleting the originals breaks nothing; updates never touch it).
+Window › Creative library… exports everything as one .dnkpack file for a backup or another computer.
 To remove DoodleNook, delete this folder (and those settings folders if you like).
 
 Nothing is collected or sent anywhere. Third-party licences: THIRD-PARTY-NOTICES.txt

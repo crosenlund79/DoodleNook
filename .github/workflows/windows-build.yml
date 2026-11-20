@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop" ]
   workflow_dispatch:
 
 permissions:
@@ -44,21 +44,26 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false
           -p:PublishReadyToRun=true -p:DebugType=none -o publish/DoodleNook
 
-      - name: Add read-me, licences and sample animations
+      - name: Add read-me, licences and samples
         shell: pwsh
         run: |
           Copy-Item packaging/README-FIRST.txt publish/DoodleNook/
           Copy-Item THIRD-PARTY-NOTICES.txt publish/DoodleNook/
-          # The engine tests draw the two sample animations and save them as ordinary .dnk files.
+          # The engine tests draw the samples (two animations, an asset pack, a palette and a reference board) and save
+          # them as ordinary DoodleNook files.
           New-Item -ItemType Directory -Force publish/DoodleNook/Samples | Out-Null
           Copy-Item "tests/DoodleNook.Engine.Tests/out/samples/*.dnk" publish/DoodleNook/Samples/
+          Copy-Item "tests/DoodleNook.Engine.Tests/out/samples/*.dnkpack" publish/DoodleNook/Samples/
+          Copy-Item "tests/DoodleNook.Engine.Tests/out/samples/*.gpl" publish/DoodleNook/Samples/
+          Copy-Item "tests/DoodleNook.Engine.Tests/out/samples/*.dnkboard" publish/DoodleNook/Samples/
 
       - name: Verify the package contents
         shell: pwsh
         run: |
           $dir = "publish/DoodleNook"
           $required = "DoodleNook.exe", "libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "README-FIRST.txt", "THIRD-PARTY-NOTICES.txt",
-                      "Samples/Bouncing ball.dnk", "Samples/Pixel slime.dnk"
+                      "Samples/Bouncing ball.dnk", "Samples/Pixel slime.dnk", "Samples/Woodland starter pack.dnkpack",
+                      "Samples/Autumn walk.gpl", "Samples/Sample references.dnkboard"
           foreach ($f in $required) {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "Missing from package: $f" }
           }
@@ -80,7 +85,7 @@ jobs:
           if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish its smoke test within 3 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation and exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and a GIF."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7
