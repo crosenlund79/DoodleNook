@@ -65,13 +65,32 @@ public static class StampsAndPatterns
     // ================================================================== patterns
 
     /// <summary>The pattern colour at a canvas pixel.</summary>
-    public static uint PatternAt(RasterImage tile, PatternFillOptions o, int x, int y, bool pixelExact)
+    public static uint PatternAt(RasterImage tile, PatternFillOptions o, int x, int y, bool pixelExact) => new PatternSampler(tile, o, pixelExact).At(x, y);
+
+    /// <summary>Samples a pattern at canvas pixels; the rotation is worked out once per fill, not per pixel.</summary>
+    private readonly struct PatternSampler
     {
-        double a = -o.Rotation * Math.PI / 180, cos = Math.Cos(a), sin = Math.Sin(a);
-        double fx = x + 0.5 - o.OffsetX, fy = y + 0.5 - o.OffsetY;
-        double u = (fx * cos - fy * sin) / o.Scale, v = (fx * sin + fy * cos) / o.Scale;
-        bool exact = pixelExact || o.Rotation % 90 == 0 && Math.Abs(o.Scale - Math.Round(o.Scale)) < 1e-9;
-        return exact ? Nearest(tile, u, v, wrap: true) : Bilinear(tile, u, v, wrap: true);
+        private readonly RasterImage _tile;
+        private readonly double _cos, _sin, _ox, _oy;
+        private readonly bool _exact;
+
+        public PatternSampler(RasterImage tile, PatternFillOptions o, bool pixelExact)
+        {
+            _tile = tile;
+            double a = -o.Rotation * Math.PI / 180;
+            _cos = Math.Cos(a) / o.Scale;
+            _sin = Math.Sin(a) / o.Scale;
+            _ox = o.OffsetX;
+            _oy = o.OffsetY;
+            _exact = pixelExact || o.Rotation % 90 == 0 && Math.Abs(o.Scale - Math.Round(o.Scale)) < 1e-9;
+        }
+
+        public uint At(int x, int y)
+        {
+            double fx = x + 0.5 - _ox, fy = y + 0.5 - _oy;
+            double u = fx * _cos - fy * _sin, v = fx * _sin + fy * _cos;
+            return _exact ? Nearest(_tile, u, v, wrap: true) : Bilinear(_tile, u, v, wrap: true);
+        }
     }
 
     /// <summary>Fills the area around (x, y) (like the paint bucket) with a pattern.</summary>
@@ -101,7 +120,8 @@ public static class StampsAndPatterns
         if (doc.Selection is { } sel) box = box.Intersect(sel.Bounds);
         if (box.IsEmpty) return false;
         float opacity = (float)Math.Clamp(o.Opacity, 0, 1);
-        return Paint(doc, layer, box, name, (x, y) => mask[y * w + x] == 0 ? 0u : Scale(PatternAt(tile, o, x, y, pixelExact), opacity));
+        var sampler = new PatternSampler(tile, o, pixelExact);
+        return Paint(doc, layer, box, name, (x, y) => mask[y * w + x] == 0 ? 0u : Scale(sampler.At(x, y), opacity));
     }
 
     // ================================================================== shared

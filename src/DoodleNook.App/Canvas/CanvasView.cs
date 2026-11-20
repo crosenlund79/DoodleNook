@@ -313,10 +313,8 @@ public sealed class CanvasView : Control, ICustomHitTest
         var m = new Matrix((v1.X - v0.X) / img.Width, (v1.Y - v0.Y) / img.Width, (v2.X - v0.X) / img.Height, (v2.Y - v0.Y) / img.Height, v0.X, v0.Y);
         using (context.PushTransform(m))
         using (context.PushOpacity(0.6))
-        {
-            RenderOptions.SetBitmapInterpolationMode(this, _session!.PixelMode ? BitmapInterpolationMode.None : BitmapInterpolationMode.HighQuality);
+        using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = _session!.PixelMode ? BitmapInterpolationMode.None : BitmapInterpolationMode.HighQuality }))
             context.DrawImage(_stampBitmap!, new Rect(0, 0, img.Width, img.Height));
-        }
         var outline = new StreamGeometry();
         using (var g = outline.Open())
         {

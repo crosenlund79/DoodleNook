@@ -24,11 +24,12 @@ public sealed class PaletteManager : Grid
     private readonly StackPanel _list = new() { Spacing = 2 };
     private readonly WrapPanel _swatches = new() { ItemWidth = 32, ItemHeight = 32, MaxWidth = 330 };
     private readonly TextBox _name = new() { Width = 180, Name = "PaletteName" };
-    private readonly TextBox _collection = new() { Width = 140 };
+    private readonly TextBox _collection = new() { Width = 130 };
     private readonly TextBlock _info = new() { Classes = { "dim" }, FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxWidth = 330 };
     private readonly StackPanel _extract = new() { Spacing = 6, IsVisible = false };
     private readonly WrapPanel _extracted = new() { ItemWidth = 26, ItemHeight = 26, MaxWidth = 330 };
     private readonly StackPanel _editButtons;
+    private readonly Action _refreshCount;
     private RasterImage? _extractSource;
     private int _extractCount = 8;
     private List<ColorRgb> _proposal = new();
@@ -67,9 +68,10 @@ public sealed class PaletteManager : Grid
             Small("image", "From picture…", "Make a palette from the open picture or an image file", StartExtract),
             Small("copy", "Duplicate", "A copy you can change", () => Select(Lib.DuplicatePalette(PaletteId).Id)),
             Small("export", "Export…", "Save as GIMP .gpl or .hex", () => _ = ExportAsync()),
-            Small("trash", "Delete", "Delete this palette", Delete)));
+            Small("trash", null, "Delete this palette (click twice)", Delete)));
         _extract.Children.Add(new TextBlock { Text = "Colours from the picture", FontWeight = FontWeight.SemiBold });
-        var (count, _) = UiKit.Slider("How many", 2, 32, () => _extractCount, v => { _extractCount = (int)Math.Round(v); Propose(); }, v => $"{Math.Round(v):0}", trackWidth: 140);
+        var (count, refreshCount) = UiKit.Slider("How many", 2, 32, () => _extractCount, v => { _extractCount = (int)Math.Round(v); Propose(); }, v => $"{Math.Round(v):0}", trackWidth: 140);
+        _refreshCount = refreshCount;
         _extract.Children.Add(count);
         _extract.Children.Add(_extracted);
         _extract.Children.Add(UiKit.Row(4,
@@ -98,8 +100,8 @@ public sealed class PaletteManager : Grid
     {
         var m = new PaletteManager(app, paletteId ?? app.Session.ActivePaletteId);
         app.LastPaletteManager = m;
-        var body = new ScrollViewer { Content = m, MaxHeight = Math.Max(300, app.Bounds.Height - 150), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var r = await app.Dialogs.ShowAsync("Palettes", body, [("close", "Close", false), ("use", "Use this palette", true)], "use", "close", 560);
+        var body = new ScrollViewer { Content = m, MaxHeight = Math.Max(300, app.Bounds.Height - 150), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var r = await app.Dialogs.ShowAsync("Palettes", body, [("close", "Close", false), ("use", "Use this palette", true)], "use", "close", 600);
         app.Session.LibraryChanged -= m.Refresh;
         if (r != "use") return null;
         app.UsePalette(m.PaletteId);
@@ -195,7 +197,8 @@ public sealed class PaletteManager : Grid
     public void ExtractFrom(RasterImage image, int count)
     {
         _extractSource = image;
-        _extractCount = count;
+        _extractCount = Math.Clamp(count, 2, 32);
+        _refreshCount();
         _extract.IsVisible = true;
         Propose();
     }

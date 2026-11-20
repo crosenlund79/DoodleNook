@@ -217,7 +217,8 @@ public static class BuiltInAssets
     {
         var img = new RasterImage(100, 120);
         Fill(img, Polygon((40, 60), (60, 60), (63, 112), (37, 112)), Shade(C("#F6EDE0"), C("#C9BFC3"), 60, 112));
-        Fill(img, (x, y) => y <= 66 && Ellipse(50, 66, 46, 50)(x, y), (x, y) => Mix(C("#E86A5A"), C("#9E3B2E"), Math.Clamp((y - 20) / 50 + (x - 50) / 140, 0, 1)));
+        var dome = Ellipse(50, 66, 46, 50);
+        Fill(img, (x, y) => y <= 66 && dome(x, y), (x, y) => Mix(C("#E86A5A"), C("#9E3B2E"), Math.Clamp((y - 20) / 50 + (x - 50) / 140, 0, 1)));
         foreach (var (cx, cy, r) in new[] { (34.0, 40.0, 6.0), (56.0, 30.0, 5.0), (70.0, 48.0, 5.5), (46.0, 54.0, 4.0), (24.0, 56.0, 3.5) })
             Fill(img, Ellipse(cx, cy, r, r * 0.85), Solid(C("#FFF6EA")));
         return img;
@@ -235,7 +236,13 @@ public static class BuiltInAssets
     {
         var img = new RasterImage(160, 100);
         var puffs = new[] { (42.0, 62.0, 28.0), (72.0, 44.0, 34.0), (108.0, 52.0, 30.0), (128.0, 68.0, 22.0), (86.0, 72.0, 26.0) };
-        bool Inside(double x, double y) => puffs.Any(p => (x - p.Item1) * (x - p.Item1) + (y - p.Item2) * (y - p.Item2) <= p.Item3 * p.Item3) && y <= 92;
+        bool Inside(double x, double y)
+        {
+            if (y > 92) return false;
+            foreach (var p in puffs)
+                if ((x - p.Item1) * (x - p.Item1) + (y - p.Item2) * (y - p.Item2) <= p.Item3 * p.Item3) return true;
+            return false;
+        }
         Fill(img, Inside, Shade(C("#FFFFFF"), C("#C7D6E0"), 30, 92));
         return img;
     }

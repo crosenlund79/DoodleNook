@@ -136,6 +136,11 @@ public sealed class BrushLab : Grid
         return true;
     }
 
+    /// <summary>Changes the brush being edited (what the section controls do; tests use it directly).</summary>
+    internal void Edit(Func<BrushSettings, BrushSettings> change) => Change(change, rebuild: true);
+
+    internal void SetName(string name) => _name.Text = name;
+
     // ================================================================== changes
 
     private void Change(Func<BrushSettings, BrushSettings> f, bool rebuild = false)
@@ -358,10 +363,13 @@ public sealed class BrushLab : Grid
             var b = new Button
             {
                 Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Width = 44, Height = 44, Padding = new Thickness(3), Margin = new Thickness(0, 0, 4, 4),
-                Content = img is null ? new TextBlock { Text = "?" } : new Image { Source = BrushPreview.ToBitmap(AssetPicker.Fit(img, 76)), Stretch = Stretch.Uniform },
-                BorderBrush = new SolidColorBrush(Settings.TipId == id ? DnColors.Accent : Colors.Transparent), BorderThickness = new Thickness(2),
-                Background = new SolidColorBrush(Color.Parse("#F8F4EC")),
+                Width = 46, Height = 46, Padding = new Thickness(0), Margin = new Thickness(0, 0, 4, 4),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+                Content = UiKit.Chosen(new Border
+                {
+                    Background = new SolidColorBrush(Color.Parse("#F8F4EC")), CornerRadius = new CornerRadius(6), Padding = new Thickness(3),
+                    Child = img is null ? new TextBlock { Text = "?" } : new Image { Source = BrushPreview.ToBitmap(AssetPicker.Fit(img, 76)), Stretch = Stretch.Uniform },
+                }, Settings.TipId == id),
             };
             ToolTip.SetTip(b, name);
             var value = id;
@@ -425,8 +433,9 @@ public sealed class BrushLab : Grid
             var b = new Button
             {
                 Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Width = 44, Height = 44, Padding = new Thickness(3), Margin = new Thickness(0, 0, 4, 4), Content = content,
-                BorderBrush = new SolidColorBrush(Settings.TextureId == id ? DnColors.Accent : Colors.Transparent), BorderThickness = new Thickness(2),
+                Width = 46, Height = 46, Padding = new Thickness(0), Margin = new Thickness(0, 0, 4, 4),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+                Content = UiKit.Chosen(content, Settings.TextureId == id),
             };
             ToolTip.SetTip(b, name);
             var value = id;

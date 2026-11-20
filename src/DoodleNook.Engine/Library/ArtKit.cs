@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using DoodleNook.Engine.Imaging;
 
 namespace DoodleNook.Engine.Library;
@@ -12,8 +13,17 @@ internal static class ArtKit
     public static void Fill(RasterImage img, Func<double, double, bool> inside, Func<double, double, ColorRgb> color, double opacity = 1, bool aa = true)
     {
         int n = aa ? 4 : 1;
-        for (int y = 0; y < img.Height; y++)
-            for (int x = 0; x < img.Width; x++)
+        // Shapes made by Polygon, Blade and Ellipse know their bounding box: only those pixels can be touched.
+        int x0 = 0, y0 = 0, x1 = img.Width, y1 = img.Height;
+        if (Boxes.TryGetValue(inside, out var box))
+        {
+            x0 = Math.Max(0, (int)Math.Floor(box.X0) - 1);
+            y0 = Math.Max(0, (int)Math.Floor(box.Y0) - 1);
+            x1 = Math.Min(img.Width, (int)Math.Ceiling(box.X1) + 1);
+            y1 = Math.Min(img.Height, (int)Math.Ceiling(box.Y1) + 1);
+        }
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
             {
                 int hits = 0;
                 for (int sy = 0; sy < n; sy++)
@@ -26,18 +36,29 @@ internal static class ArtKit
             }
     }
 
+    private sealed record Box(double X0, double Y0, double X1, double Y1);
+
+    private static readonly ConditionalWeakTable<Func<double, double, bool>, Box> Boxes = new();
+
+    private static Func<double, double, bool> Bounded(Func<double, double, bool> inside, double x0, double y0, double x1, double y1)
+    {
+        Boxes.AddOrUpdate(inside, new Box(x0, y0, x1, y1));
+        return inside;
+    }
+
     public static Func<double, double, bool> Ellipse(double cx, double cy, double rx, double ry, double angleDeg = 0)
     {
         double a = angleDeg * Math.PI / 180, cos = Math.Cos(a), sin = Math.Sin(a);
-        return (x, y) =>
+        double r = Math.Max(Math.Abs(rx), Math.Abs(ry));
+        return Bounded((x, y) =>
         {
             double dx = x - cx, dy = y - cy;
             double u = (dx * cos + dy * sin) / rx, v = (-dx * sin + dy * cos) / ry;
             return u * u + v * v <= 1;
-        };
+        }, cx - r, cy - r, cx + r, cy + r);
     }
 
-    public static Func<double, double, bool> Polygon(params (double X, double Y)[] pts) => (x, y) =>
+    public static Func<double, double, bool> Polygon(params (double X, double Y)[] pts) => Bounded((x, y) =>
     {
         bool inside = false;
         for (int i = 0, j = pts.Length - 1; i < pts.Length; j = i++)
@@ -46,7 +67,7 @@ internal static class ArtKit
                 inside = !inside;
         }
         return inside;
-    };
+    }, pts.Min(p => p.X), pts.Min(p => p.Y), pts.Max(p => p.X), pts.Max(p => p.Y));
 
     /// <summary>A tapering curved stroke (grass blade, vein) from a quadratic curve.</summary>
     public static Func<double, double, bool> Blade((double X, double Y) a, (double X, double Y) control, (double X, double Y) b, double width)

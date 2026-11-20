@@ -18,7 +18,8 @@ namespace DoodleNook.App;
 /// <summary>
 /// "DoodleNook.exe --smoke-test &lt;folder&gt;": starts the real application window, drives it through its own input
 /// path (pen-like and mouse strokes, eraser, undo/redo, layers, every workspace, a transform, pixel art, saving and
-/// reopening a .dnk, PNG/JPEG/WebP export), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
+/// reopening a .dnk, PNG/JPEG/WebP export, animation, and the creative tools: a custom brush tip, stamps, pattern
+/// fill, palettes, the Brush Laboratory and the reference board), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
 /// proves the packaged app starts and works, not how the pen feels.
 /// </summary>
 internal static class SmokeTest
@@ -288,6 +289,90 @@ internal static class SmokeTest
         using (var codec = SkiaSharp.SKCodec.Create(bigGif))
             Check("1080p GIF export has all 21 frames with their timing", codec is not null && codec.FrameCount == 21 && codec.FrameInfo[0].Duration is >= 80 and <= 90,
                 $"{codec?.FrameCount} frames in {swGif.ElapsedMilliseconds} ms, {new FileInfo(bigGif).Length / 1024} KB");
+
+        // 11. Mission 007: the creative tools, with a library in a folder of its own (as %APPDATA% would hold it).
+        session.Document.MarkSaved();
+        var libraryDir = Path.Combine(dir, "smoke-library");
+        var library = new Engine.Library.CreativeLibrary(libraryDir);
+        window.UseLibrary(library);
+        window.SetWorkspace(WorkspaceKind.Painting);
+        session.ReplaceDocument(new Engine.Documents.Document(1600, 900, ColorRgb.White, "Sketch"), null);
+        var art = session.Document;
+        //     A brush tip made from the artwork: a few marks, selected, stored as a tip and painted with.
+        session.SelectTool(ToolKind.Brush);
+        session.ApplyPreset("ink");
+        session.SetSize(10);
+        Drag(100, 100, 160, 130);
+        Drag(110, 140, 150, 110);
+        session.ApplySelection(Engine.Operations.Selections.Rectangle(art, 80, 80, 180, 160), "Select");
+        var tipPicture = session.SelectionPicture();
+        session.Deselect();
+        var customBrush = library.AddBrush("Smoke tip", new Engine.Painting.BrushSettings
+        {
+            Size = 40, Opacity = 1, PressureSize = true, TipId = library.AddTip(tipPicture!), Spacing = 0.3, RotationJitter = 0.5,
+        });
+        session.UseBrush(customBrush.Settings, customBrush.Id);
+        var workLayer = session.AddLayer();
+        int undoBefore = art.History.UndoCount;
+        input.Press(Pen(300, 450, 0.7f));
+        input.Move([Pen(600, 470, 0.8f), Pen(900, 450, 0.8f)]);
+        input.Release(Pen(900, 450, 0f, down: false));
+        var painted = workLayer.Image.ContentBounds();
+        Check("brush with a tip made from the artwork paints, as one undo step", painted.Width > 500 && art.History.UndoCount == undoBefore + 1, painted.ToString());
+        //     A stamp, undone and redone.
+        session.SelectTool(ToolKind.Stamp);
+        session.SetStampOptions(session.StampOptions with { StampId = "builtin:flower", Scale = 1, Rotation = 0, Opacity = 1 });
+        undoBefore = art.History.UndoCount;
+        input.Press(Mouse(1200, 300));
+        input.Release(Mouse(1200, 300, down: false));
+        bool stamped = Pixel.A(workLayer.Image[1200, 300]) > 0 && art.History.UndoCount == undoBefore + 1;
+        session.Undo();
+        bool stampUndone = workLayer.Image[1200, 300] == Pixel.Transparent;
+        session.Redo();
+        Check("stamp places a flower as one undo step (undo and redo)", stamped && stampUndone && Pixel.A(workLayer.Image[1200, 300]) > 0);
+        //     The paint bucket's pattern mode, inside a selection.
+        var patternLayer = session.AddLayer();
+        session.SelectTool(ToolKind.Fill);
+        session.SetPatternOptions(session.PatternOptions with { UsePattern = true, PatternId = "builtin:brick", Scale = 1, Rotation = 0, Opacity = 1 });
+        session.ApplySelection(Engine.Operations.Selections.Rectangle(art, 1000, 500, 1500, 850), "Select");
+        undoBefore = art.History.UndoCount;
+        input.Press(Mouse(1200, 600));
+        input.Release(Mouse(1200, 600, down: false));
+        int fillSteps = art.History.UndoCount - undoBefore;
+        session.Deselect();
+        int brickColours = Enumerable.Range(1010, 480).Select(x => patternLayer.Image[x, 600]).Distinct().Count();
+        Check("pattern fill tiles the pattern inside the selection only, as one undo step",
+            Pixel.A(patternLayer.Image[1200, 600]) == 255 && patternLayer.Image[900, 600] == Pixel.Transparent && brickColours > 2 && fillSteps == 1,
+            $"{brickColours} colours along a row");
+        //     A palette from the picture.
+        var extracted = ColorQuantizer.Extract(art.Flatten(), 6);
+        var palette = library.AddPalette("From the smoke test", "My palettes", extracted);
+        window.UsePalette(palette.Id);
+        Check("palette from the picture becomes the swatches", extracted.Count == 6 && session.ActivePaletteColors.SequenceEqual(extracted), string.Join(" ", extracted));
+        //     The Brush Laboratory's playground never touches the picture.
+        int historyBefore = art.History.UndoCount;
+        var flatBefore = art.Flatten();
+        var lab = window.OpenBrushLabAsync("charcoal", BrushLab.Section.Texture);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        window.LastBrushLab?.Playground.ExampleStroke();
+        await Shot("smoke-G-brush-lab.png");
+        window.Dialogs.Close(null);
+        await lab;
+        Check("Brush Laboratory playground leaves the picture and its undo history alone",
+            window.LastBrushLab is not null && art.History.UndoCount == historyBefore && art.Flatten().Pixels.AsSpan().SequenceEqual(flatBefore.Pixels));
+        //     The reference board is on screen but never in the artwork or its exports.
+        window.SetReferenceBoardVisible(true);
+        window.ReferenceBoard.Add(Engine.Samples.SampleAnimations.BouncingBall().RenderFrame(3), "Ball");
+        await Shot("smoke-H-reference-board.png");
+        var withBoard = Path.Combine(dir, "smoke-with-board.png");
+        window.ExportToPath(withBoard, ExportFormat.Png);
+        Check("reference board is shown but not part of the export", window.ReferenceBoard.IsVisible && art.Layers.Count == 3
+            && ImageFiles.Decode(withBoard).Pixels.AsSpan().SequenceEqual(art.Flatten().Pixels));
+        window.SetReferenceBoardVisible(false);
+        //     Everything new is in the library folder, and a fresh library reads it back.
+        var reread = new Engine.Library.CreativeLibrary(libraryDir);
+        Check("creative library is saved and reads back", File.Exists(Path.Combine(libraryDir, "library.json")) && reread.FindBrush(customBrush.Id)?.Name == "Smoke tip"
+            && reread.Resolve(customBrush.Settings)?.Tip is not null && reread.FindPalette(palette.Id)?.Colors.Count == 6);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

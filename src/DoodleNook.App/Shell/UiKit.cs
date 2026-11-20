@@ -162,6 +162,16 @@ public static class UiKit
         return (root, Refresh);
     }
 
+    /// <summary>A picture tile's frame: an accent ring when it's the chosen one (DnButton itself draws no border).</summary>
+    public static Border Chosen(Control content, bool chosen, double radius = 8) => new()
+    {
+        Child = content,
+        CornerRadius = new CornerRadius(radius),
+        BorderThickness = new Thickness(2),
+        Padding = new Thickness(1),
+        BorderBrush = chosen ? new SolidColorBrush(DnColors.Accent) : Brushes.Transparent,
+    };
+
     public static IBrush Brush(ColorRgb c) => new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
 
     public static Border Swatch(ColorRgb? c, double size, double radius, bool outline = false)

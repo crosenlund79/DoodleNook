@@ -23,6 +23,9 @@ namespace DoodleNook.App.Shell;
 /// </summary>
 public sealed class ReferenceBoardPanel : Border
 {
+    // Styled like a plain Border (the "float" card), not as a type of its own.
+    protected override Type StyleKeyOverride => typeof(Border);
+
     private readonly MainWindow _app;
     private readonly ReferenceBoardView _view;
     private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(1.5) };
@@ -380,7 +383,7 @@ public sealed class ReferenceBoardView : Control
             context.DrawText(hint, new Point(10, Bounds.Height / 2 - hint.Height / 2));
             return;
         }
-        RenderOptions.SetBitmapInterpolationMode(this, BitmapInterpolationMode.HighQuality);
+        using var quality = context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.HighQuality });
         foreach (var i in Board.Items)
         {
             if (!_bitmaps.TryGetValue(i.Id, out var bmp)) _bitmaps[i.Id] = bmp = BrushPreview.ToBitmap(i.Image);

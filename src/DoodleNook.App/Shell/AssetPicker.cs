@@ -108,8 +108,8 @@ public sealed class AssetPicker : StackPanel
             var b = new Button
             {
                 Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!,
-                Width = 66, Height = 66, Padding = new Thickness(2), Content = content,
-                BorderBrush = new SolidColorBrush(item.Id == current ? DnColors.Accent : Colors.Transparent), BorderThickness = new Thickness(2),
+                Width = 66, Height = 66, Padding = new Thickness(0), Content = UiKit.Chosen(content, item.Id == current),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
                 Name = "Asset_" + item.Name.Replace(' ', '_'),
             };
             ToolTip.SetTip(b, $"{item.Name} · {item.Collection}{(item.BuiltIn ? " · built in" : "")}\nRight-click for more");
