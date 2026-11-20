@@ -54,6 +54,9 @@ folder inside the game folder and replaces the game's PNG in place (the original
 _DoodleNook\Originals, if you leave that ticked). Saving makes an image "In progress"; "Mark complete" is up to you.
 Saving a "template_" image (e.g. template_player.png) asks whether to create a replacement without the prefix
 (player.png, same folder): the template stays as it is, and later saves go to player.png.
+"Project palette…" in the catalog chooses (or imports) a palette for the whole game and can lock all graphics to it.
+Images are checked when you open them: other colours go through the remap preview first, nothing is recoloured
+without Apply. The palette button on a tile gives one image its own palette or no lock.
 
 The Designer's Toolkit
 ----------------------

@@ -19,6 +19,10 @@ while you try it. Note anything fiddly, slow or surprising.
 10. A `template_` image (e.g. `template_player.png`): edit it, Ctrl+S, choose **Yes — Create replacement**. `player.png`
     appears next to it, `template_player.png` is unchanged, and the next Ctrl+S saves `player.png` without asking. If
     `player.png` already existed, you're asked before it's replaced.
+11. **Project palette…** in the catalog: choose (or import) your game's palette, keep *Lock all game graphics to this
+    palette* ticked, Save. Images with other colours show *Not on palette*. Open one: the remap preview comes first,
+    and *Cancel* changes nothing. Give one image *No palette lock* and another a *Custom palette* with the palette
+    button on its tile, and try *Palette exceptions*.
 
 ## Questions
 
@@ -28,3 +32,4 @@ while you try it. Note anything fiddly, slow or surprising.
 4. Did saving behave exactly as you expected for your game?
 5. What would make replacing a whole set of graphics quicker?
 6. Is the `template_` question asked at the right moment, and is "Replaced by …" in the catalog clear?
+7. Does the project palette feel right: locked on opening, remap preview for other colours, and the tile markers?

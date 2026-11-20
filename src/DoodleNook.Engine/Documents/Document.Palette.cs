@@ -122,6 +122,18 @@ public sealed partial class Document
         ChangePalette(palette, locked: true, any ? state : null, historyName);
     }
 
+    /// <summary>
+    /// Sets the palette lock of a picture that has just been opened, as if it had been saved that way: no undo step and
+    /// no unsaved change (Game Edit Mode applies a game folder's palette rules this way). Pixels are never changed: when
+    /// locking would change colours, nothing happens and false is returned (those go through a remap instead).
+    /// </summary>
+    public bool TrySetPaletteAsOpened(Palette palette, bool locked)
+    {
+        if (locked && !CheckPalette(palette.Colors).OnlyPaletteColours) return false;
+        SetPaletteInternal(palette, locked);
+        return true;
+    }
+
     /// <summary>Removes the lock (the palette stays with the picture) as one undo step.</summary>
     public void UnlockPalette()
     {

@@ -296,6 +296,7 @@ public partial class MainWindow
             await _dialogs.ShowMessageAsync("Couldn't open the image", $"{image.FileName}: {ex.Message}");
             return false;
         }
+        var remapTo = await PrepareGamePaletteAsync(game, image, doc); // the palette rule, before the picture is shown
         Animator.Stop();
         _openingGameImage = true;
         try
@@ -312,6 +313,7 @@ public partial class MainWindow
         }
         HideCatalog();
         ShowToast($"{image.RelativePath} · {(fromDnk ? "your editable version" : "the game's PNG")} · {doc.Width} × {doc.Height} · Ctrl+S saves both");
+        if (remapTo is not null) await OfferGameRemapAsync(image, remapTo);
         return true;
     }
 
@@ -324,6 +326,7 @@ public partial class MainWindow
         if (Game is not { } game || GameImage is not { } image) return false;
         if (Session.IsStrokeActive) Session.EndStroke();
         Session.CommitTransform();
+        if (!await ResolveGamePaletteBeforeSaveAsync(game, image)) return false; // never saved as if it kept to its palette
         if (!_templateInPlace && game.ReplacementFor(image) is { } replacement)
         {
             var answer = await _dialogs.ShowAsync("Create a replacement without the 'template_' prefix?",

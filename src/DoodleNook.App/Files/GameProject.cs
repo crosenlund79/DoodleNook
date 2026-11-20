@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Imaging;
 
 namespace DoodleNook.App.Files;
 
@@ -9,6 +11,19 @@ public enum GameImageStatus
     NotStarted,
     InProgress,
     Complete,
+}
+
+/// <summary>Which palette lock an image gets when it is opened (independent of its progress).</summary>
+public enum GamePaletteChoice
+{
+    /// <summary>The project palette, when the folder locks its graphics to one (the default).</summary>
+    Project,
+
+    /// <summary>An exception: its own palette, locked with the usual document Palette Lock.</summary>
+    Custom,
+
+    /// <summary>An exception: no palette lock.</summary>
+    None,
 }
 
 /// <summary>One PNG of a game graphics folder.</summary>
@@ -32,6 +47,12 @@ public sealed class GameImage
     public string Folder => RelativePath.Contains('/') ? RelativePath[..RelativePath.LastIndexOf('/')] : "";
 
     public GameImageStatus Status { get; internal set; }
+
+    /// <summary>The palette rule for this image (Project unless it is an exception).</summary>
+    public GamePaletteChoice PaletteChoice { get; internal set; }
+
+    /// <summary>The image's own palette (with <see cref="GamePaletteChoice.Custom"/>).</summary>
+    public Palette? CustomPalette { get; internal set; }
 
     /// <summary>The game's own PNG.</summary>
     public string PngPath => Path.Combine(_project.Root, Native(RelativePath));
@@ -120,6 +141,12 @@ public sealed class GameProject
     /// <summary>Back up each original PNG before it is first replaced (chosen when the folder is first opened).</summary>
     public bool BackupOriginals { get; private set; } = true;
 
+    /// <summary>The palette for the folder's graphics (a copy: changing it in the palette library changes nothing here).</summary>
+    public Palette? ProjectPalette { get; private set; }
+
+    /// <summary>"Lock all game graphics to this palette": images that follow the project palette are locked to it when opened.</summary>
+    public bool LockAllToPalette { get; private set; }
+
     /// <summary>The PNGs found by the last scan, in path order.</summary>
     public IReadOnlyList<GameImage> Images => _images;
 
@@ -161,7 +188,14 @@ public sealed class GameProject
     private GameImage ImageAt(string relativePath)
     {
         if (!_objects.TryGetValue(relativePath, out var image))
-            _objects[relativePath] = image = new GameImage(this, relativePath, _entries.TryGetValue(relativePath, out var e) ? e.Status : GameImageStatus.NotStarted);
+        {
+            var e = _entries.GetValueOrDefault(relativePath);
+            _objects[relativePath] = image = new GameImage(this, relativePath, e?.Status ?? GameImageStatus.NotStarted)
+            {
+                PaletteChoice = e?.Palette ?? GamePaletteChoice.Project,
+                CustomPalette = e?.CustomPalette?.ToPalette(),
+            };
+        }
         return image;
     }
 
@@ -262,6 +296,59 @@ public sealed class GameProject
         return !info.Exists || info.Length != e.Length || info.LastWriteTimeUtc != written;
     }
 
+    // ================================================================== palettes
+
+    /// <summary>Sets the project palette and whether all graphics are locked to it. Changes no image: each one is checked
+    /// (and offered the remap preview) when it is opened.</summary>
+    public void SetProjectPalette(Palette? palette, bool lockAll)
+    {
+        var before = (ProjectPalette, LockAllToPalette);
+        ProjectPalette = palette?.Clone();
+        LockAllToPalette = lockAll && palette is { Colors.Count: > 0 };
+        try
+        {
+            Save();
+        }
+        catch (Exception)
+        {
+            (ProjectPalette, LockAllToPalette) = before;
+            throw;
+        }
+    }
+
+    /// <summary>Makes an image follow the project palette, use its own palette, or have no palette lock.</summary>
+    public void SetPaletteChoice(GameImage image, GamePaletteChoice choice, Palette? custom = null)
+    {
+        if (choice == GamePaletteChoice.Custom && custom is not { Colors.Count: > 0 }) throw new ArgumentException("A custom palette needs colours.", nameof(custom));
+        var entry = EntryFor(image);
+        var before = (image.PaletteChoice, image.CustomPalette, entry.Palette, entry.CustomPalette);
+        image.PaletteChoice = choice;
+        image.CustomPalette = choice == GamePaletteChoice.Custom ? custom!.Clone() : null;
+        entry.Palette = choice == GamePaletteChoice.Project ? null : choice;
+        entry.CustomPalette = image.CustomPalette is { } p ? PaletteData.From(p) : null;
+        try
+        {
+            Save();
+        }
+        catch (Exception)
+        {
+            (image.PaletteChoice, image.CustomPalette, entry.Palette, entry.CustomPalette) = before;
+            throw;
+        }
+    }
+
+    /// <summary>The palette an image must keep to: its own, or the project palette when all graphics are locked to it;
+    /// null when it has no palette rule.</summary>
+    public Palette? LockPaletteFor(GameImage image) => image.PaletteChoice switch
+    {
+        GamePaletteChoice.Custom => image.CustomPalette,
+        GamePaletteChoice.None => null,
+        _ => LockAllToPalette ? ProjectPalette : null,
+    };
+
+    /// <summary>True when an image doesn't simply follow the project palette (its own palette, or no lock).</summary>
+    public bool IsPaletteException(GameImage image) => image.PaletteChoice != GamePaletteChoice.Project;
+
     // ================================================================== backups
 
     /// <summary>Keeps the original PNG (its exact bytes) before it is first replaced. An existing backup is never
@@ -297,6 +384,8 @@ public sealed class GameProject
         {
             var file = JsonSerializer.Deserialize<CatalogFile>(File.ReadAllText(CatalogPath), Json) ?? new CatalogFile();
             BackupOriginals = file.BackupOriginals;
+            ProjectPalette = file.ProjectPalette?.ToPalette();
+            LockAllToPalette = file.LockPalette && ProjectPalette is { Colors.Count: > 0 };
             foreach (var (path, entry) in file.Images) _entries[path.Replace('\\', '/')] = entry;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
@@ -322,6 +411,8 @@ public sealed class GameProject
         var file = new CatalogFile
         {
             BackupOriginals = BackupOriginals,
+            ProjectPalette = ProjectPalette is { } p ? PaletteData.From(p) : null,
+            LockPalette = LockAllToPalette,
             Images = _entries.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase).ToDictionary(e => e.Key, e => e.Value),
         };
         ImageFiles.WriteAtomically(CatalogPath, s => JsonSerializer.Serialize(s, file, Json));
@@ -331,7 +422,21 @@ public sealed class GameProject
     {
         public int Version { get; set; } = 1;
         public bool BackupOriginals { get; set; } = true;
+        public PaletteData? ProjectPalette { get; set; }
+        public bool LockPalette { get; set; }
         public Dictionary<string, Entry> Images { get; set; } = new();
+    }
+
+    /// <summary>A palette as stored in catalog.json: its name, colours as #RRGGBB, and the library palette it came from.</summary>
+    private sealed class PaletteData
+    {
+        public string Name { get; set; } = "";
+        public List<string> Colors { get; set; } = new();
+        public string? LibraryId { get; set; }
+
+        public static PaletteData From(Palette p) => new() { Name = p.Name, Colors = p.Colors.Select(c => c.ToHex()).ToList(), LibraryId = p.LibraryId };
+
+        public Palette ToPalette() => new(Name, Colors.Select(ColorRgb.Parse)) { LibraryId = LibraryId };
     }
 
     private sealed class Entry
@@ -343,5 +448,10 @@ public sealed class GameProject
 
         /// <summary>Time (UTC) of the PNG as DoodleNook last wrote it.</summary>
         public DateTime? Written { get; set; }
+
+        /// <summary>Custom or None for a palette exception; null: follows the project palette.</summary>
+        public GamePaletteChoice? Palette { get; set; }
+
+        public PaletteData? CustomPalette { get; set; }
     }
 }

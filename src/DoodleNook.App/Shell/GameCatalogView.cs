@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using DoodleNook.App.Controls;
 using DoodleNook.App.Files;
+using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Operations;
 
@@ -21,6 +22,7 @@ public sealed class GameCatalogView : Border
     private const double TileWidth = 176, ThumbWidth = 160, ThumbHeight = 108;
 
     private static readonly Color NotStartedColour = DnColors.Text2, InProgressColour = Color.Parse("#E9A94D"), CompleteColour = Color.Parse("#7AA66A");
+    private static readonly Color CustomPaletteColour = Color.Parse("#9A86D0"), UnlockedColour = Color.Parse("#D9826A"), OffPaletteColour = Color.Parse("#F2C14E");
 
     private readonly MainWindow _app;
     private readonly TextBlock _title = new() { FontSize = 18, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -32,6 +34,10 @@ public sealed class GameCatalogView : Border
     private readonly TextBlock _empty = new() { Classes = { "dim" }, Margin = new Thickness(4, 20), TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBox _search = new() { Watermark = "Find a file", Width = 220, Name = "GameSearch" };
     private readonly Button _backToEditing;
+    private readonly Button _exceptions;
+    // Whether each PNG has colours outside the palette it should keep to: (PNG time, palette, outside), checked in the background.
+    private readonly Dictionary<string, (DateTime Written, string Palette, bool Outside)> _paletteChecks = new(StringComparer.OrdinalIgnoreCase);
+    private bool _exceptionsOnly;
     private readonly Dictionary<string, (DateTime Written, Bitmap Thumb)> _thumbs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Action> _refresh = new();
     private readonly List<Action> _tileRefresh = new();
@@ -85,8 +91,21 @@ public sealed class GameCatalogView : Border
             }, compact: true);
         _refresh.Add(refreshFilter);
         _search.TextChanged += (_, _) => ApplyFilter();
-        var tools = UiKit.Row(12, filter, _search);
-        tools.Margin = new Thickness(0, 4, 0, 10);
+        _exceptions = UiKit.Button("palette", "Palette exceptions",
+            "Only images that don't follow the project palette: their own palette, no palette lock, or colours outside the palette", () =>
+            {
+                _exceptionsOnly = !_exceptionsOnly;
+                ApplyFilter();
+            });
+        _exceptions.Name = "GamePaletteExceptions";
+        var projectPalette = UiKit.Button("palette", "Project palette…", "A palette for all of this game's graphics, and whether they are locked to it",
+            () => _ = app.ShowProjectPaletteAsync());
+        projectPalette.Name = "GameProjectPalette";
+        foreach (var b in new[] { _exceptions, projectPalette }) b.Height = 32;
+        var tools = new DockPanel { Margin = new Thickness(0, 4, 8, 10) };
+        DockPanel.SetDock(projectPalette, Dock.Right);
+        tools.Children.Add(projectPalette);
+        tools.Children.Add(UiKit.Row(12, filter, _search, _exceptions));
 
         var top = new StackPanel { Children = { header, progress, _counts, tools } };
         _counts.Margin = new Thickness(0, 0, 0, 4);
@@ -134,6 +153,9 @@ public sealed class GameCatalogView : Border
         _counts.Text = $"Not started: {progress.NotStarted}   ·   In progress: {progress.InProgress}   ·   Complete: {progress.Complete}" +
                        (p.Images.Count > progress.Total ? $"   ·   Replaced templates: {p.Images.Count - progress.Total}" : "");
         _backToEditing.IsVisible = _app.EditingGameImage;
+        _exceptions.IsVisible = p.LockAllToPalette || p.Images.Any(p.IsPaletteException);
+        if (!_exceptions.IsVisible) _exceptionsOnly = false;
+        _exceptions.Classes.Set("on", _exceptionsOnly);
         UpdateBar();
         foreach (var r in _refresh) r();
         foreach (var r in _tileRefresh) r();
@@ -154,13 +176,28 @@ public sealed class GameCatalogView : Border
         {
             if (child.Tag is not GameImage image) continue;
             bool show = (_filter is null || (image.Status == _filter && _project?.IsReplaced(image) != true))
+                        && (!_exceptionsOnly || IsPaletteException(image))
                         && (query.Length == 0 || image.RelativePath.Contains(query, StringComparison.OrdinalIgnoreCase));
             child.IsVisible = show;
             if (show) shown++;
         }
+        _exceptions.Classes.Set("on", _exceptionsOnly);
         _empty.IsVisible = shown == 0;
         _empty.Text = _project is { Images.Count: 0 } ? "There are no PNG images in this folder or its subfolders." : "No image matches.";
     }
+
+    /// <summary>For the "Palette exceptions" filter: its own palette, no lock, or a PNG with colours outside its palette.</summary>
+    private bool IsPaletteException(GameImage image) => _project is { } p && (p.IsPaletteException(image) || OffPalette(image) is not null);
+
+    /// <summary>The palette an image should keep to when its PNG has other colours (as last checked), else null.</summary>
+    private Palette? OffPalette(GameImage image)
+    {
+        if (_project?.LockPaletteFor(image) is not { } palette) return null;
+        lock (_thumbs)
+            return _paletteChecks.TryGetValue(image.PngPath, out var c) && c.Outside && c.Palette == Key(palette) ? palette : null;
+    }
+
+    private static string Key(Palette palette) => string.Join(',', palette.Colors.Select(c => c.ToHex()));
 
     private Control Tile(GameImage image)
     {
@@ -175,8 +212,19 @@ public sealed class GameCatalogView : Border
             CornerRadius = new CornerRadius(6),
             ClipToBounds = true,
             Background = UiKit.CheckerBrush(),
-            Child = thumb,
         };
+        var offPalette = new Border
+        {
+            Name = "GameOffPalette_" + image.RelativePath,
+            Background = new SolidColorBrush(Color.FromArgb(220, 30, 26, 34)),
+            CornerRadius = new CornerRadius(999),
+            Padding = new Thickness(7, 1, 7, 2),
+            Margin = new Thickness(5),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Child = new TextBlock { Text = "Not on palette", FontSize = 11, Foreground = new SolidColorBrush(OffPaletteColour) },
+        };
+        thumbFrame.Child = new Panel { Children = { thumb, offPalette } };
         var name = new TextBlock { Text = image.FileName, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = ThumbWidth };
         var folder = new TextBlock
         {
@@ -191,7 +239,6 @@ public sealed class GameCatalogView : Border
         mark.FontSize = 12;
         mark.Padding = new Thickness(8, 0);
         mark.HorizontalAlignment = HorizontalAlignment.Left;
-        mark.Margin = new Thickness(-4, 2, 0, 0);
         mark.Click += (_, _) =>
         {
             if (_project is not { } p) return;
@@ -206,6 +253,17 @@ public sealed class GameCatalogView : Border
             }
             _app.RefreshGameStatus();
         };
+        var paletteIcon = new DnIcon { Kind = "lock", Width = 16, Height = 16 };
+        var paletteButton = Menus.MenuButton(paletteIcon, () => _app.GamePaletteEntries(image), null, 290);
+        paletteButton.Name = "GamePalette_" + image.RelativePath;
+        paletteButton.Classes.Add("sq");
+        paletteButton.Width = 28;
+        paletteButton.Height = 26;
+        paletteButton.Padding = new Thickness(0);
+        var markRow = new Grid { Margin = new Thickness(-4, 2, 0, 0), ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        Grid.SetColumn(paletteButton, 1);
+        markRow.Children.Add(mark);
+        markRow.Children.Add(paletteButton);
         var statusRow = UiKit.Row(5, dot, status);
         statusRow.Margin = new Thickness(0, 4, 0, 0);
 
@@ -220,12 +278,12 @@ public sealed class GameCatalogView : Border
             Cursor = new Cursor(StandardCursorType.Hand),
             Tag = image,
             Name = "GameTile_" + image.RelativePath,
-            Child = new StackPanel { Spacing = 2, Children = { thumbFrame, name, folder, statusRow, mark } },
+            Child = new StackPanel { Spacing = 2, Children = { thumbFrame, name, folder, statusRow, markRow } },
         };
         ToolTip.SetTip(thumbFrame, $"{image.RelativePath} · click to edit");
         tile.PointerPressed += (_, e) =>
         {
-            if (!e.GetCurrentPoint(tile).Properties.IsLeftButtonPressed || mark.IsPointerOver) return;
+            if (!e.GetCurrentPoint(tile).Properties.IsLeftButtonPressed || mark.IsPointerOver || paletteButton.IsPointerOver) return;
             e.Handled = true;
             _ = _app.OpenGameImageAsync(image);
         };
@@ -244,6 +302,21 @@ public sealed class GameCatalogView : Border
             mark.IsVisible = !replaced;
             mark.Content = image.Status == GameImageStatus.Complete ? "Mark in progress" : "Mark complete";
             ToolTip.SetTip(mark, image.Status == GameImageStatus.Complete ? "Not finished after all: back to In progress" : "Mark this image as finished");
+            // The palette rule: nothing special for the project palette; its own palette or no lock are marked.
+            var p = _project;
+            paletteButton.IsVisible = p is not null && (p.LockAllToPalette || p.IsPaletteException(image));
+            (paletteIcon.Kind, paletteIcon.Foreground, var tip) = image.PaletteChoice switch
+            {
+                GamePaletteChoice.Custom => ("palette", new SolidColorBrush(CustomPaletteColour),
+                    $"Palette exception: its own palette “{image.CustomPalette?.Name}” ({image.CustomPalette?.Colors.Count} colours) instead of the project palette · click to change"),
+                GamePaletteChoice.None => ("unlock", new SolidColorBrush(UnlockedColour), "Palette exception: no palette lock, any colours · click to change"),
+                _ => ("lock", (IBrush)new SolidColorBrush(NotStartedColour),
+                    $"Follows the project palette “{p?.ProjectPalette?.Name}” · click to give it its own palette or no lock"),
+            };
+            ToolTip.SetTip(paletteButton, tip);
+            var off = OffPalette(image);
+            offPalette.IsVisible = off is not null;
+            ToolTip.SetTip(offPalette, off is null ? null : $"Has colours outside “{off.Name}”: opening it shows the remap preview first, and nothing changes until Apply");
             bool current = ReferenceEquals(_app.GameImage, image) && _app.EditingGameImage;
             tile.BorderBrush = current ? new SolidColorBrush(DnColors.Accent) : Brushes.Transparent;
             lock (_thumbs)
@@ -261,13 +334,15 @@ public sealed class GameCatalogView : Border
     public void LoadThumbnails()
     {
         _loading?.Cancel();
-        if (_project is null) return;
+        if (_project is not { } project) return;
         var cts = new CancellationTokenSource();
         _loading = cts;
-        var images = _project.Images.ToList();
+        // Each image with the palette it should keep to (its PNG is checked against it, alongside the thumbnail).
+        var images = project.Images.Select(i => (Image: i, Palette: project.LockPaletteFor(i))).ToList();
         _ = Task.Run(() =>
         {
-            foreach (var image in images)
+            var conformers = new Dictionary<string, PaletteConformer>();
+            foreach (var (image, palette) in images)
             {
                 if (cts.IsCancellationRequested) return;
                 DateTime written;
@@ -279,24 +354,41 @@ public sealed class GameCatalogView : Border
                 {
                     continue;
                 }
-                bool have;
-                lock (_thumbs) have = _thumbs.TryGetValue(image.PngPath, out var t) && t.Written == written;
-                if (have) continue;
-                RasterImage? small = null;
+                string? key = palette is null ? null : Key(palette);
+                bool haveThumb, haveCheck;
+                lock (_thumbs)
+                {
+                    haveThumb = _thumbs.TryGetValue(image.PngPath, out var t) && t.Written == written;
+                    haveCheck = key is null || (_paletteChecks.TryGetValue(image.PngPath, out var c) && c.Written == written && c.Palette == key);
+                }
+                if (haveThumb && haveCheck) continue;
+                RasterImage? full = null;
                 try
                 {
-                    small = Shrink(ImageFiles.Decode(image.PngPath));
+                    full = ImageFiles.Decode(image.PngPath);
                 }
                 catch (Exception)
                 {
                     // An unreadable PNG keeps an empty thumbnail; opening it says why.
                 }
-                if (small is null) continue;
+                if (full is null) continue;
+                var small = haveThumb ? null : Shrink(full);
+                bool? outside = null;
+                if (!haveCheck)
+                {
+                    if (!conformers.TryGetValue(key!, out var conformer)) conformers[key!] = conformer = new PaletteConformer(palette!.Colors);
+                    outside = full.Pixels.Any(p => !conformer.IsPaletteColour(p));
+                }
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (cts.IsCancellationRequested) return;
-                    lock (_thumbs) _thumbs[image.PngPath] = (written, BrushPreview.ToBitmap(small));
+                    lock (_thumbs)
+                    {
+                        if (small is not null) _thumbs[image.PngPath] = (written, BrushPreview.ToBitmap(small));
+                        if (outside is { } o) _paletteChecks[image.PngPath] = (written, key!, o);
+                    }
                     foreach (var r in _tileRefresh) r();
+                    if (outside is not null) ApplyFilter();
                 });
             }
         }, cts.Token);

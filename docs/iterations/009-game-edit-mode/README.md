@@ -72,6 +72,31 @@ name is never changed.
 Fixed along the way: the catalog's tiles and the open picture now always share one status per image. Before, after
 going back to the catalog, *Mark complete* on the tile of the picture being edited could be undone by its next Ctrl+S.
 
+## Project palette
+
+**Project palette…** in the catalog chooses a palette for the game's graphics (one of your palettes, or *Import a
+palette file (.gpl, .hex)…*, which adds it to your palettes like the palette manager does) and **Lock all game graphics
+to this palette**. Both are kept in `catalog.json` (a copy of the colours, so editing the palette in your library
+changes nothing here).
+
+- **Opening an image** applies the rule with the existing document Palette Lock. If the picture only uses the palette's
+  colours it is simply locked (no undo step, nothing to save). If it has other colours, the existing **remap preview**
+  opens first; nothing changes until *Apply* (one undo step). *Cancel* leaves the picture as it is.
+- **Ctrl+S** never saves an image as if it kept to its palette when it doesn't: it asks *Remap…* (the preview, then
+  the usual save), *Save without palette lock* (the image becomes an exception, visibly), or *Cancel*.
+- **Exceptions:** the small palette button on a tile (shown when the project locks its graphics, or the image is an
+  exception) chooses **Project palette** (default), **Custom palette** (another palette; the image is locked to it with
+  the usual document lock) or **No palette lock**. Kept in `catalog.json`. A change applies to the open image at once.
+- **In the catalog:** nothing special for images that follow the project palette (a dim lock button);
+  a lavender palette icon for a custom palette and an unlocked padlock for no lock, each with a tooltip naming the
+  exception. **Not on palette** on a thumbnail means the PNG has colours outside the palette it should keep to (checked
+  in the background, alongside the thumbnails). **Palette exceptions** shows only these images.
+- **Changing the project palette** recolours nothing and never touches custom or unlocked images: affected images get
+  *Not on palette* and the remap preview when they are opened (the open image is offered it at once).
+
+Remapping keeps every layer and other editable data of a `.dnk` and never changes transparency. Progress statuses are
+independent of palettes, and template replacements work as before.
+
 ## Progress
 
 | Status | Means |
@@ -102,6 +127,7 @@ assets/                      ← the folder you chose
 |---|---|
 | Game Edit tests | 9 window and file tests + 1 screenshot run: recursive discovery, relative paths, `_DoodleNook` skipped, opening a tile, the `.dnk` and the PNG written (size, transparency, pixels), the backup made once and never overwritten, Not started → In progress on a complete save only, Mark complete / Mark in progress, saving a complete image keeps it complete, progress %, statuses after reopening and rescans, reopening a `.dnk` with its layers, the unsaved-changes question, a failed backup leaving the PNG and status alone and *Try again*, a PNG changed elsewhere, an unreadable `.dnk`, filters and search, the remembered folder, the window title |
 | `template_` replacements (added after the first delivery) | 3 tests: which names count as templates (only the exact `template_` prefix), Cancel saves nothing, Yes writes `player.dnk` and `player.png` and leaves the template's bytes untouched, later saves go to `player.png` without asking, the overwrite question (Cancel keeps the existing `player.png`; Replace backs it up first), No saves the template as usual and asks once, statuses and counts with a replaced template |
+| Project palette (added after the first delivery) | 3 tests: the project palette, the lock choice and each image's choice survive reopening and leave statuses alone; opening an image whose colours fit locks it without an undo step or unsaved change; other colours get the remap preview first and Cancel changes nothing; Ctrl+S asks instead of saving an off-palette image (Cancel saves nothing; Remap… previews, then saves the `.dnk` with its layers and lock and a PNG with only palette colours and exactly the same alpha); a custom palette uses the document lock, *No palette lock* unlocks even a locked `.dnk`; tile icons, tooltips, *Not on palette* and the *Palette exceptions* filter; a new project palette changes no file and keeps every exception |
 | All suites, Windows CI run #20 (Release) | engine **251 / 251**, app **149 / 149** (139 from before, with three title checks updated to the new title, + 10 Game Edit) |
 | Smoke test of the packaged `DoodleNook.exe` on Windows (run #20) | **58 / 58** (54 from before + 4 new: subfolder discovery, Ctrl+S writes `_DoodleNook\characters\hero.dnk` and replaces the PNG (size, transparency, pixels), the byte-exact backup and *In progress*, the title "DoodleNook — M009 — hero.dnk") |
 | Artifact (run #20) | `DoodleNook-win-x64.zip`, 64,049,219 bytes, SHA-256 `44c737f8b53633c18bba09e674db24c43fe83124c622480ad9d05015a8bd54c1`: `DoodleNook.exe` (PE32+ x86-64, version 0.9.0+c42964a, milestone M009), native libraries, README-FIRST, licences, Samples |

@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using DoodleNook.App.Editor;
+using DoodleNook.App.Controls;
 using DoodleNook.App.Files;
 using DoodleNook.App.Shell;
 using DoodleNook.Engine.Documents;
@@ -498,6 +499,171 @@ public sealed class GameEditTests : IDisposable
         Paint(w, 1, 2, 11);
         await Save(w);
         Assert.False(w.Dialogs.IsOpen);
+        w.Close();
+    }
+
+    // ================================================================== the project palette
+
+    private static readonly ColorRgb Red = new(200, 40, 40), Green = new(40, 160, 60);
+
+    /// <summary>Player's red, enemy's green, white and black: everything but the tree's blue.</summary>
+    private static Palette GamePalette() => new("Game", [Red, Green, ColorRgb.White, ColorRgb.Black]);
+
+    private static Palette Forest() => new("Forest", [Green, ColorRgb.Black, ColorRgb.White]);
+
+    [Fact]
+    public void The_project_palette_and_each_images_choice_are_saved_and_progress_stays_independent()
+    {
+        var p = GameProject.Open(_assets);
+        p.SetBackupOriginals(false);
+        p.SetProjectPalette(GamePalette(), lockAll: true);
+        p.SetPaletteChoice(p.Find("environment/trees/tree.png")!, GamePaletteChoice.Custom, Forest());
+        p.SetPaletteChoice(p.Find("logo.png")!, GamePaletteChoice.None);
+        p.RecordSaved(p.Find("characters/player.png")!);
+
+        var again = GameProject.Open(_assets); // like starting DoodleNook again
+        Assert.Equal("Game", again.ProjectPalette!.Name);
+        Assert.Equal(GamePalette().Colors, again.ProjectPalette.Colors);
+        Assert.True(again.LockAllToPalette);
+        var player = again.Find("characters/player.png")!;
+        var tree = again.Find("environment/trees/tree.png")!;
+        var logo = again.Find("logo.png")!;
+        Assert.Equal(GamePaletteChoice.Project, player.PaletteChoice);
+        Assert.Equal(GamePaletteChoice.Custom, tree.PaletteChoice);
+        Assert.Equal(GamePaletteChoice.None, logo.PaletteChoice);
+        Assert.Equal(GamePalette().Colors, again.LockPaletteFor(player)!.Colors);
+        Assert.Equal(Forest().Colors, again.LockPaletteFor(tree)!.Colors);
+        Assert.Null(again.LockPaletteFor(logo));
+        Assert.Equal(GameImageStatus.InProgress, player.Status);   // palette choices don't touch progress
+        Assert.Equal(GameImageStatus.NotStarted, tree.Status);
+        Assert.Equal(GameImageStatus.NotStarted, logo.Status);
+
+        // Not locking all graphics any more: project images have no rule; the custom palette stays.
+        again.SetProjectPalette(again.ProjectPalette, lockAll: false);
+        Assert.Null(GameProject.Open(_assets).LockPaletteFor(GameProject.Open(_assets).Find("characters/player.png")!));
+        Assert.Equal(Forest().Colors, GameProject.Open(_assets).Find("environment/trees/tree.png")!.CustomPalette!.Colors);
+    }
+
+    [AvaloniaFact]
+    public async Task Opening_locks_to_the_project_palette_and_other_colours_get_the_remap_preview_before_anything_changes()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        game.SetProjectPalette(GamePalette(), lockAll: true);
+
+        // The player's colours fit: locked at once, with nothing to save or undo.
+        Assert.True(await w.OpenGameImageAsync(game.Find("characters/player.png")!));
+        Assert.True(w.Session.Document.PaletteLocked);
+        Assert.Equal(GamePalette().Colors, w.Session.Document.Palette.Colors);
+        Assert.False(w.Session.Document.IsDirty);
+        Assert.Equal(0, w.Session.Document.History.UndoCount);
+
+        // The tree has another colour: the remap preview comes first, and Cancel changes nothing.
+        var tree = game.Find("environment/trees/tree.png")!;
+        var treeBytes = File.ReadAllBytes(tree.PngPath);
+        var opening = w.OpenGameImageAsync(tree);
+        await Until(() => Has(w, "PaletteRemapDialog"));
+        w.Dialogs.Close("cancel");
+        Assert.True(await opening);
+        var doc = w.Session.Document;
+        Assert.False(doc.PaletteLocked);
+        Assert.False(doc.IsDirty);
+        var before = (uint[])doc.ActiveLayer.Image.Pixels.Clone();
+
+        // Ctrl+S never saves it as if it kept to the palette: Cancel saves nothing.
+        var saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "“tree.png” has colours outside “Game”");
+        w.Dialogs.Close("cancel");
+        Assert.False(await saving);
+        Assert.False(File.Exists(tree.DnkPath));
+        Assert.Equal(treeBytes, File.ReadAllBytes(tree.PngPath));
+
+        // Remap…: the preview, Apply, then the usual save of the .dnk (layers kept) and the PNG; alpha is untouched.
+        w.Session.AddLayer();
+        saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("remap");
+        await Until(() => Has(w, "PaletteRemapDialog"));
+        w.Dialogs.Close("apply");
+        Assert.True(await saving);
+        Assert.True(doc.PaletteLocked);
+        var png = PngCodec.Decode(File.ReadAllBytes(tree.PngPath));
+        var conformer = new PaletteConformer(GamePalette().Colors);
+        Assert.All(png.Pixels, px => Assert.True(conformer.IsPaletteColour(px)));
+        Assert.Equal(before.Select(Pixel.A), png.Pixels.Select(Pixel.A));
+        var dnk = DnkFile.Load(tree.DnkPath);
+        Assert.Equal(2, dnk.Layers.Count);
+        Assert.True(dnk.PaletteLocked);
+        Assert.Equal(GameImageStatus.InProgress, tree.Status);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Exceptions_keep_their_own_palette_or_no_lock_are_marked_in_the_catalog_and_a_new_project_palette_recolours_nothing()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        game.SetProjectPalette(GamePalette(), lockAll: true);
+        var player = game.Find("characters/player.png")!;
+        var enemy = game.Find("characters/enemy.png")!;
+        var tree = game.Find("environment/trees/tree.png")!;
+        var logo = game.Find("logo.png")!;
+
+        // The logo is saved while following the project palette, so its .dnk is locked…
+        Assert.True(await w.OpenGameImageAsync(logo));
+        Paint(w, 1, 4, 7);
+        await Save(w);
+        Assert.True(DnkFile.Load(logo.DnkPath).PaletteLocked);
+        // …then made an exception: the open picture is unlocked at once, and stays unlocked when opened again.
+        await w.SetGamePaletteChoiceAsync(logo, GamePaletteChoice.None);
+        Assert.False(w.Session.Document.PaletteLocked);
+        Assert.True(w.Session.Document.IsDirty); // unlocking is an ordinary undo step
+        await w.SetGamePaletteChoiceAsync(enemy, GamePaletteChoice.Custom, Forest());
+        var opening = w.OpenGameImageAsync(enemy);
+        await Until(() => w.Dialogs.IsOpen);      // the usual unsaved-changes question
+        w.Dialogs.Close("discard");                // keep the locked .dnk on disk
+        Assert.True(await opening);
+        Assert.True(w.Session.Document.PaletteLocked);
+        Assert.Equal(Forest().Colors, w.Session.Document.Palette.Colors); // the usual document lock, to its own palette
+        Assert.True(await w.OpenGameImageAsync(logo));
+        Assert.False(w.Session.Document.PaletteLocked);
+        Assert.False(w.Session.Document.IsDirty);
+
+        // The catalog: exceptions are marked, and so is the tree, whose PNG has a colour outside the palette.
+        w.ShowCatalog();
+        await Until(() => Has(w, "GameOffPalette_environment/trees/tree.png"));
+        Assert.False(Has(w, "GameOffPalette_characters/player.png"));
+        DnIcon Icon(GameImage i) => (DnIcon)Find<Button>(w, "GamePalette_" + i.RelativePath).Content!;
+        Assert.Equal("lock", Icon(player).Kind);
+        Assert.Equal("palette", Icon(enemy).Kind);
+        Assert.Equal("unlock", Icon(logo).Kind);
+        Assert.Contains("“Forest” (3 colours)", (string)ToolTip.GetTip(Find<Button>(w, "GamePalette_characters/enemy.png"))!);
+        Assert.Contains("no palette lock", (string)ToolTip.GetTip(Find<Button>(w, "GamePalette_logo.png"))!);
+        var tiles = w.GetVisualDescendants().OfType<Border>().Where(b => b.Tag is GameImage).ToList();
+        w.CaptureRenderedFrame()?.Dispose(); // the filter button just appeared: draw it before clicking it
+        Click(w, Find<Button>(w, "GamePaletteExceptions"));
+        Assert.Equal(["characters/enemy.png", "environment/trees/tree.png", "logo.png"],
+            tiles.Where(t => t.IsVisible).Select(t => ((GameImage)t.Tag!).RelativePath).Order());
+        Click(w, Find<Button>(w, "GamePaletteExceptions"));
+        Assert.Equal(4, tiles.Count(t => t.IsVisible));
+
+        // A new project palette (through Project palette…) changes no file and keeps every exception.
+        var files = Directory.GetFiles(_assets, "*", SearchOption.AllDirectories).Where(f => !f.EndsWith(GameProject.CatalogFileName, StringComparison.Ordinal))
+            .ToDictionary(f => f, File.ReadAllBytes);
+        var dialog = w.ShowProjectPaletteAsync();
+        await Until(() => Has(w, "ProjectPaletteLock"));
+        Pump();
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Game (4 colours)");
+        w.Dialogs.Close("save");
+        Assert.True(await dialog);
+        game.SetProjectPalette(new Palette("Night", [ColorRgb.Black, new ColorRgb(30, 30, 90)]), lockAll: true);
+        Assert.All(files, f => Assert.Equal(f.Value, File.ReadAllBytes(f.Key)));
+        var again = GameProject.Open(_assets);
+        Assert.Equal(GamePaletteChoice.Custom, again.Find("characters/enemy.png")!.PaletteChoice);
+        Assert.Equal(Forest().Colors, again.Find("characters/enemy.png")!.CustomPalette!.Colors);
+        Assert.Equal(GamePaletteChoice.None, again.Find("logo.png")!.PaletteChoice);
+        Assert.Equal(GameImageStatus.InProgress, again.Find("logo.png")!.Status);
         w.Close();
     }
 
