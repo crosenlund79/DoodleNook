@@ -222,24 +222,56 @@ their undo and redo, that the screen shows exactly what an export would.
 
 Engine only (no screen drawing), Release build. The "designed" picture has six painted layers, three of them in a
 group at 90 % with a mask on one, a Hue/Saturation adjustment layer over everything, and an editable shape with a shadow;
-the brush paints inside the group. Pen event = 2 coalesced samples of a fast 2000 px curve, compositing included.
+the brush paints inside the group. Pen event = 2 coalesced samples of a fast 2000 px curve, compositing of the changed
+area included. Windows CI run #18 (4 cores, `tests/DoodleNook.Engine.Tests/out/design-performance.json`), Linux in brackets:
 
-| | plain picture | with group, mask, adjustment layer |
+| | 1920 × 1080 | 2560 × 1440 |
 |---|---|---|
-| Pen event, 1920 × 1080 (Linux, 4 cores) | 0.05 ms | 0.12–0.28 ms |
-| Pen event, 2560 × 1440 (Linux, 4 cores) | 0.09 ms | 0.11–0.18 ms |
-| Whole-picture composite, 1920 × 1080 | 51–74 ms | 101 ms |
-| Whole-picture composite, 2560 × 1440 | 85–103 ms | 183 ms |
-| Dragging an editable shape (one step) | — | 14–24 ms (1080p), 22–31 ms (1440p) |
+| Pen event, plain picture | 0.06 ms (0.05) | 0.06 ms (0.09) |
+| Pen event, with group, mask and adjustment layer | 0.10 ms (0.12–0.28) | 0.10 ms (0.11–0.18) |
+| Whole-picture composite, plain | 43 ms (51–74) | 78 ms (85–103) |
+| Whole-picture composite, with group, mask and adjustment layer | 85 ms (101) | 152 ms (183) |
+| Dragging an editable shape with a shadow, per pointer move | 12 ms (14–24) | 20 ms (22–31) |
+| Saving / opening this picture as version 4 (2.3 MB / 3.4 MB) | 0.72 s / 0.31 s | 1.26 s / 0.53 s |
 
-Painting stays far below a frame (16 ms) in both. The whole-picture composite (used when a layer's opacity, visibility
-or order changes) costs about 1.4–1.8 × with an adjustment layer; a small colour cache brought this down from 3.4 ×.
-Windows CI numbers: see *Verification*.
+Painting stays far below a frame (16 ms) with groups, masks and adjustment layers. The whole-picture composite (used when
+a layer's opacity, visibility or order changes) costs about twice as much with an adjustment layer; a small colour cache
+brought this down from 3.4 ×. Saving runs in the background as before, so the window doesn't wait for it.
 
 ## Verification
 
-See the completion report in the conversation for the Windows CI run, the artifact check and the test counts; this
-section is filled in when the final run is green.
+| What | Result |
+|---|---|
+| Engine tests (Windows CI run #18, Release) | **251 / 251 passed** (229 from before + 22 new: groups, masks, text, shapes, adjustment layers, picture-wide operations, palette lock, animation, files, symmetry, perspective, snapping, the screen-equals-export invariant, measurements) |
+| App tests (Windows CI run #18, Release) | **139 / 139 passed** (120 from before + 13 window tests, workflows A–E, the screenshot run) |
+| Smoke test of the packaged `DoodleNook.exe` on Windows | **54 / 54 checks** (45 from before + 9 new: text in Segoe UI with no substitute, the Text tool, an editable shape and its handles, group + mask + adjustment layer, the screen showing the adjustment at once, guides not exported, a perspective-held stroke, version 4 save and reopen) |
+| Linux (headless window tests, and the smoke test under Xvfb) | the same suites pass; smoke 54 / 54 |
+| Artifact | `DoodleNook-win-x64.zip`, 63,954,180 bytes, SHA-256 `e317fbcfa7b70c7b47b698c1f3383105c93a0c9b2e60409037306be1fa4d9105`: `DoodleNook.exe` (PE32+ x86-64 GUI, version 0.8.0+7f9e748), its native Skia/HarfBuzz/ANGLE libraries, `README-FIRST.txt`, `THIRD-PARTY-NOTICES.txt`, and `Samples` |
+
+The workflows follow the brief step by step:
+
+- **A — Game menu button:** new picture → editable rounded rectangle (Shapes tool drag) → text (Text tool, typed) →
+  *Centre on the layer below* → shadow (Effects pop-over) → save → reopen → click the text and type a new word →
+  *Export as PNG*, decoded and compared.
+- **B — Perspective sketch:** two-point from the assistants pop-over → vanishing points dragged with the Move tool →
+  wobbly strokes held to the vertical and to each vanishing point → perspective *Off* → freehand strokes follow the hand
+  again (nothing persists) → guides not in the export → save and reopen.
+- **C — Character layers:** three painted layers → group (Ctrl+G, drag in) → *Mask from selection* hides the legs without
+  erasing → visibility and opacity of the group → Hue/Saturation layer inside the group (background untouched) → undo
+  every step and redo every step, each state compared exactly → save and reopen.
+- **D — Palette-locked design:** locked picture → editable shape and text in non-palette colours → Levels adjustment
+  layer → every composited pixel is a palette colour, the PNG decodes to exact palette colours → the shape's alpha is
+  identical to the same shape without the lock → save and reopen (still locked, identical).
+- **E — Existing animation:** a version 2 file (the bouncing ball) opened from disk → playback advances → a title with
+  the Text tool (added through *Customize workspace*) shows on every frame → animated GIF export with all frames →
+  save (version 4) and reopen → frame timing, frames and held drawings identical; removing the title gives back the
+  original frames exactly.
+
+Screenshots (section 17 of the brief: 2560 × 1440, 1920 × 1080, Kamvas 13 at 150 %) were reviewed: canvas space is the
+same as Mission 007, the new contextual controls fit the options bar at 150 % (the text bar is the widest; it scrolls
+sideways with the wheel in a very narrow window, as before), the layers panel shows groups, masks and adjustment layers
+clearly, and nothing is clipped. Two problems found this way were fixed (see *A bug fixed on the way*). The long Layer
+menu was split into small sub-menus so it fits the Kamvas at 150 %.
 
 ## Known limitations
 
