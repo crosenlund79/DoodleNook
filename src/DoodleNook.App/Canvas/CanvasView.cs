@@ -29,7 +29,7 @@ namespace DoodleNook.App.Canvas;
 /// brush cursor and tool overlays, and translates Avalonia pointer events into <see cref="PointerInput"/> for the
 /// <see cref="CanvasInputController"/>. It never edits pixels itself.
 /// </summary>
-public sealed class CanvasView : Control, ICustomHitTest
+public sealed partial class CanvasView : Control, ICustomHitTest
 {
     private readonly DocumentTexture _texture = new();
     private readonly List<PointerInput> _inputs = new(64);
@@ -149,12 +149,16 @@ public sealed class CanvasView : Control, ICustomHitTest
             _watched.ProjectionChanged -= OnProjectionChanged;
             _watched.SelectionChanged -= OnSelectionChanged;
             _watched.SizeChanged -= OnSizeChangedDoc;
+            _watched.ActiveLayerChanged -= OnDesignChanged;
+            _watched.GuidesChanged -= OnDesignChanged;
         }
         var doc = _session.Document;
         _watched = doc;
         doc.ProjectionChanged += OnProjectionChanged;
         doc.SelectionChanged += OnSelectionChanged;
         doc.SizeChanged += OnSizeChangedDoc;
+        doc.ActiveLayerChanged += OnDesignChanged;
+        doc.GuidesChanged += OnDesignChanged;
         _texture.Load(doc.Projection);
         View.SetDocumentSize(doc.Width, doc.Height);
         Input?.CancelCrop();
@@ -397,6 +401,7 @@ public sealed class CanvasView : Control, ICustomHitTest
             foreach (var h in handles)
                 context.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Controls.DnColors.Accent), 1.5), new Rect(h.X - 5, h.Y - 5, 10, 10));
         }
+        DrawDesignOverlays(context, dark);
         DrawCursor(context, dark);
     }
 
@@ -501,6 +506,7 @@ public sealed class CanvasView : Control, ICustomHitTest
     private static readonly Cursor ResizeCursor = new(StandardCursorType.SizeWestEast);
     private static readonly Cursor MoveCursor = new(StandardCursorType.SizeAll);
     private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
+    private static readonly Cursor TextCursor = new(StandardCursorType.Ibeam);
 
     private void UpdateCursor()
     {
@@ -512,6 +518,7 @@ public sealed class CanvasView : Control, ICustomHitTest
             CursorShape.Resize => ResizeCursor,
             CursorShape.Move => MoveCursor,
             CursorShape.Arrow => ArrowCursor,
+            CursorShape.Text => TextCursor,
             _ => NoCursor,
         };
     }

@@ -376,6 +376,9 @@ public sealed partial class Document
         return AddObjectLayer(LayerKind.Adjustment, new AdjustmentContent(adjustment), name ?? adjustment.Name);
     }
 
+    /// <summary>A text layer's name from its text (the first line, shortened).</summary>
+    public static string NameForText(TextContent t) => LayerNameFor(t);
+
     private static string LayerNameFor(TextContent t)
     {
         var first = t.Text.Split('\n')[0].Trim();
@@ -501,6 +504,24 @@ public sealed partial class Document
             var e = objects.Select(l => BoxOf(l)!.Value.Extent()).ToList();
             reference = (e.Min(x => x.Left), e.Min(x => x.Top), e.Max(x => x.Right), e.Max(x => x.Bottom));
         }
+        return AlignObjectsTo(objects, edge, reference);
+    }
+
+    /// <summary>The area another layer covers, for lining up with it: a text or shape layer's frame, or a pixel layer's
+    /// painted area (null when it is empty or has no pixels).</summary>
+    public (double Left, double Top, double Right, double Bottom)? ExtentOf(Layer layer)
+    {
+        if (BoxOf(layer) is { } box) return box.Extent();
+        if (!layer.IsPaintable) return null;
+        var b = layer.Image.ContentBounds(layer.ContentBounds.Intersect(Bounds));
+        return b.IsEmpty ? null : (b.X, b.Y, b.Right, b.Bottom);
+    }
+
+    /// <summary>Lines up text and shape layers with a reference area (the canvas, or another layer's extent). One undo step.</summary>
+    public bool AlignObjectsTo(IReadOnlyList<Layer> layers, AlignEdge edge, (double Left, double Top, double Right, double Bottom) reference)
+    {
+        var objects = layers.Where(l => l.IsObject && !l.Locked && BoxOf(l) is not null).ToList();
+        if (objects.Count == 0) return false;
         var actions = new List<IHistoryAction>();
         string name = $"Align {edge switch { AlignEdge.Left => "left", AlignEdge.CenterX => "centres", AlignEdge.Right => "right", AlignEdge.Top => "top", AlignEdge.CenterY => "middles", _ => "bottom" }}";
         foreach (var l in objects)

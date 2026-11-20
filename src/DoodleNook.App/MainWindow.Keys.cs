@@ -158,6 +158,30 @@ public partial class MainWindow
                 s.DuplicateLayer();
                 ShowToast("Layer duplicated");
                 return true;
+            case Key.G when ctrl && shift:
+                s.Ungroup();
+                return true;
+            case Key.G when ctrl:
+                s.GroupActiveLayer();
+                ShowToast("Grouped · drag layers onto the group to add them");
+                return true;
+            case Key.R when ctrl:
+                if (Workspace.Kind != WorkspaceKind.PureSketch) SetShowRulers(!WsState.ShowRulers);
+                return true;
+            case Key.OemSemicolon when ctrl && shift:
+                s.SetAssistOptions(s.Assist with { Snap = !s.Assist.Snap });
+                ShowToast(s.Assist.Snap ? "Snapping on" : "Snapping off");
+                return true;
+            case Key.OemSemicolon when ctrl:
+                s.SetShowGuides(!s.ShowGuides);
+                ShowToast(s.ShowGuides ? "Guides shown" : "Guides hidden");
+                return true;
+            case Key.L when ctrl:
+                _ = AdjustAsync(AdjustKind.Levels);
+                return true;
+            case Key.B when ctrl:
+                _ = AdjustAsync(AdjustKind.ColourBalance);
+                return true;
             case Key.E when ctrl:
                 s.MergeDown();
                 return true;

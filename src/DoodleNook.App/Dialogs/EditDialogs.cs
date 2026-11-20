@@ -16,6 +16,8 @@ public enum AdjustKind
     HueSaturation,
     Blur,
     Sharpen,
+    Levels,
+    ColourBalance,
 }
 
 /// <summary>The image dialogs: image size, canvas size, colour adjustments (with live preview) and export options.</summary>
@@ -160,56 +162,115 @@ public static class EditDialogs
         }
     }
 
-    /// <summary>An adjustment with live preview. <paramref name="preview"/> is called with the current settings
-    /// (null = show the original); returns the chosen adjustment or null when cancelled.</summary>
-    public static async Task<Adjustment?> AskAdjustmentAsync(this DialogHost host, AdjustKind kind, Action<Adjustment?> preview)
+    /// <summary>Which dialog edits an adjustment.</summary>
+    public static AdjustKind KindOf(Adjustment a) => a switch
     {
-        var values = kind switch
+        HueSaturation => AdjustKind.HueSaturation,
+        Levels => AdjustKind.Levels,
+        ColourBalance => AdjustKind.ColourBalance,
+        Blur => AdjustKind.Blur,
+        Sharpen => AdjustKind.Sharpen,
+        _ => AdjustKind.BrightnessContrast,
+    };
+
+    /// <summary>A neutral adjustment of a kind (changes nothing until its sliders move).</summary>
+    public static Adjustment Neutral(AdjustKind kind) => kind switch
+    {
+        AdjustKind.HueSaturation => new HueSaturation(0, 0, 0),
+        AdjustKind.Levels => new Levels(),
+        AdjustKind.ColourBalance => new ColourBalance(),
+        AdjustKind.Blur => new Blur(3),
+        AdjustKind.Sharpen => new Sharpen(0.8, 1.5),
+        _ => new BrightnessContrast(0, 0),
+    };
+
+    /// <summary>An adjustment with live preview. <paramref name="preview"/> is called with the current settings
+    /// (null = show the original); returns the chosen adjustment or null when cancelled. <paramref name="initial"/> starts
+    /// from existing settings (an adjustment layer being edited).</summary>
+    public static async Task<Adjustment?> AskAdjustmentAsync(this DialogHost host, AdjustKind kind, Action<Adjustment?> preview,
+        Adjustment? initial = null, bool layer = false)
+    {
+        // The engine's units: −100…100 for brightness, contrast, saturation, lightness and colour balance; degrees for hue.
+        var values = (initial ?? Neutral(kind)) switch
         {
-            AdjustKind.BrightnessContrast => new double[] { 0, 0 },
-            AdjustKind.HueSaturation => new double[] { 0, 0, 0 },
-            AdjustKind.Blur => new double[] { 3 },
-            _ => new double[] { 0.8, 1.5 },
+            BrightnessContrast b => new[] { b.Brightness, b.Contrast },
+            HueSaturation h => new[] { h.Hue, h.Saturation, h.Lightness },
+            Levels l => new[] { l.InBlack, l.InWhite, l.Gamma, l.OutBlack, l.OutWhite },
+            ColourBalance c => new[] { c.CyanRed, c.MagentaGreen, c.YellowBlue },
+            Blur bl => new[] { bl.Radius },
+            Sharpen sh => new[] { sh.Amount, sh.Radius },
+            _ => new double[] { 0, 0 },
         };
+        static string Signed(double v) => $"{v:+0;-0;0}";
         (string Label, double Min, double Max, Func<double, string> Fmt)[] specs = kind switch
         {
-            AdjustKind.BrightnessContrast => [("Brightness", -1, 1, v => $"{v * 100:+0;-0;0}"), ("Contrast", -1, 1, v => $"{v * 100:+0;-0;0}")],
-            AdjustKind.HueSaturation => [("Hue", -180, 180, v => $"{v:+0;-0;0}°"), ("Saturation", -1, 1, v => $"{v * 100:+0;-0;0}"), ("Lightness", -1, 1, v => $"{v * 100:+0;-0;0}")],
+            AdjustKind.BrightnessContrast => [("Brightness", -100, 100, Signed), ("Contrast", -100, 100, Signed)],
+            AdjustKind.HueSaturation => [("Hue", -180, 180, v => $"{v:+0;-0;0}°"), ("Saturation", -100, 100, Signed), ("Lightness", -100, 100, Signed)],
+            AdjustKind.Levels => [("Input black", 0, 254, v => $"{v:0}"), ("Input white", 1, 255, v => $"{v:0}"), ("Midtones", 0.1, 10, v => $"{v:0.00}"),
+                                  ("Output black", 0, 255, v => $"{v:0}"), ("Output white", 0, 255, v => $"{v:0}")],
+            AdjustKind.ColourBalance => [("Cyan ↔ Red", -100, 100, Signed), ("Magenta ↔ Green", -100, 100, Signed), ("Yellow ↔ Blue", -100, 100, Signed)],
             AdjustKind.Blur => [("Radius", 0.5, 40, v => $"{v:0.#} px")],
             _ => [("Amount", 0.1, 3, v => $"{v * 100:0}%"), ("Radius", 0.5, 6, v => $"{v:0.#} px")],
         };
         bool show = true;
         Adjustment Current() => kind switch
         {
-            AdjustKind.BrightnessContrast => new BrightnessContrast(values[0], values[1]),
-            AdjustKind.HueSaturation => new HueSaturation(values[0], values[1], values[2]),
+            AdjustKind.BrightnessContrast => new BrightnessContrast(Math.Round(values[0]), Math.Round(values[1])),
+            AdjustKind.HueSaturation => new HueSaturation(Math.Round(values[0]), Math.Round(values[1]), Math.Round(values[2])),
+            AdjustKind.Levels => new Levels(Math.Round(values[0]), Math.Max(Math.Round(values[1]), Math.Round(values[0]) + 1), Math.Round(values[2], 2),
+                Math.Round(values[3]), Math.Round(values[4])),
+            AdjustKind.ColourBalance => new ColourBalance(Math.Round(values[0]), Math.Round(values[1]), Math.Round(values[2])),
             AdjustKind.Blur => new Blur(values[0]),
             _ => new Sharpen(values[0], values[1]),
         };
         void Update() => preview(show ? Current() : null);
 
         var body = new StackPanel { Spacing = 8 };
+        var refreshers = new List<Action>();
         for (int i = 0; i < specs.Length; i++)
         {
             int index = i;
             var (label, min, max, fmt) = specs[i];
-            var (root, _) = UiKit.Slider(null, min, max, () => values[index], v => { values[index] = v; Update(); }, fmt, trackWidth: 220,
-                log: kind == AdjustKind.Blur);
-            body.Children.Add(UiKit.Row(8, Dim(label, 80), root));
+            var (root, refresh) = UiKit.Slider(null, min, max, () => values[index], v => { values[index] = v; Update(); }, fmt, trackWidth: 220,
+                log: kind == AdjustKind.Blur || (kind == AdjustKind.Levels && index == 2));
+            refreshers.Add(refresh);
+            body.Children.Add(UiKit.Row(8, Dim(label, 110), root));
         }
         var (previewToggle, refreshToggle) = UiKit.Toggle("eye", "Preview", "Compare with the original", () => show, v => { show = v; Update(); });
         previewToggle.Click += (_, _) => refreshToggle();
-        body.Children.Add(previewToggle);
-        body.Children.Add(DialogHost.Text("Applies to the selection, or the whole layer when nothing is selected."));
+        var reset = UiKit.Button(null, "Reset", "Back to no change", () =>
+        {
+            var n = Neutral(kind);
+            var nv = n switch
+            {
+                BrightnessContrast b => new[] { b.Brightness, b.Contrast },
+                HueSaturation h => new[] { h.Hue, h.Saturation, h.Lightness },
+                Levels l => new[] { l.InBlack, l.InWhite, l.Gamma, l.OutBlack, l.OutWhite },
+                ColourBalance c => new[] { c.CyanRed, c.MagentaGreen, c.YellowBlue },
+                Blur bl => new[] { bl.Radius },
+                Sharpen sh => new[] { sh.Amount, sh.Radius },
+                _ => values,
+            };
+            Array.Copy(nv, values, Math.Min(nv.Length, values.Length));
+            foreach (var r in refreshers) r();
+            Update();
+        });
+        reset.Height = 30;
+        body.Children.Add(UiKit.Row(8, previewToggle, reset));
+        body.Children.Add(DialogHost.Text(layer
+            ? "An adjustment layer changes everything below it (in its group) without changing any pixels. Edit it again any time: double-click it in the layers panel."
+            : "Applies to the selection, or the whole layer when nothing is selected."));
         Update();
         var title = kind switch
         {
             AdjustKind.BrightnessContrast => "Brightness / Contrast",
             AdjustKind.HueSaturation => "Hue / Saturation",
+            AdjustKind.Levels => "Levels",
+            AdjustKind.ColourBalance => "Colour balance",
             AdjustKind.Blur => "Blur",
             _ => "Sharpen",
         };
-        var r = await host.ShowAsync(title, body, [("cancel", "Cancel", false), ("ok", "Apply", true)], "ok", "cancel", 420);
+        var r = await host.ShowAsync(layer ? $"{title} (adjustment layer)" : title, body, [("cancel", "Cancel", false), ("ok", layer ? "OK" : "Apply", true)], "ok", "cancel", 460);
         return r == "ok" ? Current() : null;
     }
 

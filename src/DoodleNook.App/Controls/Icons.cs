@@ -109,6 +109,24 @@ public static class Icons
         ["box"] = "M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z",
         ["boxcheck"] = "M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z M8 12.5l2.8 2.8L16 9.5",
         ["palette"] = "M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 1.5-2.2-.6-1.4.3-2.8 1.8-2.8H17a3.5 3.5 0 0 0 3.5-3.5c0-4.7-3.8-8.5-8.5-8.5z",
+        // Mission 008: text, groups, masks, adjustment layers and drawing assistants.
+        ["text"] = "M5 7V4.5h14V7 M12 4.5v15 M9 19.5h6",
+        ["folder"] = "M3.5 6.5h6l2 2h9v10.5h-17z",
+        ["mask"] = "M4 5h16v14H4z M12 8.5a3.5 3.5 0 0 0 0 7 M12 8.5a3.5 3.5 0 0 1 0 7z M10.2 10l1.8-1.5 M9 12.5l3-2.5 M9.6 14.7L12 12.7",
+        ["adjust"] = "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z M12 4v16 M12 8l4.6-2 M12 12l7.5-1 M12 16l6 1.5",
+        ["ruler"] = "M3 16L16 3l5 5L8 21z M7 12l2 2 M10 9l1.5 1.5 M13 6l2 2",
+        ["guides"] = "M8 3v18 M3 15h18 M3 3h2M19 3h2M3 21h2M19 21h2",
+        ["persp"] = "M12 6L3 19 M12 6l9 13 M12 6v13 M3 6h18 M7.5 12.5h9",
+        ["roundrect"] = "M8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
+        ["polygon"] = "M12 3.5l7.4 4.25v8.5L12 20.5l-7.4-4.25v-8.5z",
+        ["magnet"] = "M6 4v8a6 6 0 0 0 12 0V4 M10 4v8a2 2 0 0 0 4 0V4 M6 8h4 M14 8h4",
+        ["alignl"] = "M4 4v16 M8 7h10v4H8z M8 13h6v4H8z",
+        ["alignc"] = "M12 4v3 M12 11v2 M12 17v3 M7 7h10v4H7z M9 13h6v4H9z",
+        ["alignr"] = "M20 4v16 M6 7h10v4H6z M10 13h6v4h-6z",
+        ["alignt"] = "M4 4h16 M7 8h4v10H7z M13 8h4v6h-4z",
+        ["alignm"] = "M4 12h3 M11 12h2 M17 12h3 M7 7h4v10H7z M13 9h4v6h-4z",
+        ["alignb"] = "M4 20h16 M7 6h4v10H7z M13 10h4v6h-4z",
+        ["assist"] = "M10.5 4.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0 M12 6L6.5 20 M12 6l5.5 14 M8.6 15h6.8",
     };
 
     private static readonly Dictionary<string, Geometry> Cache = new();

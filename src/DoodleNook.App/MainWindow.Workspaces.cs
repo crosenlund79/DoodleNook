@@ -219,6 +219,7 @@ public partial class MainWindow
         var kind = Workspace.Kind;
         bool hidden = UiHidden;
         bool pure = kind == WorkspaceKind.PureSketch;
+        ApplyRulers();
         TopHost.IsVisible = !hidden && TopHost.Child is not null;
         OptionsHost.IsVisible = !hidden && OptionsHost.Child is not null;
         ToolHost.IsVisible = !hidden && ToolHost.Child is not null;

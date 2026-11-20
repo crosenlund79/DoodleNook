@@ -29,11 +29,11 @@ public static class Workspaces
             [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Lasso, ToolKind.Move, ToolKind.Fill, ToolKind.Hand], ToolKind.Brush,
             "A slim toolbar for spontaneous doodling."),
         new(WorkspaceKind.Painting, "C", "Painting", "wsC",
-            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Stamp, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
+            [ToolKind.Brush, ToolKind.Eraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Stamp, ToolKind.Lasso, ToolKind.Move, ToolKind.Hand], ToolKind.Brush,
             "Brushes, colour and layers for finished artwork."),
         new(WorkspaceKind.Editing, "D", "Editing", "wsD",
             [ToolKind.Move, ToolKind.RectSelect, ToolKind.EllipseSelect, ToolKind.Lasso, ToolKind.MagicWand, ToolKind.Crop, ToolKind.Eyedropper,
-             ToolKind.Brush, ToolKind.Eraser, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Hand], ToolKind.RectSelect,
+             ToolKind.Brush, ToolKind.Eraser, ToolKind.Fill, ToolKind.Gradient, ToolKind.Shape, ToolKind.Text, ToolKind.Hand], ToolKind.RectSelect,
             "Selections, transforms, crop, resize and colour adjustments."),
         new(WorkspaceKind.PixelArt, "E", "Pixel Art", "wsE",
             [ToolKind.PixelPencil, ToolKind.PixelEraser, ToolKind.Eyedropper, ToolKind.Fill, ToolKind.PixelLine, ToolKind.PixelRect, ToolKind.PixelEllipse,
@@ -68,12 +68,12 @@ public static class Workspaces
         [ToolKind.Hand] = new(ToolKind.Hand, "Hand", "hand", "H", "Drag to pan · hold Space with any tool · hold R and drag to rotate the view"),
         [ToolKind.Fill] = new(ToolKind.Fill, "Paint bucket", "fill", "G", "Click to fill similar colours"),
         [ToolKind.Gradient] = new(ToolKind.Gradient, "Gradient", "gradient", "Shift+G", "Drag from start to end · Shift snaps the angle"),
-        [ToolKind.Shape] = new(ToolKind.Shape, "Shapes", "shape", "U", "Drag a line, rectangle or ellipse · Shift constrains"),
+        [ToolKind.Shape] = new(ToolKind.Shape, "Shapes", "shape", "U", "Drag a line, rectangle or ellipse · Shift constrains · Editable keeps shapes changeable"),
         [ToolKind.RectSelect] = new(ToolKind.RectSelect, "Rectangle select", "marquee", "M", "Drag to select · Shift adds, Alt subtracts · click to deselect"),
         [ToolKind.EllipseSelect] = new(ToolKind.EllipseSelect, "Ellipse select", "ellipsesel", "Shift+M", "Drag to select an ellipse · Shift for a circle"),
         [ToolKind.Lasso] = new(ToolKind.Lasso, "Lasso", "lasso", "L", "Draw around what you want to select"),
         [ToolKind.MagicWand] = new(ToolKind.MagicWand, "Magic wand", "wand", "W", "Click to select similar colours"),
-        [ToolKind.Move] = new(ToolKind.Move, "Move", "move", "V", "Drag to move the selection or the whole layer"),
+        [ToolKind.Move] = new(ToolKind.Move, "Move", "move", "V", "Drag to move the selection or the whole layer · text and shapes get handles · Ctrl+click picks text or a shape"),
         [ToolKind.Crop] = new(ToolKind.Crop, "Crop", "crop", "C", "Drag the area to keep, then press Enter"),
         [ToolKind.PixelPencil] = new(ToolKind.PixelPencil, "Pixel pencil", "pixpencil", "B", "Exact pixels, no smoothing"),
         [ToolKind.PixelEraser] = new(ToolKind.PixelEraser, "Pixel eraser", "eraser", "E", "Clears whole pixels"),
@@ -81,6 +81,7 @@ public static class Workspaces
         [ToolKind.PixelRect] = new(ToolKind.PixelRect, "Rectangle", "rect", "U", "Drag a pixel rectangle"),
         [ToolKind.PixelEllipse] = new(ToolKind.PixelEllipse, "Ellipse", "ellipse", "Shift+U", "Drag a pixel ellipse"),
         [ToolKind.Stamp] = new(ToolKind.Stamp, "Stamp", "stamp", "S", "Click to place the current stamp · [ and ] size · pick stamps in the options bar"),
+        [ToolKind.Text] = new(ToolKind.Text, "Text", "text", "T", "Click to add text · click text to edit it · drag its handles to size and turn it"),
     };
 
     /// <summary>The tool a key selects in a workspace (Photoshop-style letters, resolved within the workspace's tools).</summary>
@@ -166,6 +167,9 @@ public sealed class WorkspaceState
     public bool Tiled { get; set; }
     public bool Preview { get; set; } = true;
     public bool RightClickPaintsBackground { get; set; }
+
+    /// <summary>Rulers along the canvas (View › Rulers; hidden by default).</summary>
+    public bool ShowRulers { get; set; }
 
     /// <summary>Customize workspace choices that differ from the defaults (option id → shown). Unknown ids are ignored.</summary>
     public Dictionary<string, bool> Options { get; set; } = new();

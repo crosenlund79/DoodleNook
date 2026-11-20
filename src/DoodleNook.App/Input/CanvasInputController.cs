@@ -52,6 +52,14 @@ public enum Gesture
     Move,
     Transform,
     Crop,
+
+    // Mission 008
+    ObjectEdit,
+    NewShape,
+    NewText,
+    Guide,
+    AssistHandle,
+    StraightLine,
 }
 
 public enum CursorShape
@@ -65,6 +73,7 @@ public enum CursorShape
     Move,
     Rotate,
     Arrow,
+    Text,
 }
 
 /// <summary>What the canvas should draw on top of the picture for the current tool (all in document coordinates).</summary>
@@ -79,6 +88,13 @@ public sealed class CanvasOverlay
 
     /// <summary>The stamp tool's preview under the pointer (picture and placement in document coordinates).</summary>
     public (RasterImage Image, StampPlacement Placement)? Stamp { get; set; }
+
+    /// <summary>A guide being dragged (from a ruler, or moved).</summary>
+    public (bool Vertical, double Position)? GuidePreview { get; set; }
+
+    /// <summary>The lines a drag has snapped to (shown while dragging).</summary>
+    public double? SnapX { get; set; }
+    public double? SnapY { get; set; }
 }
 
 /// <summary>
@@ -86,7 +102,7 @@ public sealed class CanvasOverlay
 /// <see cref="EditorSession"/>, the document operations or the <see cref="ViewTransform"/>. It never draws pixels
 /// itself and knows nothing about the UI framework, so it can be unit-tested with synthetic input.
 /// </summary>
-public sealed class CanvasInputController
+public sealed partial class CanvasInputController
 {
     public const float MousePressure = 1f;
     private const double TapSlop = 6; // view units a "click" may move
@@ -154,7 +170,10 @@ public sealed class CanvasInputController
         Gesture.ResizeBrush => CursorShape.Resize,
         Gesture.RotateView => CursorShape.Rotate,
         Gesture.Paint or Gesture.PixelPaint => CursorShape.BrushOutline,
-        Gesture.Move or Gesture.Transform => CursorShape.Move,
+        Gesture.Move or Gesture.Transform or Gesture.Guide or Gesture.AssistHandle => CursorShape.Move,
+        Gesture.ObjectEdit => _objectHandle switch { 8 => CursorShape.Move, 9 => CursorShape.Rotate, _ => CursorShape.Resize },
+        Gesture.NewShape or Gesture.NewText or Gesture.StraightLine => CursorShape.Crosshair,
+        Gesture.None when _hoverCursor is { } hover && !SpaceHeld && !AltHeld => hover,
         Gesture.None when SpaceHeld || _session.Tool == ToolKind.Hand => CursorShape.Hand,
         Gesture.None when RotateHeld => CursorShape.Rotate,
         Gesture.None when _session.ActiveTransform is not null => CursorShape.Move,
@@ -164,6 +183,7 @@ public sealed class CanvasInputController
             ToolKind.Brush or ToolKind.Eraser or ToolKind.PixelPencil or ToolKind.PixelEraser => CursorShape.BrushOutline,
             ToolKind.Eyedropper => CursorShape.Eyedropper,
             ToolKind.Move => CursorShape.Move,
+            ToolKind.Text => CursorShape.Text,
             _ => CursorShape.Crosshair,
         },
     };
@@ -197,6 +217,7 @@ public sealed class CanvasInputController
                 StrokeErases = p.Eraser || _session.Tool == ToolKind.Eraser;
                 _session.BeginStroke(ToSample(p), forceEraser: p.Eraser);
                 if (!_session.IsStrokeActive) Gesture = Gesture.None;
+                else BeginAssistedStroke();
                 break;
             case Gesture.PixelPaint:
             {
@@ -244,6 +265,12 @@ public sealed class CanvasInputController
                 _transformStart = _session.ActiveTransform!.Transform;
                 _handle = HitHandle(p.X, p.Y);
                 break;
+            case Gesture.ObjectEdit:
+            case Gesture.NewShape:
+            case Gesture.StraightLine:
+            case Gesture.Guide:
+                PressDesign(g, p);
+                break;
         }
         OverlayChanged?.Invoke();
         return Gesture != Gesture.None;
@@ -270,6 +297,7 @@ public sealed class CanvasInputController
         bool alt = p.Alt || AltHeld;
         if (alt && !IsSelectionTool(tool) && _session.ActiveTransform is null) return Gesture.Pick;
         if (_session.ActiveTransform is not null && tool != ToolKind.Hand) return Gesture.Transform;
+        if (ClassifyDesign(p, tool) is { } design) return design;
 
         switch (tool)
         {
@@ -321,6 +349,7 @@ public sealed class CanvasInputController
         {
             Hover = (last.X, last.Y);
             UpdateStampPreview();
+            UpdateHoverCursor(last.X, last.Y);
             OverlayChanged?.Invoke();
             return;
         }
@@ -336,7 +365,8 @@ public sealed class CanvasInputController
                 _buffer.Clear();
                 foreach (var p in points)
                     if (p.PointerId == _pointerId) _buffer.Add(ToSample(p));
-                _session.ContinueStroke(CollectionsMarshal.AsSpan(_buffer));
+                AssistSamples(_buffer);
+                if (_buffer.Count > 0) _session.ContinueStroke(CollectionsMarshal.AsSpan(_buffer));
                 break;
             case Gesture.PixelPaint:
                 foreach (var p in points)
@@ -414,6 +444,14 @@ public sealed class CanvasInputController
             case Gesture.Transform:
                 DragTransform(last, dx, dy);
                 break;
+            case Gesture.ObjectEdit:
+            case Gesture.NewShape:
+            case Gesture.NewText:
+            case Gesture.Guide:
+            case Gesture.AssistHandle:
+            case Gesture.StraightLine:
+                MoveDesign(last, dx, dy);
+                break;
         }
         _lastX = last.X;
         _lastY = last.Y;
@@ -436,9 +474,12 @@ public sealed class CanvasInputController
                 {
                     _buffer.Clear();
                     _buffer.Add(ToSample(p));
-                    _session.ContinueStroke(CollectionsMarshal.AsSpan(_buffer));
+                    AssistSamples(_buffer);
+                    if (_buffer.Count > 0) _session.ContinueStroke(CollectionsMarshal.AsSpan(_buffer));
                 }
+                FlushAssistedStroke();
                 _session.EndStroke();
+                RememberStrokeEnd(dx, dy);
                 break;
             case Gesture.PixelPaint:
                 _session.EndStroke();
@@ -469,6 +510,14 @@ public sealed class CanvasInputController
             case Gesture.Move:
                 _move!.Commit();
                 _move = null;
+                break;
+            case Gesture.ObjectEdit:
+            case Gesture.NewShape:
+            case Gesture.NewText:
+            case Gesture.Guide:
+            case Gesture.AssistHandle:
+            case Gesture.StraightLine:
+                ReleaseDesign(p, dx, dy);
                 break;
             case Gesture.Crop:
             {
@@ -534,6 +583,9 @@ public sealed class CanvasInputController
                 break;
             case Gesture.Move:
                 _move?.Commit();
+                break;
+            default:
+                InterruptDesign();
                 break;
         }
         _gradient = null;

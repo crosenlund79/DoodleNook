@@ -114,6 +114,7 @@ public partial class MainWindow : Window
         CanvasHost.Children.Add(_diagnosticsPanel);
 
         InitAnimation();
+        InitDesign();
 
         _radial = new RadialPalette(this) { Name = "RadialPalette" };
         CanvasHost.Children.Add(_radial);

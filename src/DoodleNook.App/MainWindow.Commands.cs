@@ -82,8 +82,16 @@ public partial class MainWindow
         Session.QuickTransform(t => t.Rotate(degrees), "Rotate");
 
     /// <summary>Arrow keys with the Move tool: nudge the selection (or layer) by whole pixels.</summary>
-    public void Nudge(int dx, int dy) =>
+    public void Nudge(int dx, int dy)
+    {
+        // Text and shapes move as objects (one undo step per nudge).
+        if (Session.ActiveTransform is null && Session.ActiveObject is { } obj)
+        {
+            Session.Document.MoveObjects([obj], dx, dy, "Nudge");
+            return;
+        }
         Session.QuickTransform(t => t.SetTransform(t.Transform.Then(Affine.Translation(dx, dy))), "Nudge");
+    }
 
     public bool ApplyCrop()
     {

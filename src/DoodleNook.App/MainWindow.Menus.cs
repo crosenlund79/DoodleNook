@@ -109,8 +109,11 @@ public partial class MainWindow
             new(null, "Hue / Saturation…", "Ctrl+U", () => _ = AdjustAsync(AdjustKind.HueSaturation)),
             new(null, "Grayscale", "Ctrl+Shift+U", () => ApplyAdjustment(new Desaturate())),
             new("invert", "Invert colours", "Ctrl+I", () => ApplyAdjustment(new Invert())),
+            new(null, "Levels…", "Ctrl+L", () => _ = AdjustAsync(AdjustKind.Levels)),
+            new(null, "Colour balance…", "Ctrl+B", () => _ = AdjustAsync(AdjustKind.ColourBalance)),
             new(null, "Blur…", null, () => _ = AdjustAsync(AdjustKind.Blur)),
             new(null, "Sharpen…", null, () => _ = AdjustAsync(AdjustKind.Sharpen)),
+            new("adjust", "As an adjustment layer: Layer menu", null, null, false),
         };
         var doc = Session.Document;
         list.Add(MenuEntry.Separator);
@@ -143,7 +146,7 @@ public partial class MainWindow
             new("plus", "New layer", "Ctrl+Shift+N", () => s.AddLayer()),
             new("copy", "Duplicate layer", "Ctrl+J", s.DuplicateLayer),
             new("trash", "Delete layer", null, s.DeleteLayer, d.Layers.Count > 1),
-            new("merge", "Merge down", "Ctrl+E", s.MergeDown, i > 0),
+            new("merge", "Merge down", "Ctrl+E", s.MergeDown, d.MergeDownProblem(l) is null),
             MenuEntry.Separator,
             new("chevu", "Move layer up", "Ctrl+]", () => s.MoveLayer(+1), i < d.Layers.Count - 1),
             new("chevd", "Move layer down", "Ctrl+[", () => s.MoveLayer(-1), i > 0),
@@ -157,6 +160,7 @@ public partial class MainWindow
             new("trash", "Clear layer", null, ClearLayer),
             new("paper", d.PaperVisible && d.Paper is not null ? "Hide the paper (see transparency)" : "Show the paper",
                 null, () => d.SetPaper(d.Paper ?? Engine.Imaging.ColorRgb.White, !(d.PaperVisible && d.Paper is not null))),
+            .. DesignLayerEntries(),
         ];
     }
 
@@ -198,6 +202,7 @@ public partial class MainWindow
             new("flip", "Flip view", null, ToggleFlipView, Checked: Canvas.View.FlipHorizontal),
             MenuEntry.Separator,
         };
+        list.AddRange(DesignViewEntries());
         if (pixel)
         {
             list.Add(new("grid", "Pixel grid", "Ctrl+'", () => SetShowGrid(!WsState.ShowGrid), Checked: WsState.ShowGrid));
@@ -347,6 +352,12 @@ public partial class MainWindow
             ("V / M / L / W / C", "Move / Rectangle select (Shift: ellipse) / Lasso / Magic wand / Crop"),
             ("G / Shift+G / U", "Paint bucket (colour or pattern) / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
             ("S", "Stamp tool · [ and ] change the stamp's size"),
+            ("T", "Text tool (Painting, Editing) · click to type, click text to edit it"),
+            ("Shift+drag · Shift+click", "Straight brush line · line from the end of the last stroke"),
+            ("Ctrl+G / Ctrl+Shift+G", "Group layer / Ungroup"),
+            ("Ctrl+R · Ctrl+; · Ctrl+Shift+;", "Rulers · show guides · snapping"),
+            ("Ctrl+click (Move tool)", "Pick the text or shape under the pointer"),
+            ("Ctrl+L / Ctrl+B", "Levels / Colour balance"),
             ("[ and ] · right-drag", "Smaller / larger brush"),
             ("Right-click · pen button", "Quick palette at the pen"),
             ("X / D", "Swap / default colours · Alt: eyedropper with any tool"),
@@ -388,8 +399,8 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} — Mission 007 “The Artist's Workshop”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes and a reference board.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} — Mission 008 “The Designer's Toolkit”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
         [("ok", "Close", true)], "ok", "ok");

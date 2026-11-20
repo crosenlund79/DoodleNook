@@ -27,6 +27,9 @@ public enum ToolKind
     PixelRect,
     PixelEllipse,
     Stamp,
+
+    /// <summary>Editable text (Mission 008).</summary>
+    Text,
 }
 
 public enum PressureFeel
@@ -54,7 +57,7 @@ public sealed record PixelToolOptions(int Size = 1, bool PixelPerfect = true, Sy
 /// and an in-progress transform. It has no UI-framework dependencies, so it can be driven by tests, the smoke test
 /// or the real window alike. All five workspaces share one session (and so one document and one undo history).
 /// </summary>
-public sealed class EditorSession
+public sealed partial class EditorSession
 {
     /// <summary>DoodleNook's built-in brushes (the user's own brushes are in <see cref="Library"/>).</summary>
     public static IReadOnlyList<BrushPreset> Presets => BuiltInAssets.Brushes;
@@ -414,9 +417,20 @@ public sealed class EditorSession
             Tell($"“{layer.Name}” is locked");
             return false;
         }
-        if (!layer.Visible)
+        if (!Document.IsShown(layer))
         {
-            Tell($"“{layer.Name}” is hidden — show it to paint on it");
+            Tell(layer.Visible ? $"“{layer.Name}” is in a hidden group — show the group to paint on it" : $"“{layer.Name}” is hidden — show it to paint on it");
+            return false;
+        }
+        if (!layer.IsPaintable && !Document.EditingMask)
+        {
+            Tell(layer.Kind switch
+            {
+                LayerKind.Text => $"“{layer.Name}” is text — edit it with the Text tool, or Layer › Convert to pixels",
+                LayerKind.Shape => $"“{layer.Name}” is an editable shape — change it in the options bar, or Layer › Convert to pixels",
+                LayerKind.Group => $"“{layer.Name}” is a group — choose a layer inside it to paint on",
+                _ => $"“{layer.Name}” is an adjustment layer — paint on its mask, or choose another layer",
+            });
             return false;
         }
         return true;
@@ -430,7 +444,7 @@ public sealed class EditorSession
         bool erase = forceEraser || Tool == ToolKind.Eraser;
         var settings = erase ? Eraser : Brush;
         if (!erase) RememberColor(Foreground);
-        _engine.Begin(new StrokeStyle(settings, Curve, Foreground, erase ? PaintMode.Erase : PaintMode.Paint, Symmetry, Library.Resolve(settings)), first);
+        _engine.Begin(new StrokeStyle(settings, Curve, Foreground, erase ? PaintMode.Erase : PaintMode.Paint, Symmetry, Library.Resolve(settings), Assist.Placement), first);
     }
 
     public void ContinueStroke(ReadOnlySpan<StrokeSample> samples) => _engine.Add(samples);
@@ -456,7 +470,7 @@ public sealed class EditorSession
         if (!CanEditActiveLayer()) return;
         var color = background ? Background : Foreground;
         if (!erase) RememberColor(color);
-        _pixel.Begin(new PixelStrokeStyle(color, erase, Pixel.Size, Pixel.PixelPerfect, Pixel.Symmetry, Pixel.Tiled), x, y);
+        _pixel.Begin(new PixelStrokeStyle(color, erase, Pixel.Size, Pixel.PixelPerfect, Pixel.Symmetry, Pixel.Tiled, Placement: Assist.Placement), x, y);
     }
 
     public void ContinuePixelStroke(int x, int y) => _pixel.Add(x, y);
@@ -508,14 +522,22 @@ public sealed class EditorSession
     public void MergeDown()
     {
         CommitTransform();
-        if (Document.ActiveIndex == 0) Tell("There is no layer below to merge into");
-        else if (!Document.MergeDown(Document.ActiveLayer)) Tell("The layer below is locked");
+        if (Document.MergeDownProblem(Document.ActiveLayer) is { } problem) Tell(problem);
+        else Document.MergeDown(Document.ActiveLayer);
     }
 
     public void MoveLayer(int direction)
     {
         CommitTransform();
-        Document.MoveLayer(Document.ActiveLayer, Document.ActiveIndex + direction);
+        var layer = Document.ActiveLayer;
+        if (Document.Layers.Any(l => l.IsGroup))
+        {
+            // With groups, a layer moves among the layers of its own group (Layer › Move out of group leaves it).
+            if (!Document.MoveAmongSiblings(layer, direction) && layer.ParentId != 0)
+                Tell(direction > 0 ? "Top of the group — Layer › Move out of group to leave it" : "Bottom of the group — Layer › Move out of group to leave it");
+            return;
+        }
+        Document.MoveLayer(layer, Document.ActiveIndex + direction);
     }
 
     public void SetLayerProperty(Layer layer, Func<LayerProperties, LayerProperties> change, string? name = null)
@@ -908,6 +930,11 @@ public sealed class EditorSession
     {
         if (ActiveTransform is not null) return true;
         EndStroke();
+        if (Document.ActiveLayer.IsObject)
+        {
+            Tell("Text and shapes have their own handles — choose the Move tool (V) and drag them");
+            return false;
+        }
         if (!CanEditActiveLayer()) return false;
         _transform = FloatingTransform.Begin(Document, Document.ActiveLayer, name);
         if (_transform is null)
