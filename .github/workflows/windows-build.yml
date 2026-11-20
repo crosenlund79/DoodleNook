@@ -87,7 +87,7 @@ jobs:
           if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish its smoke test within 3 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board, plus Palette Lock and Remap to Palette (alpha kept exactly)."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7

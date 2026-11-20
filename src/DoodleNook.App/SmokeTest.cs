@@ -374,6 +374,50 @@ internal static class SmokeTest
         Check("creative library is saved and reads back", File.Exists(Path.Combine(libraryDir, "library.json")) && reread.FindBrush(customBrush.Id)?.Name == "Smoke tip"
             && reread.Resolve(customBrush.Settings)?.Tip is not null && reread.FindPalette(palette.Id)?.Colors.Count == 6);
 
+        // 12. Palette Lock and Remap to Palette: through the real dialog, then the exact-alpha rule in an exported PNG.
+        session.Document.MarkSaved();
+        session.ReplaceDocument(new Engine.Documents.Document(400, 300, null, "Sketch"), null);
+        var locked = session.Document;
+        session.SelectTool(ToolKind.Brush);
+        session.ApplyPreset("ink");
+        session.SetSize(24);
+        session.SetForeground(ColorRgb.Parse("#00C060"));
+        Drag(40, 150, 360, 150);
+        locked.ActiveLayer.Image[10, 10] = Pixel.FromStraight(200, 100, 50, 73); // the brief's critical pixel
+        var lockTarget = new Engine.Documents.Palette("Smoke", [new ColorRgb(40, 80, 120), ColorRgb.Parse("#F2E3C6"), ColorRgb.Parse("#1A1C2C")]);
+        var lockTask = window.LockToPaletteAsync(lockTarget);
+        for (int i = 0; i < 200 && window.LastRemapDialog is null; i++) await Task.Delay(25);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        bool askedFirst = window.LastRemapDialog is not null && !locked.PaletteLocked;
+        await Shot("smoke-I-palette-remap.png");
+        window.Dialogs.Close("apply");
+        bool applied = await lockTask;
+        var lockConformer = locked.PaletteConformer;
+        bool onlyPalette = lockConformer is not null && locked.ActiveLayer.Image.Pixels.All(p => p == 0 || lockConformer.ExactIndex(p) >= 0);
+        Check("palette lock asks first (remap preview), then remaps and locks as one undo step",
+            askedFirst && applied && locked.PaletteLocked && onlyPalette && locked.History.NextUndoName is "Remap and lock to palette");
+        var lockedPng = Path.Combine(dir, "smoke-locked.png");
+        window.ExportToPath(lockedPng, ExportFormat.Png);
+        using (var codec = SkiaSharp.SKCodec.Create(lockedPng))
+        {
+            var info = new SkiaSharp.SKImageInfo(codec.Info.Width, codec.Info.Height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+            using var bitmap = new SkiaSharp.SKBitmap(info);
+            codec.GetPixels(info, bitmap.GetPixels());
+            var px = bitmap.GetPixel(10, 10);
+            Check("remapping keeps alpha exactly: RGBA(200,100,50,73) exports as RGBA(40,80,120,73)",
+                px.Red == 40 && px.Green == 80 && px.Blue == 120 && px.Alpha == 73, $"{px.Red},{px.Green},{px.Blue},{px.Alpha}");
+        }
+        session.SetForeground(ColorRgb.Parse("#FF00FF"));
+        input.Press(Pen(60, 60, 0.3f));
+        input.Move([Pen(200, 80, 0.9f), Pen(340, 60, 0.5f)]);
+        input.Release(Pen(340, 60, 0f, down: false));
+        Check("painting while locked uses only palette colours (a picked colour snaps to the palette)",
+            locked.Palette.Colors.Contains(session.Foreground) && locked.ActiveLayer.Image.Pixels.All(p => p == 0 || lockConformer!.ExactIndex(p) >= 0));
+        var lockedDnk = Path.Combine(dir, "smoke-locked.dnk");
+        bool lockedSaved = await window.SaveToPathAsync(lockedDnk);
+        var lockedBack = DnkFile.Load(lockedDnk);
+        Check("a locked picture reopens locked (.dnk version 3)", lockedSaved && lockedBack.PaletteLocked && lockedBack.Palette.Colors.SequenceEqual(lockTarget.Colors));
+
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
         report["uploadedPixels"] = canvas.UploadedPixels;

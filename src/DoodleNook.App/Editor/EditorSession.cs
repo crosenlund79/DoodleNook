@@ -79,6 +79,7 @@ public sealed class EditorSession
     public EditorSession(Document document)
     {
         Document = document;
+        document.PaletteChanged += OnPaletteChanged;
         _engine = new StrokeEngine(document);
         _pixel = new PixelStroke(document);
         BrushPresetId = "pencil";
@@ -157,10 +158,14 @@ public sealed class EditorSession
         EndStroke();
         CommitTransform();
         if (CelClipboard is { } clip && (clip.Image.Width != document.Width || clip.Image.Height != document.Height)) CelClipboard = null;
+        Document.PaletteChanged -= OnPaletteChanged;
         Document = document;
+        document.PaletteChanged += OnPaletteChanged;
         FilePath = filePath;
         _engine = new StrokeEngine(document);
         _pixel = new PixelStroke(document);
+        Foreground = Allowed(Foreground);
+        Background = Allowed(Background);
         DocumentReplaced?.Invoke();
         Changed();
     }
@@ -297,8 +302,8 @@ public sealed class EditorSession
         Eraser = eraser.Normalized();
         BrushPresetId = Library.FindBrush(presetId) is not null ? presetId : Presets[0].Id;
         PressureFeel = feel;
-        Foreground = fg;
-        Background = bg;
+        Foreground = Allowed(fg);
+        Background = Allowed(bg);
         Replace(RecentColors, recent);
         Replace(Swatches, swatches);
         Changed();
@@ -321,8 +326,22 @@ public sealed class EditorSession
 
     // ================================================================ colours
 
+    /// <summary>True when the picture is locked to its palette (colours snap to it; the colour picker shows only it).</summary>
+    public bool PaletteLocked => Document.PaletteLocked;
+
+    /// <summary>The colour that may be used: itself, or the nearest palette colour while the picture is locked.</summary>
+    public ColorRgb Allowed(ColorRgb color) => Document.PaletteConformer?.Nearest(color) ?? color;
+
+    private void OnPaletteChanged()
+    {
+        Foreground = Allowed(Foreground);
+        Background = Allowed(Background);
+        Changed();
+    }
+
     public void SetForeground(ColorRgb color)
     {
+        color = Allowed(color); // a locked palette is never expanded by picking or the eyedropper
         if (color == Foreground) return;
         Foreground = color;
         Changed();
@@ -330,6 +349,7 @@ public sealed class EditorSession
 
     public void SetBackground(ColorRgb color)
     {
+        color = Allowed(color);
         if (color == Background) return;
         Background = color;
         Changed();
@@ -343,8 +363,8 @@ public sealed class EditorSession
 
     public void ResetColors()
     {
-        Foreground = DefaultForeground;
-        Background = DefaultBackground;
+        Foreground = Allowed(DefaultForeground);
+        Background = Allowed(DefaultBackground);
         Changed();
     }
 

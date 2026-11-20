@@ -122,7 +122,7 @@ public static class GifEncoder
                 result[i] = -1;
                 continue;
             }
-            var (r, g, b, _) = Pixel.ToStraight(p);
+            var (r, g, b, _) = image.StraightAt(i);
             result[i] = r << 16 | g << 8 | b;
         }
         return result;

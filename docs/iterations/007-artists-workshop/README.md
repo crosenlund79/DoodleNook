@@ -72,8 +72,8 @@ What you see, by the three access levels of the [interface philosophy](../../des
 | Level | What's there |
 |---|---|
 | **1 · Visible** | The **Stamp** tool (S) in Painting and Pixel Art. The brush dock and brush picker now have a search box, categories and a *Brush Laboratory…* button. The paint bucket's options bar has a **Colour / Pattern** switch. Nothing else is added to any workspace by default. |
-| **2 · Contextual** | Stamp options (stamp, size, rotation, opacity, flips) only with the Stamp tool. Pattern options (pattern, scale, rotation, offset, opacity) only in the bucket's Pattern mode. Right-click a brush, stamp or pattern for favourites, editing, duplicating, *Make a brush from this stamp*, *Use as the brush texture*, rename, move, export and delete. The palette chooser sits on the colour panel's swatch row. |
-| **3 · Menus and optional** | *Window › Creative tools*: Brush Laboratory, Palettes, Reference board, Creative library. *Edit*: Fill with pattern, Save selection as stamp / pattern. *Window › Customize workspace*: the Stamp tool in Quick Sketch, Editing and Animation Studio; favourite brushes as one-click buttons (Quick Sketch, Painting, Animation Studio); the reference board. |
+| **2 · Contextual** | Stamp options (stamp, size, rotation, opacity, flips) only with the Stamp tool. Pattern options (pattern, scale, rotation, offset, opacity) only in the bucket's Pattern mode. Right-click a brush, stamp or pattern for favourites, editing, duplicating, *Make a brush from this stamp*, *Use as the brush texture*, rename, move, export and delete. The palette chooser sits on the colour panel's swatch row. A small lock appears by the colour chips only while a picture is palette-locked. |
+| **3 · Menus and optional** | *Window › Creative tools*: Brush Laboratory, Palettes, Reference board, Creative library. *Edit*: Fill with pattern, Save selection as stamp / pattern. *Image/Sprite*: Remap to palette, Lock to palette. *Window › Customize workspace*: the Stamp tool in Quick Sketch, Editing and Animation Studio; favourite brushes as one-click buttons (Quick Sketch, Painting, Animation Studio); the reference board. |
 
 **The UI decision checklist** for the permanently visible additions:
 
@@ -225,6 +225,131 @@ frame's drawing.
   - **`.hex`**: one `RRGGBB` per line; `#` and `AARRGGBB` accepted on import.
   - Palettes also travel in asset packs.
 
+## Palette Lock and Remap to Palette (addendum)
+
+![Remap to palette: groups of similar colours, the palette, and the preview](screenshots/palette-remap-painting-kamvas13-150.png)
+
+Two connected tools, added to Mission 007 at your request:
+- **Palette Lock** keeps a picture (every layer, every drawing of an animation) to the colours of one palette.
+- **Remap to Palette** translates existing artwork into another palette through a mapping you can review and change.
+
+DoodleNook proposes the mapping; you decide.
+
+### Colour and transparency stay separate
+
+**Only RGB is ever restricted or converted. Alpha is never changed.**
+- A pixel at alpha 73 stays at 73, opaque stays opaque, and transparent stays transparent.
+- Brush opacity, pressure transparency, soft edges, layer opacity, clipping and alpha lock all keep working.
+
+How it's kept exact:
+- DoodleNook stores pixels premultiplied (8 bits per channel), which can't hold every RGB value of a faint pixel
+  exactly.
+- A locked picture therefore stores each pixel in one canonical form: the palette colour premultiplied by the
+  pixel's own alpha.
+- Exports and the eyedropper decode that back into exactly the palette colour and the same alpha.
+
+The brief's critical case is tested in the engine and in the packaged app's smoke test: RGB (200, 100, 50) at alpha 73,
+remapped to (40, 80, 120), exports as **RGBA(40, 80, 120, 73)**. A test also walks every alpha level from 1 to 255.
+
+At very low alpha, the stored value of a faint pixel can't tell its colour apart (at alpha 1, most colours are
+"almost black"). So a faint pixel that matches, within that rounding, one of the picture's solid colours is treated as
+that colour. That's how a soft edge follows its stroke when you remap.
+
+### Palette Lock
+
+**Where:**
+- the colour panel's palette menu;
+- the Pixel Art palette column's ⋯ menu;
+- *Image* (or *Sprite*) › *Lock to…*.
+
+**When locked:**
+- A small lock appears above the colour chips. The colour panel shows "Locked to “Dusk”" in place of the free colour
+  picker, and its swatches are the allowed colours ([screenshot](screenshots/palette-lock-painting-kamvas13-150.png)).
+- Pixel Art shows the lock by the palette name ([screenshot](screenshots/palette-lock-pixel-art.png)).
+- Nothing is added to an unlocked picture's interface.
+
+**Enabling it:**
+- If the picture already uses only the palette's colours, it locks at once (one undo step).
+- Otherwise the remap preview opens first: *Apply and lock* converts and locks as one undo step, and *Cancel* leaves
+  the picture unlocked and unchanged. A lock never pretends to be strict while prohibited colours remain.
+
+**While locked:**
+- **Colours you can pick.** The eyedropper, the hex box, the quick palette, the recent colours and restored settings
+  all resolve to the nearest allowed colour.
+- **Everything that creates pixels keeps to the palette:** brushes, the eraser, both buckets (colour and pattern),
+  shapes, gradients, stamps, patterns, adjustments, transforms, image size/rotation, merging, pasted and placed images,
+  and pasted animation drawings.
+- **One rule for every tool.** The pixel keeps its alpha and takes the nearest palette colour in OKLab, inside the
+  same undo step.
+- **Live strokes.** Strokes are conformed as you paint (not at pen-up), so you see the real result.
+- **Soft paint over other colours.** Antialiased edges and soft brushes over other colours resolve to whichever palette
+  colour they're nearest, like indexed-colour painting. Over transparency, soft edges keep all their transparency.
+- **Placing an outside picture** converts its colours (its toast says so).
+
+**Changing the palette is always explicit:**
+- **Add a colour…** (the colour panel's "+", or the lock menu) asks for a colour and adds it. Nothing is recoloured.
+- **Right-click a swatch:**
+  - *Replace this colour…* asks for the new colour and opens the remap preview, with the old colour already sent to
+    the new one.
+  - *Remove from the palette…* previews where its pixels go.
+
+  Pixel Art has both in its ⋯ menu.
+- **The palette is the picture's own snapshot.** Editing a palette in the library never recolours a picture, and the
+  palette manager says so. When the library version differs, the lock menu offers *Update from “…” in your
+  palettes…*, which opens the preview with each replaced colour going to the colour now in its place.
+- **Choosing another saved palette** for a locked picture also goes through the preview.
+
+### Remap to Palette
+
+**Where:**
+- *Image › Remap to palette…*;
+- the palette menus;
+- *Remap the picture…* in the palette manager.
+
+All of them open the same dialog. It works on still pictures, layered pictures and whole animations.
+
+**Left: the mapping.**
+- **Which palette.** Choose the target palette at the top.
+- **Two suggestion styles:**
+  - *Closest colours* (perceptual OKLab; colours already in the palette stay);
+  - *Keep light and dark* (the picture's dark-to-light range is stretched over the palette's, which keeps contrast).
+- **Rows.** A picture with up to 48 colours (pixel art, flat colours) gets one row per exact colour. Paintings and
+  photos with thousands of colours get 24 groups of similar colours (weighted k-means in OKLab), most used first.
+  - Inside a group, every colour still gets its own closest match. The row shows where *most* of it goes ("mostly").
+  - Choosing a colour for a group sends all of it there ("your choice").
+- **Changing the mapping.** Click a row, then a palette colour. Several colours may share one target, and a target
+  needn't be used. *Suggested colours* resets everything.
+- **Hidden layers too** appears when there are hidden layers (always included when locking). *Lock the picture to
+  this palette* is optional for a plain remap.
+
+**Right: the preview of the real picture.**
+- *Before* / *After*.
+- The wheel zooms around the pointer, drag pans, and double-click fits. Pixel art stays crisp when enlarged.
+- For animations: a frame slider and a play button. Frames are computed in the background and cached, so the dialog
+  stays responsive.
+
+**Apply** is one undo step for the whole conversion: pixels of every layer and drawing, the palette and the lock.
+**Cancel** changes nothing.
+- **Animations** keep their frames, timing and held drawings; a held drawing stays one drawing.
+- **Layers** keep their order, opacity, blend modes and clipping.
+- **Alpha** is untouched.
+
+| | |
+|---|---|
+| Painting → Dusk, 150 % · 1080p · "Before" view | [150 %](screenshots/palette-remap-painting-kamvas13-150.png) · [1080p](screenshots/palette-remap-painting-desktop1080.png) · [before](screenshots/palette-remap-painting-before.png) |
+| Locked Painting, 150 % · 1080p | [150 %](screenshots/palette-lock-painting-kamvas13-150.png) · [1080p](screenshots/palette-lock-painting-desktop1080.png) |
+| Pixel sprite → Seaside with one colour chosen by hand · the sprite locked afterwards | [remap](screenshots/palette-remap-sprite.png) · [locked](screenshots/palette-lock-pixel-art.png) |
+| Animation (frame slider and playback) | [palette-remap-animation.png](screenshots/palette-remap-animation.png) |
+| Real window (Xvfb), from the smoke test | [smoke-I-palette-remap.png](screenshots/smoke-I-palette-remap.png) |
+
+### Files
+
+- **`.dnk` version 3** is written only for a locked picture. It adds `palette.locked` and `palette.libraryId` next to
+  the palette snapshot that `.dnk` has always stored.
+- **Everything else keeps its old version:** version 1 for still pictures, 2 for animations. Mission 005 and 006
+  builds keep opening those, and refuse a locked file with a clear message instead of silently dropping the lock.
+- **Layer pixels are stored exactly as before.**
+
 ## Reference board (*Window › Reference board*)
 
 ![Reference board over the canvas](screenshots/workshop-reference-board.png)
@@ -352,6 +477,14 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
   selections, locks and animation drawings work like every other tool. Large areas are painted a row per thread
   (a test compares a large rotated, faded, soft-selected fill with a pixel-by-pixel reference). `ColorQuantizer` extracts palettes and makes
   harmonies.
+- **Palette Lock and remapping.**
+  - `PaletteConformer` (canonical palette encoding, exact decode, nearest OKLab colour, direct-mapped caches) and
+    `OkLab`.
+  - `Document.Palette.cs`: lock state; undoable palette changes as `PaletteAction`, combined with pixels in one step;
+    hooks in `LayerEdit.Changed`, new layers, whole-picture operations, animated merge and cel paste.
+  - `PaletteRemap`: analysis, groups, suggestions, overrides, preview and apply.
+  - Exports read exact colours through `RasterImage.ExactPalette`.
+  - In the app: `PaletteRemapDialog` with `RemapPreview`, and `MainWindow.PaletteLock.cs`.
 - **App.**
   - `BrushLab` and its `BrushPlayground`; `PaletteManager`; `AssetPicker` (stamps and patterns, tiled preview);
     `ReferenceBoardPanel`; `MainWindow.Library.cs` for menus, packs and saving assets.
@@ -431,7 +564,7 @@ on average, and pattern fills 60–250 ms.
 
 ## Verification
 
-- **Engine tests: 212** (172 from Mission 006 + 40 new), all passing on Linux and on Windows CI:
+- **Engine tests: 229** (172 from Mission 006 + 57 new), all passing on Linux and on Windows CI:
   - **Compatibility:** the nine classic brushes paint exactly as the frozen Mission 006 engine (9 cases × 3 styles × 2 layers).
   - **Brush Laboratory dynamics** (11): picture tips (shape and alpha, dark-on-opaque), colour tips, spacing,
     deterministic scatter and jitter, following the stroke, the pressure response, library textures, wet edges, one
@@ -448,7 +581,16 @@ on average, and pattern fills 60–250 ms.
   - **Samples** (1, plus the extended sample-file test): the package's sample files are written and read back as the
     app does; pixel samples are hard-edged.
   - **Measurements** (1): `WorkshopPerformanceTests`, below.
-- **App tests: 111** (94 from Mission 006 + 17 new), through the real window, headless:
+  - **Palette Lock and remapping** (17):
+    - alpha and exactness: the critical alpha test, every alpha level 1–255, a locked brush keeping the unlocked
+      brush's exact alpha (soft, pressure-dependent), blending over colours, erasing;
+    - tools and imports: fills, stamps, patterns, gradients, imports and resizing under the lock;
+    - the palette itself: locking a picture that already conforms, adding a colour, replacing a colour;
+    - the mapping: suggestions, manual overrides and reset, cancel versus one-step apply with undo/redo, layers
+      (order, opacity, blend, hidden), many colours into a small palette;
+    - animations: frames, timing, held drawings, alpha, and that the preview is exactly the result;
+    - files and speed: reopening locked and the format versions, preview speed on a 1080p animation.
+- **App tests: 120** (94 from Mission 006 + 26 new), through the real window, headless:
   - **Workflows A–F** from the brief:
     - **A.** a custom pencil saved and still there after a restart;
     - **B.** a grass stamp becomes a brush that survives a restart;
@@ -465,16 +607,30 @@ on average, and pattern fills 60–250 ms.
     - new tools stay out of the way until asked for;
     - every existing shortcut keeps its meaning.
   - **The two export-dialog regression tests** (above).
+  - **Palette Lock and remapping** (9):
+    - a conforming picture locks at once, and painting stays in the palette;
+    - a picture with other colours asks first: Cancel changes nothing, Apply is one step;
+    - the dialog from the Image menu (compare, reset, another palette);
+    - colours added or replaced only explicitly;
+    - library edits never recolour until *Update from…*;
+    - reopening locked;
+    - animation remap keeping frames and holds;
+    - no lock clutter in any workspace until used;
+    - screenshots.
   - **Two screenshot tests.**
-- **Smoke test of the packaged `DoodleNook.exe` on Windows CI: 41 checks** (32 from Mission 006, 2 for the export
-  freeze, 7 for the creative tools):
+- **Smoke test of the packaged `DoodleNook.exe` on Windows CI: 45 checks** (32 from Mission 006, 2 for the export
+  freeze, 7 for the creative tools, 4 for Palette Lock):
   - a brush tip made from the artwork paints as one undo step;
   - a stamp with undo and redo;
   - a pattern fill inside a selection only;
   - a palette from the picture becomes the swatches;
   - the Brush Laboratory leaves the picture and its history alone;
   - the reference board is shown but not exported;
-  - the library is written to disk and reads back.
+  - the library is written to disk and reads back;
+  - Palette Lock through the real dialog, one undo step;
+  - **RGBA(200,100,50,73) → RGBA(40,80,120,73) in an exported PNG**;
+  - a pen stroke while locked stays in the palette;
+  - reopening a locked `.dnk`.
 
   Section 10 repeats the export-dialog freeze scenario at 1080p × 21 frames (Windows figures in the freeze section
   above). Runs #13 and #14 passed all 41 checks.
@@ -502,6 +658,17 @@ on average, and pattern fills 60–250 ms.
   palette on its own.
 - **The reference board** is one board at a time (open/save switches boards). It has no rotation, cropping or
   greyscale view, and picture order is changed only by clicking a picture (it comes to the front).
+- **Palette Lock, soft paint over other colours.** A low-opacity stroke over another colour resolves to the nearest
+  palette colour, so it may not show at all (as in indexed-colour painting). Over transparency it keeps its full
+  softness.
+- **Palette Lock, composites.** The paper colour and the mixing from layer opacity or blend modes happen in the
+  composite, not in the layers, so an export can contain those mixed colours. Everything painted into the layers is
+  palette-exact.
+- **Exact RGB of faint pixels** is guaranteed while the picture is locked: exports then decode the palette colour.
+  After a remap *without* locking, an export un-premultiplies as usual, so partly transparent pixels can be a rounding
+  step off the palette colour.
+- **The mapping editor** uses click-then-click rather than drag and drop, and groups can't be split into smaller
+  groups.
 - **Asset packs** have no conflict merge. Importing twice gives two copies (by design: nothing is ever replaced).
 - Screenshots are headless renders; the real window under Xvfb looks the same (see the two smoke screenshots).
 
@@ -524,7 +691,9 @@ These are defaults, not decisions. Your preference wins:
 4. **Stamp tool placement**: visible in Painting and Pixel Art, optional elsewhere.
 5. **Pattern mode on the paint bucket** versus a separate tool.
 6. **Reference board** size, background and where it first appears.
-7. **Which optional items** you pin in Customize workspace. If you always pin one, it may deserve to be on by default.
+7. **Palette Lock and remapping**: are the suggestions useful (*Closest* versus *Keep light and dark*)? Is
+   click-a-row-then-a-colour intuitive? Is 24 groups the right number for paintings? Where would you expect the lock?
+8. **Which optional items** you pin in Customize workspace. If you always pin one, it may deserve to be on by default.
 
 ## Building from source
 

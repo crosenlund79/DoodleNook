@@ -486,6 +486,8 @@ public partial class MainWindow
         }
         Session.PlaceImage(image, name);
         if (Session.BeginTransform("Place image"))
-            ShowToast($"Placed “{name}” on a new layer · drag the handles, Enter to finish");
+            ShowToast(doc.PaletteLocked
+                ? $"Placed “{name}” with its colours matched to “{doc.Palette.Name}” (transparency kept) · Enter to finish"
+                : $"Placed “{name}” on a new layer · drag the handles, Enter to finish");
     }
 }

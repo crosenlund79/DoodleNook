@@ -82,6 +82,32 @@ The defaults are first guesses; your preferences decide. Nothing you write down 
       in any order. The dialog should stay responsive every time.
 - [ ] Export the GIF and open it in a browser: all frames, right timing.
 
+### Palette Lock and remapping (about 20 minutes)
+
+This is a first version meant for your refinement: judge whether the remapping feels intuitive and whether the
+suggestions are useful.
+
+1. [ ] Make a small picture with a few colours (or a Pixel Art sprite, **Alt+5**).
+2. [ ] Lock it: in the colour panel, open the swatch menu (the ▾ next to the swatches) and choose a palette's
+       *Lock the picture to “…”*. In Pixel Art, use the ⋯ next to the palette name. A small 🔒 appears by the colour
+       chips, and the colour panel says "Locked to …".
+3. [ ] Try to paint an unapproved colour: pick a bright green with the eyedropper, or type a hex. It snaps to the
+       nearest allowed colour. Soft brushes still fade out softly over transparency.
+4. [ ] Add a new allowed colour explicitly: the "+" by the swatches, or the lock menu › *Add a colour…*.
+5. [ ] Create or import a second palette (*Window › Palettes…*: *New*, *Duplicate*, or *Import…* `Samples\Autumn walk.gpl`).
+6. [ ] Open *Image › Remap to palette…* (in Pixel Art: *Sprite › Remap to palette…*) and choose that palette at the top.
+7. [ ] Look at the suggested replacements on the left. Try *Closest colours* and *Keep light and dark*.
+8. [ ] Change a few: click a colour on the left, then the palette colour it should become.
+9. [ ] Look at the preview: *Before* and *After*, zoom with the wheel, drag to pan.
+10. [ ] *Apply*.
+11. [ ] **Ctrl+Z** undoes the whole conversion in one step (and **Ctrl+Y** brings it back).
+12. [ ] Do the same with a small animation (*Help › Sample animations › Pixel slime*): move the frame slider in the
+        preview, press play, apply, and check that the frames and timing are unchanged.
+
+Also worth a try: right-click a swatch of a locked picture › *Replace this colour…*, and edit a palette in
+*Window › Palettes…* while a picture is locked to it. The picture doesn't change until you choose *Update from …* in
+its lock menu.
+
 ### 8. Evaluate ease of use
 
 Take a step back and think about these. Short notes are perfect.
@@ -99,6 +125,7 @@ Take a step back and think about these. Short notes are perfect.
 9. What takes too many clicks?
 10. What feels unnecessary?
 11. **What would make DoodleNook more enjoyable?**
+12. Is the remapping interface intuitive, and are the automatic colour suggestions useful?
 
 ## If you have more time
 

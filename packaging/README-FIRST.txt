@@ -41,6 +41,8 @@ The Artist's Workshop
 * Patterns: the paint bucket's Pattern button, or Edit › Fill with pattern. Edit › Save selection as pattern…
 * Palettes: Window › Palettes… (GIMP .gpl and .hex files in and out, colours from a picture).
 * Reference board: Window › Reference board. Pictures on it are never part of your artwork or exports.
+* Palette Lock: lock a picture to a palette (palette menu, or Image › Lock to palette); Image › Remap to palette…
+  converts artwork to another palette with a preview you can adjust. Transparency is never changed.
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 

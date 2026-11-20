@@ -122,7 +122,7 @@ public sealed class AnimationFileTests : IDisposable
     }
 
     [Theory]
-    [InlineData("version", "3", "newer DoodleNook")]
+    [InlineData("version", "4", "newer DoodleNook")] // one above the newest version (3 = palette lock)
     [InlineData("tracks", "[[1]]", "don't match")]
     [InlineData("missingCel", "", "missing")]
     public void Damaged_or_newer_animation_files_are_refused_clearly(string what, string value, string message)

@@ -179,6 +179,36 @@ public class WorkshopPerformanceTests
             builtInPictureFirstUseMs = firstUse,
         });
 
+        // Palette Lock and Remap to Palette.
+        var nook = Palette.Default();
+        foreach (var (label, doc) in new[] { ("1920x1080, 6 layers", Painted(1920, 1080, 6)), ("1920x1080, 3 layers, animation frame 6 of 12", Painted(1920, 1080, 3, animation: true)) })
+        {
+            var sw = Stopwatch.StartNew();
+            var remap = PaletteRemap.Analyse(doc, nook.Colors);
+            double analyse = sw.Elapsed.TotalMilliseconds;
+            int frame = doc.IsAnimated ? doc.CurrentFrame : 0;
+            double firstPreview = Time(() => remap.Preview(doc, frame));
+            remap.Assign(0, 3);
+            double changedPreview = Time(() => remap.Preview(doc, frame));
+            double apply = Time(() => remap.Apply(doc, nook.Name, lockAfter: true));
+            var unlockedPen = StrokeCost(Painted(1920, 1080, 6), Preset("soft"));
+            var lockedPen = StrokeCost(doc, Preset("soft"));
+            results.Add(new
+            {
+                paletteRemap = label,
+                distinctColours = remap.DistinctColours,
+                rows = remap.Sources.Count,
+                analyseMs = Math.Round(analyse, 1),
+                firstPreviewMs = firstPreview,
+                previewAfterAChangeMs = changedPreview,
+                applyAndLockMs = apply,
+                softBrushPenEventUnlockedAvgMs = unlockedPen.Avg,
+                softBrushPenEventLockedAvgMs = lockedPen.Avg,
+                softBrushPenEventLockedMaxMs = lockedPen.Max,
+            });
+            Assert.True(changedPreview < 3000, $"{label}: a preview took {changedPreview} ms");
+        }
+
         var report = new
         {
             measuredAt = DateTimeOffset.UtcNow,

@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using DoodleNook.App.Controls;
 using DoodleNook.App.Files;
 using DoodleNook.App.Shell;
+using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Library;
 
@@ -101,8 +102,13 @@ public sealed class PaletteManager : Grid
         var m = new PaletteManager(app, paletteId ?? app.Session.ActivePaletteId);
         app.LastPaletteManager = m;
         var body = new ScrollViewer { Content = m, MaxHeight = Math.Max(300, app.Bounds.Height - 150), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        var r = await app.Dialogs.ShowAsync("Palettes", body, [("close", "Close", false), ("use", "Use this palette", true)], "use", "close", 600);
+        var r = await app.Dialogs.ShowAsync("Palettes", body, [("close", "Close", false), ("remap", "Remap the picture…", false), ("use", "Use this palette", true)], "use", "close", 600);
         app.Session.LibraryChanged -= m.Refresh;
+        if (r == "remap" && app.Session.Library.FindPalette(m.PaletteId) is { } chosen)
+        {
+            _ = app.RemapToPaletteAsync(new Palette(chosen.Name, chosen.Colors) { LibraryId = chosen.Id });
+            return chosen.Id;
+        }
         if (r != "use") return null;
         app.UsePalette(m.PaletteId);
         return m.PaletteId;
@@ -356,5 +362,11 @@ public sealed class PaletteManager : Grid
             _info.Text = cur.BuiltIn
                 ? $"“{cur.Name}” is built in ({cur.Colors.Count} colours). Duplicate it to make your own version."
                 : $"{cur.Colors.Count} colours. Click one to select it (and paint with it).";
+        // A locked picture keeps its own copy: library edits never recolour it by themselves.
+        var doc = _app.Session.Document;
+        if (!_confirmDelete && doc.PaletteLocked && doc.Palette.LibraryId == cur.Id)
+            _info.Text += cur.Colors.SequenceEqual(doc.Palette.Colors)
+                ? " The open picture is locked to this palette and keeps its own copy: changes here don't recolour it."
+                : " The open picture is locked to its own copy of this palette. To use these changes there: palette menu › Update from this palette.";
     }
 }

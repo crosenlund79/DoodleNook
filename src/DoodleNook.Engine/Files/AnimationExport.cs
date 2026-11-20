@@ -52,9 +52,13 @@ public static class AnimationExport
         {
             var image = doc.RenderFrame(f, includePaper);
             if (scale > 1)
+            {
+                var exact = image.ExactPalette;
                 image = smoothScaling
                     ? Resampler.Resize(image, image.Width * scale, image.Height * scale, Interpolation.Bicubic)
                     : ScaleNearest(image, scale);
+                if (!smoothScaling) image.ExactPalette = exact; // whole pixels: still exactly the palette's
+            }
             frames.Add(new ExportFrame(image, doc.Animation?.DurationOf(f) ?? 100, f));
         }
         return frames;
@@ -95,6 +99,7 @@ public static class AnimationExport
             sheet.Paste(frames[i].Image, x, y);
             rects.Add(new PixelRect(x, y, fw, fh));
         }
+        sheet.ExactPalette = frames[0].Image.ExactPalette;
         return new SpriteSheet(sheet, rects, frames.Select(f => f.DurationMs).ToList(), cols, rows);
     }
 

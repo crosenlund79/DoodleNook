@@ -153,6 +153,7 @@ public sealed partial class Document
     public Layer AddLayer(RasterImage image, string name, int? index = null)
     {
         if (image.Width != Width || image.Height != Height) throw new ArgumentException("Layer size differs from the document.");
+        ConformToPalette(image, image.Bounds);
         var layer = NewLayer(new LayerProperties(name), image);
         PrepareNewLayerTrack(layer, hasPixels: true);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
@@ -383,6 +384,14 @@ public sealed partial class Document
     /// <summary>Replaces size, layer pixels and selection as one undo step (resize, crop, rotate…).</summary>
     public void ApplyState(DocumentState newState, string historyName)
     {
+        if (PaletteConformer is { } conformer)
+        {
+            // Resampling and similar operations blend colours: keep a locked picture to its palette (alpha unchanged).
+            var old = CaptureState();
+            foreach (var img in newState.Images.Values.Where(i => !old.Images.Values.Contains(i))) conformer.Conform(img, img.Bounds);
+            foreach (var (cel, img) in newState.CelImages ?? new Dictionary<Cel, RasterImage>())
+                if (!ReferenceEquals(cel.Image, img)) conformer.Conform(img, img.Bounds);
+        }
         var before = CaptureState();
         ApplyStateInternal(newState);
         Commit(new DocumentStateAction(historyName, before, newState));
@@ -398,12 +407,14 @@ public sealed partial class Document
     {
         var image = new RasterImage(Width, Height);
         Compositor.Compose(this, Bounds, image, includeOverlays: false, includePaper: true);
+        image.ExactPalette = PaletteConformer;
         return image;
     }
 
     /// <summary>Replaces a layer's pixels in the projection with a preview image (adjustment previews); null removes it.</summary>
     public void SetLayerOverride(Layer layer, RasterImage? preview, PixelRect area)
     {
+        if (preview is not null) ConformToPalette(preview, area); // a locked picture previews what Apply will give
         if (preview is null) _overrides.Remove(layer.Id);
         else _overrides[layer.Id] = preview;
         Recomposite(area);

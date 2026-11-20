@@ -81,6 +81,8 @@ public sealed class LayerEdit
     {
         area = area.Intersect(Document.Bounds);
         if (area.IsEmpty) return;
+        // A palette-locked picture keeps only palette colours (same alpha), within this same edit and undo step.
+        Document.ConformToPalette(Layer.Image, area);
         _changed = _changed.Union(area);
         Layer.Touch(area);
         Document.OnLayerPixelsChanged(Layer, area);

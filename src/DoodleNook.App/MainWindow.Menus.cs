@@ -112,15 +112,22 @@ public partial class MainWindow
             new(null, "Blur…", null, () => _ = AdjustAsync(AdjustKind.Blur)),
             new(null, "Sharpen…", null, () => _ = AdjustAsync(AdjustKind.Sharpen)),
         };
+        var doc = Session.Document;
+        list.Add(MenuEntry.Separator);
+        list.Add(MenuEntry.Heading(doc.PaletteLocked ? $"Palette (locked to “{doc.Palette.Name}”)" : "Palette"));
+        list.Add(new("palette", "Remap to palette…", null, () => _ = RemapToPaletteAsync()));
+        if (doc.PaletteLocked) list.Add(new("lock", "Unlock palette", null, UnlockPalette));
+        else if (Workspace.Kind == WorkspaceKind.PixelArt || Session.PixelMode)
+            list.Add(new("lock", $"Lock to “{doc.Palette.Name}”…", null, () => _ = LockToPaletteAsync(doc.Palette.Clone())));
+        else list.Add(new("lock", "Lock to a palette…", null, () => _ = RemapToPaletteAsync(forceLock: true)));
         if (Workspace.Kind == WorkspaceKind.PixelArt)
         {
-            list.Add(MenuEntry.Separator);
-            list.Add(new("palette", "Palette from the picture", null, () =>
+            list.Add(new("image", "Palette from the picture", null, () =>
             {
                 Session.Document.Palette = Palette.FromImage(Session.Document.Flatten(), 64);
                 Session.SetForeground(Session.Foreground);
                 ShowToast($"Palette: {Session.Document.Palette.Colors.Count} colours from the picture");
-            }));
+            }, !doc.PaletteLocked));
         }
         return list;
     }

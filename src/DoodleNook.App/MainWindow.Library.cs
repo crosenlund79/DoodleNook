@@ -77,9 +77,16 @@ public partial class MainWindow
     /// picture's palette (exact colours).</summary>
     public void UsePalette(string? paletteId)
     {
+        // A locked picture changes palette only through the remap preview.
+        if (Session.Document.PaletteLocked && paletteId is not null && Session.Library.FindPalette(paletteId) is { } lp
+            && !lp.Colors.SequenceEqual(Session.Document.Palette.Colors))
+        {
+            _ = RemapToPaletteAsync(new Engine.Documents.Palette(lp.Name, lp.Colors) { LibraryId = lp.Id }, forceLock: true);
+            return;
+        }
         Session.SetActivePalette(paletteId);
-        if (paletteId is not null && Session.Library.FindPalette(paletteId) is { } p && Session.PixelMode)
-            Session.Document.Palette = new Engine.Documents.Palette(p.Name, p.Colors);
+        if (paletteId is not null && Session.Library.FindPalette(paletteId) is { } p && Session.PixelMode && !Session.Document.PaletteLocked)
+            Session.Document.Palette = new Engine.Documents.Palette(p.Name, p.Colors) { LibraryId = p.Id };
         ShowToast(paletteId is null ? "Swatches: your own swatches" : $"Palette: {Session.Library.FindPalette(paletteId)?.Name}");
     }
 

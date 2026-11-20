@@ -178,6 +178,13 @@ public sealed partial class Document
     /// <summary>Composites any frame without changing the current one (exports, preview, playback cache).</summary>
     public RasterImage RenderFrame(int frame, bool includePaper = true)
     {
+        var image = RenderFrameCore(frame, includePaper);
+        image.ExactPalette = PaletteConformer; // exports give exact palette colours for a locked picture
+        return image;
+    }
+
+    private RasterImage RenderFrameCore(int frame, bool includePaper)
+    {
         var image = new RasterImage(Width, Height);
         if (_animation is null)
         {
@@ -516,7 +523,9 @@ public sealed partial class Document
     {
         if (!ValidCell(layer, frame) || source.Image.Width != Width || source.Image.Height != Height) return false;
         var start = BeginStructure();
-        layer.Cells![frame] = source.CloneCel();
+        var copy = source.CloneCel();
+        ConformToPalette(copy.Image, copy.Image.Bounds);
+        layer.Cells![frame] = copy;
         EndStructure("Paste drawing", start, frame);
         return true;
     }
@@ -600,6 +609,7 @@ public sealed partial class Document
                 {
                     var img = lo?.Image.Clone() ?? new RasterImage(Width, Height);
                     MergePixels(layer, up.Image, up.ContentBounds, img, layer.ClipToBelow);
+                    ConformToPalette(img, up.ContentBounds);
                     result = new Cel(img, (lo?.ContentBounds ?? PixelRect.Empty).Union(up.ContentBounds));
                 }
                 merged[key] = result;

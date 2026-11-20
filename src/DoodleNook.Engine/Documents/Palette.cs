@@ -14,7 +14,10 @@ public sealed class Palette
     public string Name { get; set; }
     public List<ColorRgb> Colors { get; }
 
-    public Palette Clone() => new(Name, Colors);
+    /// <summary>The library palette this one was taken from (so a picture can offer "update from the library"), or null.</summary>
+    public string? LibraryId { get; set; }
+
+    public Palette Clone() => new(Name, Colors) { LibraryId = LibraryId };
 
     /// <summary>"Nook 32": DoodleNook's own warm, game-friendly starter palette (darks, skin and wood tones, greens,
     /// blues and accents). Designed for DoodleNook; not copied from any existing palette.</summary>

@@ -3,8 +3,8 @@
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
 **Current milestone: Mission 007 "The Artist's Workshop"** — a Brush Laboratory for making and tuning brushes,
-17 curated brushes, stamps, pattern fills, palettes and an optional reference board, all kept in one creative library,
-plus a fix for the export-dialog freeze. No new workspace, and the default screens stay as calm as before.
+17 curated brushes, stamps, pattern fills, palettes with Palette Lock and Remap to Palette, and an optional reference
+board, all kept in one creative library, plus a fix for the export-dialog freeze. No new workspace, and the default screens stay as calm as before.
 Read [docs/iterations/007-artists-workshop](docs/iterations/007-artists-workshop/README.md) and try it with the
 [playtest guide](docs/iterations/007-artists-workshop/PLAYTEST.md).
 Earlier milestones: [Mission 006 "Make It Move"](docs/iterations/006-make-it-move/README.md) (Animation Studio),

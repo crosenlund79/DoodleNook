@@ -181,6 +181,7 @@ public sealed class ToolStrip : Border
     private readonly StackPanel _tools = new() { Spacing = 3, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Panel _chips;
     private readonly Border _fg, _bg;
+    private readonly Button _lockBadge;
     private readonly List<(Button B, ToolKind K)> _buttons = new();
 
     public ToolStrip(MainWindow app)
@@ -214,9 +215,22 @@ public sealed class ToolStrip : Border
         _chips.Children.Add(bgChip);
         _chips.Children.Add(fgChip);
 
+        // Palette Lock indicator: only shown while the picture is locked; its menu has the lock's actions.
+        _lockBadge = Menus.MenuButton(new DnIcon { Kind = "lock", Width = 16, Height = 16 }, () => app.PaletteLockEntries(), null, 290, PlacementMode.RightEdgeAlignedBottom);
+        _lockBadge.Name = "PaletteLockBadge";
+        _lockBadge.Width = 30;
+        _lockBadge.Height = 24;
+        _lockBadge.MinWidth = 30;
+        _lockBadge.Padding = new Thickness(0);
+        _lockBadge.HorizontalAlignment = HorizontalAlignment.Center;
+        _lockBadge.Margin = new Thickness(0, 0, 0, 4);
+        _lockBadge.Foreground = new SolidColorBrush(DnColors.Accent);
+        _lockBadge.IsVisible = false;
         var dock = new DockPanel { Margin = new Thickness(0, 7) };
         DockPanel.SetDock(_chips, Dock.Bottom);
         dock.Children.Add(_chips);
+        DockPanel.SetDock(_lockBadge, Dock.Bottom);
+        dock.Children.Add(_lockBadge);
         // On a short window (e.g. a tall timeline at 150 %) the tools scroll instead of running into the colour chips.
         dock.Children.Add(new ScrollViewer
         {
@@ -254,6 +268,8 @@ public sealed class ToolStrip : Border
         foreach (var (b, k) in _buttons) b.Classes.Set("on", s.Tool == k);
         _fg.Background = UiKit.Brush(s.Foreground);
         _bg.Background = UiKit.Brush(s.Background);
+        _lockBadge.IsVisible = s.PaletteLocked;
+        if (s.PaletteLocked) ToolTip.SetTip(_lockBadge, $"Locked to “{s.Document.Palette.Name}”: only its colours can be used · click for options");
     }
 }
 
@@ -390,6 +406,12 @@ public sealed class QuickBar : Border
     private readonly ContentControl _context = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly List<Action> _refresh = new();
     private readonly Ellipse _dot = new() { Width = 30, Height = 30, Stroke = new SolidColorBrush(DnColors.Text), StrokeThickness = 2 };
+    private readonly Border _quickLock = new()
+    {
+        Width = 16, Height = 16, CornerRadius = new CornerRadius(8), Background = new SolidColorBrush(DnColors.Accent),
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, -4, -4),
+        Child = new DnIcon { Kind = "lock", Width = 11, Height = 11, Foreground = new SolidColorBrush(DnColors.Ui) }, Name = "QuickPaletteLock",
+    };
     private readonly Button _erase, _undo, _redo;
     private readonly TextBlock _layerName = new() { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 120, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly OptionsBuilder _options;
@@ -427,7 +449,8 @@ public sealed class QuickBar : Border
 
         var colour = UiKit.Button(null, null, "Colour");
         colour.Classes.Add("sq");
-        colour.Content = _dot;
+        _quickLock.IsVisible = false;
+        colour.Content = new Panel { Children = { _dot, _quickLock } };
         colour.Flyout = UiKit.PopFlyout(new ColourPanel(s, () => colour.Flyout?.Hide(), app: app));
         colour.Name = "ColourChip";
 
@@ -514,6 +537,7 @@ public sealed class QuickBar : Border
         foreach (var refresh in _refresh) refresh();
         _erase.Classes.Set("on", s.Tool == ToolKind.Eraser);
         _dot.Fill = UiKit.Brush(s.Foreground);
+        _quickLock.IsVisible = s.PaletteLocked;
         var paint = s.CurrentPaintSettings;
         string key = $"{s.PaintTool}|{paint}";
         if (key != _previewKey)

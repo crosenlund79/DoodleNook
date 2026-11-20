@@ -151,13 +151,24 @@ public sealed class RasterImage
         return image;
     }
 
+    /// <summary>
+    /// Set on composites of a palette-locked picture: straight conversions (exports) then return exactly the palette
+    /// colour of every palette pixel, also where it is partly transparent. Not copied by <see cref="Clone"/>.
+    /// </summary>
+    public PaletteConformer? ExactPalette { get; set; }
+
+    /// <summary>Straight (non-premultiplied) RGBA of one pixel, exact for palette pixels when <see cref="ExactPalette"/> is set.</summary>
+    public (byte R, byte G, byte B, byte A) StraightAt(int index) =>
+        ExactPalette is { } p ? p.Decode(Pixels[index]) : Pixel.ToStraight(Pixels[index]);
+
     /// <summary>Returns straight (non-premultiplied) RGBA bytes, as stored in PNG files.</summary>
     public byte[] ToStraightRgba()
     {
         var bytes = new byte[Pixels.Length * 4];
+        var exact = ExactPalette;
         for (int i = 0, j = 0; i < Pixels.Length; i++, j += 4)
         {
-            var (r, g, b, a) = Pixel.ToStraight(Pixels[i]);
+            var (r, g, b, a) = exact is null ? Pixel.ToStraight(Pixels[i]) : exact.Decode(Pixels[i]);
             bytes[j] = r; bytes[j + 1] = g; bytes[j + 2] = b; bytes[j + 3] = a;
         }
         return bytes;

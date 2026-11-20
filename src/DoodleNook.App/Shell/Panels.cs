@@ -26,6 +26,9 @@ public sealed class ColourPanel : StackPanel
     private readonly WrapPanel _recent = new() { ItemWidth = 29, ItemHeight = 29 };
     private readonly TextBlock _swatchTitle = new() { Classes = { "dim" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 170 };
     private readonly MainWindow? _app;
+    private readonly StackPanel _picker = new() { Spacing = 7 };
+    private readonly Border _lockRow;
+    private readonly TextBlock _lockText = new() { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private double _h, _s, _v;
     private ColorRgb _shown;
     private bool _editing;
@@ -39,11 +42,23 @@ public sealed class ColourPanel : StackPanel
         Spacing = 7;
         if (close is not null) Children.Add(UiKit.Header("Colour", close));
         if (compact) _sv.Height = 112;
-        Children.Add(_sv);
-        Children.Add(_hue);
+        // Palette Lock: the free picker is replaced by this note (the swatches below are the allowed colours).
+        var lockMenu = Menus.MenuButton(new DnIcon { Kind = "dots" }, () => app?.PaletteLockEntries() ?? [], "Palette lock: add a colour, update, remap, unlock", 280);
+        lockMenu.Classes.Add("sq");
+        lockMenu.Width = lockMenu.Height = lockMenu.MinWidth = 26;
+        var lockDock = new DockPanel();
+        DockPanel.SetDock(lockMenu, Dock.Right);
+        lockDock.Children.Add(lockMenu);
+        lockDock.Children.Add(UiKit.Row(6, new DnIcon { Kind = "lock", Foreground = new SolidColorBrush(DnColors.Accent) }, _lockText));
+        _lockRow = new Border { Child = lockDock, Background = new SolidColorBrush(Color.Parse("#2BE9A94D")), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 5), Name = "PaletteLockRow" };
+        ToolTip.SetTip(_lockRow, "This picture may only use its palette's colours. Transparency, opacity and pressure work as usual.");
+        Children.Add(_lockRow);
+        Children.Add(_picker);
+        _picker.Children.Add(_sv);
+        _picker.Children.Add(_hue);
 
         var left = UiKit.Row(8, _current, _hex);
-        Children.Add(left);
+        _picker.Children.Add(left);
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("14,*,8,14,*,8,14,*"), RowDefinitions = new RowDefinitions("Auto,4,Auto") };
         string[] labels = ["R", "G", "B", "H", "S", "V"];
@@ -64,7 +79,7 @@ public sealed class ColourPanel : StackPanel
             grid.Children.Add(label);
             grid.Children.Add(box);
         }
-        Children.Add(grid);
+        _picker.Children.Add(grid);
         if (compact)
         {
             grid.IsVisible = false;
@@ -80,9 +95,13 @@ public sealed class ColourPanel : StackPanel
         }
 
         var swatchHead = new DockPanel();
-        var add = UiKit.Button("plus", tip: "Add the current colour (to your swatches, or to the palette shown)", click: () =>
+        var add = UiKit.Button("plus", tip: "Add the current colour (to your swatches, or to the palette shown) · while locked: add a colour to the palette", click: () =>
         {
-            if (session.Library.FindPalette(session.ActivePaletteId) is { BuiltIn: false } p)
+            if (session.PaletteLocked)
+            {
+                if (app is not null) _ = app.AddPaletteColourAsync();
+            }
+            else if (session.Library.FindPalette(session.ActivePaletteId) is { BuiltIn: false } p)
             {
                 if (!p.Colors.Contains(session.Foreground)) session.Library.UpdatePalette(p.Id, [.. p.Colors, session.Foreground]);
             }
@@ -170,6 +189,18 @@ public sealed class ColourPanel : StackPanel
             double[] values = [fg.R, fg.G, fg.B, Math.Round(_h), Math.Round(_s * 100), Math.Round(_v * 100)];
             for (int i = 0; i < 6; i++) _numbers[i].Text = values[i].ToString("0");
         }
+        bool locked = _session.PaletteLocked;
+        _lockRow.IsVisible = locked;
+        _picker.IsVisible = !locked;
+        if (locked)
+        {
+            var doc = _session.Document;
+            _lockText.Text = $"Locked to “{doc.Palette.Name}”";
+            _swatchTitle.Text = $"{doc.Palette.Colors.Count} allowed colours · right-click to replace";
+            Fill(_swatches, doc.Palette.Colors, removable: false, lockedPalette: true);
+            Fill(_recent, _session.RecentColors.Where(doc.Palette.Colors.Contains).Take(8), removable: false);
+            return;
+        }
         var palette = _session.Library.FindPalette(_session.ActivePaletteId);
         _swatchTitle.Text = palette is null ? "Swatches · right-click removes" : palette.Name + (palette.BuiltIn ? "" : " · right-click removes");
         Fill(_swatches, palette?.Colors ?? (IEnumerable<ColorRgb>)_session.Swatches, removable: palette is null or { BuiltIn: false });
@@ -179,6 +210,11 @@ public sealed class ColourPanel : StackPanel
     private IEnumerable<MenuEntry> PaletteMenu()
     {
         var lib = _session.Library;
+        if (_session.PaletteLocked && _app is not null)
+        {
+            foreach (var e in _app.PaletteLockEntries()) yield return e;
+            yield break;
+        }
         yield return new(null, "My swatches", null, () => _session.SetActivePalette(null), Checked: _session.ActivePaletteId is null);
         foreach (var group in lib.Palettes.GroupBy(p => p.Collection))
         {
@@ -193,10 +229,13 @@ public sealed class ColourPanel : StackPanel
         {
             yield return MenuEntry.Separator;
             yield return new("palette", "Palettes…", null, () => _ = _app.OpenPalettesAsync(_session.ActivePaletteId));
+            yield return MenuEntry.Separator;
+            var shown = lib.FindPalette(_session.ActivePaletteId) is { } sp ? new Palette(sp.Name, sp.Colors) { LibraryId = sp.Id } : null;
+            foreach (var e in _app.PaletteLockEntries(shown)) yield return e;
         }
     }
 
-    private void Fill(WrapPanel panel, IEnumerable<ColorRgb> colors, bool removable)
+    private void Fill(WrapPanel panel, IEnumerable<ColorRgb> colors, bool removable, bool lockedPalette = false)
     {
         panel.Children.Clear();
         var fg = _session.Foreground;
@@ -216,6 +255,12 @@ public sealed class ColourPanel : StackPanel
             sw.Content = dot;
             var colour = c;
             sw.Click += (_, _) => _session.SetForeground(colour);
+            if (lockedPalette && _app is not null)
+            {
+                var menu = UiKit.PopFlyout(new Panel(), PlacementMode.Pointer);
+                menu.Opening += (_, _) => menu.Content = Menus.Build(_app.LockedSwatchEntries(colour), menu.Hide, 220);
+                sw.ContextFlyout = menu;
+            }
             if (removable)
                 sw.PointerReleased += (_, e) =>
                 {
@@ -496,6 +541,7 @@ public sealed class PaletteColumn : StackPanel
     private readonly WrapPanel _grid = new() { ItemWidth = 30, ItemHeight = 30 };
     private readonly Border _fg, _bg;
     private readonly TextBlock _name = UiKit.Label("Palette");
+    private readonly DnIcon _lockIcon = new() { Kind = "lock", Width = 15, Height = 15, Margin = new Thickness(0, 0, 4, 0), Name = "PixelPaletteLock" };
     private readonly TextBlock _layerName = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 80 };
     private Document? _watched;
 
@@ -537,6 +583,23 @@ public sealed class PaletteColumn : StackPanel
 
         IEnumerable<MenuEntry> MenuEntries()
         {
+            if (session.PaletteLocked && app is not null)
+            {
+                // Locked: the sprite's colours change only through the remap preview (or by adding a colour).
+                foreach (var e in app.PaletteLockEntries()) yield return e;
+                yield return MenuEntry.Separator;
+                yield return new(null, $"Replace {session.Foreground.ToHex()}…", null, () => _ = app.ReplacePaletteColourAsync(session.Foreground));
+                yield return new("trash", $"Remove {session.Foreground.ToHex()}…", null, () => _ = app.RemovePaletteColourAsync(session.Foreground),
+                    session.Document.Palette.Colors.Count > 1);
+                yield return MenuEntry.Separator;
+                yield return MenuEntry.Heading("Remap to a saved palette");
+                foreach (var p in session.Library.Palettes)
+                {
+                    var target = new Palette(p.Name, p.Colors) { LibraryId = p.Id };
+                    yield return new(null, p.Name, null, () => _ = app.RemapToPaletteAsync(target, forceLock: true));
+                }
+                yield break;
+            }
             yield return new("plus", "Add the foreground colour", null, () => Change(p => { if (!p.Colors.Contains(session.Foreground)) p.Colors.Add(session.Foreground); }));
             yield return new("trash", "Remove the foreground colour", null, () => Change(p => p.Colors.Remove(session.Foreground)));
             yield return new("image", "Palette from the picture", null, () => { session.Document.Palette = Palette.FromImage(session.Document.Flatten(), 64); Refresh(); });
@@ -560,9 +623,14 @@ public sealed class PaletteColumn : StackPanel
                 session.SetActivePalette(saved.Id);
                 app?.ShowToast($"Saved “{saved.Name}” to your palettes");
             });
-            if (app is not null) yield return new("palette", "Palettes…", null, () => _ = app.OpenPalettesAsync(session.ActivePaletteId));
+            if (app is not null)
+            {
+                yield return new("palette", "Palettes…", null, () => _ = app.OpenPalettesAsync(session.ActivePaletteId));
+                yield return MenuEntry.Separator;
+                foreach (var e in app.PaletteLockEntries(session.Document.Palette)) yield return e;
+            }
         }
-        var menu = Menus.MenuButton(new DnIcon { Kind = "dots" }, MenuEntries, "Palette options", 240);
+        var menu = Menus.MenuButton(new DnIcon { Kind = "dots" }, MenuEntries, "Palette options · palette lock", 270);
         menu.Classes.Add("sq");
         menu.Width = 28;
         menu.Height = 28;
@@ -571,6 +639,8 @@ public sealed class PaletteColumn : StackPanel
         var head = new DockPanel();
         DockPanel.SetDock(menu, Dock.Right);
         head.Children.Add(menu);
+        DockPanel.SetDock(_lockIcon, Dock.Left);
+        head.Children.Add(_lockIcon);
         head.Children.Add(_name);
         Children.Add(head);
         Children.Add(_grid);
@@ -612,6 +682,9 @@ public sealed class PaletteColumn : StackPanel
         _bg.Background = UiKit.Brush(_session.Background);
         var palette = _session.Document.Palette;
         _name.Text = palette.Name;
+        _lockIcon.IsVisible = _session.PaletteLocked;
+        _lockIcon.Foreground = new SolidColorBrush(DnColors.Accent);
+        ToolTip.SetTip(_lockIcon, $"Locked to “{palette.Name}”: only these colours can be used");
         _layerName.Text = _session.Document.ActiveLayer.Name;
         _grid.Children.Clear();
         foreach (var c in palette.Colors)

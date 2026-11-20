@@ -24,7 +24,8 @@ public sealed class DnkFormatException(string message) : Exception(message);
 /// <item><c>thumbnail.png</c> — a small flattened preview.</item>
 /// </list>
 /// Version 1 is used for still pictures (so earlier DoodleNook versions keep opening them); version 2 adds the
-/// <c>animation</c> section. Files are written to a temporary file first and then moved into place, so a failed save
+/// <c>animation</c> section; version 3 adds the palette lock (<c>palette.locked</c> and <c>palette.libraryId</c>) and is
+/// written only for palette-locked pictures, so an older DoodleNook refuses them instead of silently dropping the lock. Files are written to a temporary file first and then moved into place, so a failed save
 /// never damages the previous version. Files from a newer format version are refused with a clear message.
 /// </summary>
 public static class DnkFile
@@ -32,8 +33,14 @@ public static class DnkFile
     public const string Extension = ".dnk";
     public const string MimeType = "application/x-doodlenook";
 
-    /// <summary>The newest format this build reads and writes (2 = animations).</summary>
-    public const int CurrentVersion = 2;
+    /// <summary>The newest format this build reads and writes (3 = palette lock).</summary>
+    public const int CurrentVersion = 3;
+
+    /// <summary>Animations are written in version 2, which Mission 006 builds can read.</summary>
+    public const int AnimationVersion = 2;
+
+    /// <summary>Palette-locked pictures are written in version 3.</summary>
+    public const int PaletteLockVersion = 3;
 
     /// <summary>Still pictures are written in version 1, which Mission 005 builds can read.</summary>
     public const int StillVersion = 1;
@@ -61,13 +68,19 @@ public static class DnkFile
         var manifest = new Manifest
         {
             Format = "DoodleNook",
-            Version = doc.IsAnimated ? CurrentVersion : StillVersion,
+            Version = doc.PaletteLocked ? PaletteLockVersion : doc.IsAnimated ? AnimationVersion : StillVersion,
             CreatedWith = appVersion is null ? "DoodleNook" : $"DoodleNook {appVersion}",
             Width = doc.Width,
             Height = doc.Height,
             Paper = new PaperInfo { Color = doc.Paper?.ToHex(), Visible = doc.PaperVisible },
             ActiveLayer = doc.ActiveIndex,
-            Palette = new PaletteInfo { Name = doc.Palette.Name, Colors = doc.Palette.Colors.Select(c => c.ToHex()).ToList() },
+            Palette = new PaletteInfo
+            {
+                Name = doc.Palette.Name,
+                Colors = doc.Palette.Colors.Select(c => c.ToHex()).ToList(),
+                Locked = doc.PaletteLocked ? true : null,
+                LibraryId = doc.PaletteLocked ? doc.Palette.LibraryId : null,
+            },
         };
         var images = new List<SnapshotImage>();
         foreach (var l in doc.Layers)
@@ -257,7 +270,14 @@ public static class DnkFile
                 doc = new Document(manifest.Width, manifest.Height, paper, manifest.Paper?.Visible ?? true, layers, manifest.ActiveLayer);
             }
             if (manifest.Palette is { Colors.Count: > 0 } pal)
-                doc.Palette = new Palette(pal.Name ?? "Palette", pal.Colors.Select(s => ColorRgb.TryParse(s, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>());
+            {
+                var palette = new Palette(pal.Name ?? "Palette", pal.Colors.Select(s => ColorRgb.TryParse(s, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>())
+                {
+                    LibraryId = pal.LibraryId,
+                };
+                if (manifest.Version >= PaletteLockVersion && pal.Locked == true && palette.Colors.Count > 0) doc.SetPaletteInternal(palette, locked: true);
+                else doc.Palette = palette;
+            }
             return doc;
         }
     }
@@ -396,6 +416,12 @@ public static class DnkFile
     {
         public string? Name { get; set; }
         public List<string> Colors { get; set; } = new();
+
+        /// <summary>Version 3: the picture may only use these colours.</summary>
+        public bool? Locked { get; set; }
+
+        /// <summary>Version 3: the library palette the colours were taken from.</summary>
+        public string? LibraryId { get; set; }
     }
 }
 
