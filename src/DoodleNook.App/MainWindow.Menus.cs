@@ -51,6 +51,8 @@ public partial class MainWindow
         new("export", "Export as WebP…", null, () => _ = ExportAsync(ExportFormat.WebP)),
         new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
         MenuEntry.Separator,
+        new("image", "Game Edit Mode…", null, () => _ = EnterGameEditModeAsync()),
+        MenuEntry.Separator,
         new("settings", "Preferences…", null, () => _ = PreferencesAsync()),
         new("exit", "Exit", "Alt+F4", Close),
     ];
@@ -280,6 +282,7 @@ public partial class MainWindow
             new("export", "Export as PNG…", null, () => _ = ExportAsync(ExportFormat.Png)),
             new("export", "Export as JPEG…", null, () => _ = ExportAsync(ExportFormat.Jpeg)),
             new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
+            new("image", "Game Edit Mode…", null, () => _ = EnterGameEditModeAsync()),
             MenuEntry.Separator,
             new("trash", "Clear layer", null, ClearLayer),
             new("lab", "Brush Laboratory…", null, () => _ = OpenBrushLabAsync()),
@@ -399,8 +402,8 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} — Mission 008 “The Designer's Toolkit”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 009 “Game Edit Mode”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, and Game Edit Mode for replacing a game's graphics.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
         [("ok", "Close", true)], "ok", "ok");

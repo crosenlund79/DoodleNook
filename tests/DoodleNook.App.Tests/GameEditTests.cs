@@ -1,0 +1,422 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.VisualTree;
+using DoodleNook.App.Editor;
+using DoodleNook.App.Files;
+using DoodleNook.App.Shell;
+using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Files;
+using DoodleNook.Engine.Imaging;
+using DoodleNook.Engine.Painting;
+using static DoodleNook.App.Tests.WindowTests;
+
+namespace DoodleNook.App.Tests;
+
+/// <summary>Mission 009 — Game Edit Mode: the catalog, the two-part save, backups and progress.</summary>
+public sealed class GameEditTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "dn-game-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _assets;
+
+    public GameEditTests()
+    {
+        _assets = Path.Combine(_dir, "MyGame", "assets");
+        Png("characters/player.png", 32, 24, Pixel.Opaque(new ColorRgb(200, 40, 40)));
+        Png("characters/enemy.png", 16, 16, Pixel.Opaque(new ColorRgb(40, 160, 60)));
+        Png("environment/trees/tree.png", 20, 30, Pixel.FromStraight(40, 60, 200, 128));
+        Png("logo.png", 8, 8, Pixel.Opaque(ColorRgb.White));
+        File.WriteAllText(Path.Combine(_assets, "notes.txt"), "not an image");
+        Png("_DoodleNook/Originals/characters/stale.png", 4, 4, Pixel.Opaque(ColorRgb.Black)); // never part of the catalog
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
+        catch (Exception)
+        {
+            // A test that made a folder unwritable may leave it behind in the temp folder.
+        }
+    }
+
+    /// <summary>A PNG whose left half is the colour and right half transparent.</summary>
+    private void Png(string relative, int w, int h, uint colour)
+    {
+        var path = Path.Combine(_assets, relative.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var img = new RasterImage(w, h);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w / 2; x++)
+                img[x, y] = colour;
+        File.WriteAllBytes(path, PngCodec.Encode(img));
+    }
+
+    private static Button ButtonWithText(MainWindow w, string text) =>
+        w.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == text));
+
+    private static async Task Until(Func<bool> done, int ms = 10_000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(ms);
+        while (!done())
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException();
+            Pump();
+            await Task.Delay(15);
+            Pump();
+        }
+    }
+
+    private async Task<MainWindow> GameWindow(bool backups = true)
+    {
+        var w = Open(1280, 800, WorkspaceKind.Painting);
+        var opening = w.OpenGameFolderAsync(_assets);
+        await Until(() => w.Dialogs.IsOpen); // first time: the backup question
+        Pump();
+        if (!backups) Click(w, Find<Button>(w, "GameBackupCheck"));
+        w.Dialogs.Close("start");
+        Assert.True(await opening);
+        Pump();
+        return w;
+    }
+
+    private static async Task Save(MainWindow w)
+    {
+        var task = w.SaveAsync();
+        await Until(() => task.IsCompleted || w.Dialogs.IsOpen);
+        if (!task.IsCompleted) return; // a dialog is waiting; the test answers it
+        Assert.True(await task);
+    }
+
+    private static void Paint(MainWindow w, double x0, double y, double x1)
+    {
+        w.Canvas.FitToView();
+        Pump();
+        w.Session.SelectTool(ToolKind.Brush);
+        w.Session.UseBrush(new BrushSettings { Size = 4, Hardness = 1, Opacity = 1 }, "pencil");
+        w.Session.SetForeground(new ColorRgb(20, 20, 120));
+        Drag(w, MouseButton.Left, RawInputModifiers.None, (x0, y), (x1, y));
+    }
+
+    // ================================================================== discovery and progress
+
+    [Fact]
+    public void Finds_every_png_in_subfolders_with_relative_paths_and_skips_the_working_folder()
+    {
+        var p = GameProject.Open(_assets);
+        Assert.Equal(["characters/enemy.png", "characters/player.png", "environment/trees/tree.png", "logo.png"], p.Images.Select(i => i.RelativePath));
+        var player = p.Find("characters/player.png")!;
+        Assert.Equal("characters", player.Folder);
+        Assert.Equal("player.png", player.FileName);
+        Assert.Equal(Path.Combine(_assets, "_DoodleNook", "characters", "player.dnk"), player.DnkPath);
+        Assert.Equal(Path.Combine(_assets, "_DoodleNook", "Originals", "characters", "player.png"), player.BackupPath);
+        Assert.All(p.Images, i => Assert.Equal(GameImageStatus.NotStarted, i.Status));
+        Assert.False(File.Exists(p.CatalogPath)); // just looking writes nothing
+    }
+
+    [Fact]
+    public void Progress_counts_only_images_marked_complete_and_statuses_survive_reopening_and_rescans()
+    {
+        var p = GameProject.Open(_assets);
+        p.SetBackupOriginals(false);
+        var player = p.Find("characters/player.png")!;
+        var enemy = p.Find("characters/enemy.png")!;
+        p.RecordSaved(player);                               // first complete save
+        Assert.Equal(GameImageStatus.InProgress, player.Status);
+        p.RecordSaved(player);                               // more saves stay In progress
+        Assert.Equal(GameImageStatus.InProgress, player.Status);
+        p.MarkComplete(enemy);                               // complete only when asked
+        Assert.Equal(new GameProgress(4, 2, 1, 1), p.Progress);
+        Assert.Equal(25, p.Progress.Percent, 6);
+        p.RecordSaved(enemy);                                // saving a complete image keeps it complete
+        Assert.Equal(GameImageStatus.Complete, enemy.Status);
+
+        // Like closing and starting DoodleNook again.
+        var again = GameProject.Open(_assets);
+        Assert.False(again.BackupOriginals);
+        Assert.Equal(GameImageStatus.InProgress, again.Find("characters/player.png")!.Status);
+        Assert.Equal(GameImageStatus.Complete, again.Find("characters/enemy.png")!.Status);
+        again.MarkInProgress(again.Find("characters/enemy.png")!);
+        Assert.Equal(GameImageStatus.InProgress, GameProject.Open(_assets).Find("characters/enemy.png")!.Status);
+
+        // A rescan: a new PNG is Not started, a removed one stops counting, a returning one keeps its status.
+        Png("characters/boss.png", 8, 8, Pixel.Opaque(ColorRgb.Black));
+        var playerBytes = File.ReadAllBytes(player.PngPath);
+        File.Delete(player.PngPath);
+        again.Rescan();
+        Assert.Equal(GameImageStatus.NotStarted, again.Find("characters/boss.png")!.Status);
+        Assert.Null(again.Find("characters/player.png"));
+        Assert.Equal(4, again.Progress.Total);
+        Assert.Equal(GameImageStatus.InProgress, again.Find("characters/enemy.png")!.Status);
+        File.WriteAllBytes(player.PngPath, playerBytes);
+        again.Rescan();
+        Assert.Equal(GameImageStatus.InProgress, again.Find("characters/player.png")!.Status);
+    }
+
+    // ================================================================== editing and saving
+
+    [AvaloniaFact]
+    public async Task Ctrl_S_saves_the_dnk_then_replaces_the_png_in_place_and_backs_up_the_original_once()
+    {
+        var w = await GameWindow();
+        Assert.True(Has(w, "GameCatalog"));
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "assets — 4 images");
+        Assert.Equal("Not started: 4   ·   In progress: 0   ·   Complete: 0", Find<TextBlock>(w, "GameCounts").Text);
+        var game = w.Game!;
+        var player = game.Find("characters/player.png")!;
+        var original = File.ReadAllBytes(player.PngPath);
+
+        // Clicking a tile opens the PNG as an editable picture; looking changes nothing.
+        Click(w, w.GetVisualDescendants().OfType<Border>().First(b => b.Name == "GameTile_characters/player.png"));
+        await Until(() => w.EditingGameImage);
+        Assert.Equal((32, 24), (w.Session.Document.Width, w.Session.Document.Height));
+        Assert.Equal("DoodleNook — M009 — player.dnk", w.Title);
+        Assert.Equal(GameImageStatus.NotStarted, player.Status);
+        Assert.False(Has(w, "GameCatalog"));
+        Assert.True(Has(w, "GameChip"));
+
+        // Edit and save: the .dnk, the backup of the original bytes, then the PNG.
+        Paint(w, 2, 20, 30);
+        Key(w, Avalonia.Input.Key.S, RawInputModifiers.Control);
+        await Until(() => player.Status == GameImageStatus.InProgress);
+        Assert.True(File.Exists(player.DnkPath));
+        Assert.Equal(original, File.ReadAllBytes(player.BackupPath));
+        var png = PngCodec.Decode(File.ReadAllBytes(player.PngPath));
+        Assert.Equal((32, 24), (png.Width, png.Height));
+        Assert.Equal(w.Session.Document.Flatten().Pixels, png.Pixels);
+        Assert.Equal(0u, png[30, 2]);                            // transparency kept
+        Assert.Equal(Pixel.Opaque(new ColorRgb(200, 40, 40)), png[2, 2]);
+        Assert.NotEqual(0u, png[20, 20]);                        // the new paint
+        Assert.False(w.Session.Document.IsDirty);
+        Assert.DoesNotContain(Directory.GetFiles(Path.GetDirectoryName(player.PngPath)!), f => f.EndsWith(".tmp", StringComparison.Ordinal));
+
+        // A second save: still In progress, and the backup still holds the very first original.
+        Paint(w, 2, 10, 30);
+        await Save(w);
+        Assert.Equal(GameImageStatus.InProgress, player.Status);
+        Assert.Equal(original, File.ReadAllBytes(player.BackupPath));
+
+        // Mark complete from the chip; a later save keeps it complete; Mark in progress reopens it.
+        Click(w, Find<Button>(w, "GameMarkComplete"));
+        Assert.Equal(GameImageStatus.Complete, player.Status);
+        Paint(w, 2, 6, 30);
+        await Save(w);
+        Assert.Equal(GameImageStatus.Complete, player.Status);
+        Click(w, Find<Button>(w, "GameMarkComplete"));
+        Assert.Equal(GameImageStatus.InProgress, player.Status);
+        Assert.Equal(GameImageStatus.InProgress, GameProject.Open(_assets).Find("characters/player.png")!.Status);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_editable_version_is_reopened_with_its_layers_not_the_flat_png()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        var tree = game.Find("environment/trees/tree.png")!;
+        Assert.True(await w.OpenGameImageAsync(tree));
+        w.Session.AddLayer();
+        Paint(w, 2, 15, 18);
+        await Save(w);
+        Assert.False(File.Exists(tree.BackupPath)); // backups were switched off for this folder
+        Assert.Equal(2, DnkFile.Load(tree.DnkPath).Layers.Count);
+
+        var logo = game.Find("logo.png")!;
+        Assert.True(await w.OpenGameImageAsync(logo));
+        Assert.Single(w.Session.Document.Layers);
+        Assert.True(await w.OpenGameImageAsync(tree));
+        Assert.Equal(2, w.Session.Document.Layers.Count); // the layers are back
+        Assert.Equal(tree.DnkPath, w.Session.FilePath);
+
+        // An unsaved change and another image: the usual save / don't save / cancel question.
+        Paint(w, 2, 5, 18);
+        var switching = w.OpenGameImageAsync(logo);
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("cancel");
+        Assert.False(await switching);
+        Assert.Same(tree, w.GameImage);
+        Assert.True(w.Session.Document.IsDirty);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_failed_backup_or_png_write_leaves_the_png_and_the_status_alone_and_can_be_retried()
+    {
+        var w = await GameWindow();
+        var game = w.Game!;
+        var enemy = game.Find("characters/enemy.png")!;
+        var original = File.ReadAllBytes(enemy.PngPath);
+        Assert.True(await w.OpenGameImageAsync(enemy));
+        Paint(w, 1, 8, 15);
+
+        // The backup can't be made (a file stands where its folder should be): the PNG is not replaced.
+        var originals = Path.Combine(game.WorkFolder, GameProject.OriginalsFolderName);
+        if (Directory.Exists(originals)) Directory.Delete(originals, recursive: true);
+        File.WriteAllText(originals, "in the way");
+        await Save(w);
+        await Until(() => w.Dialogs.IsOpen);
+        Assert.True(File.Exists(enemy.DnkPath));                 // the editable version is safe
+        Assert.Equal(original, File.ReadAllBytes(enemy.PngPath)); // the game's PNG untouched
+        Assert.Equal(GameImageStatus.NotStarted, enemy.Status);
+        Assert.Contains(w.GetVisualDescendants().OfType<TextBlock>(), t => t.Text?.Contains("PNG not updated") == true);
+
+        // Fixed, then "Try again": the backup and the PNG are written and the status moves on.
+        File.Delete(originals);
+        w.Dialogs.Close("retry");
+        await Until(() => enemy.Status == GameImageStatus.InProgress);
+        Assert.Equal(original, File.ReadAllBytes(enemy.BackupPath));
+        Assert.NotEqual(original, File.ReadAllBytes(enemy.PngPath));
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_png_changed_elsewhere_is_never_overwritten_silently()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        var logo = game.Find("logo.png")!;
+        Assert.True(await w.OpenGameImageAsync(logo));
+        Paint(w, 1, 4, 7);
+        await Save(w);
+        // Another program changes the PNG.
+        await Task.Delay(20);
+        Png("logo.png", 8, 8, Pixel.Opaque(new ColorRgb(1, 2, 3)));
+        File.SetLastWriteTimeUtc(logo.PngPath, DateTime.UtcNow.AddMinutes(1));
+        var changed = File.ReadAllBytes(logo.PngPath);
+        Assert.True(game.ChangedOutside(logo));
+        Paint(w, 1, 2, 7);
+        var saving = w.SaveAsync();
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("dnk"); // keep the other program's PNG
+        Assert.True(await saving);
+        Assert.Equal(changed, File.ReadAllBytes(logo.PngPath));
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task An_unreadable_dnk_is_reported_and_the_png_can_be_opened_instead()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        var enemy = game.Find("characters/enemy.png")!;
+        Directory.CreateDirectory(Path.GetDirectoryName(enemy.DnkPath)!);
+        File.WriteAllText(enemy.DnkPath, "not a zip");
+        var opening = w.OpenGameImageAsync(enemy);
+        await Until(() => w.Dialogs.IsOpen);
+        w.Dialogs.Close("png");
+        Assert.True(await opening);
+        Assert.Equal((16, 16), (w.Session.Document.Width, w.Session.Document.Height));
+        Assert.Equal(GameImageStatus.NotStarted, enemy.Status);
+        Assert.Equal("not a zip", File.ReadAllText(enemy.DnkPath)); // only replaced when saving
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task The_catalog_filters_searches_marks_complete_and_is_remembered()
+    {
+        var w = await GameWindow(backups: false);
+        var game = w.Game!;
+        var tiles = w.GetVisualDescendants().OfType<Border>().Where(b => b.Tag is GameImage).ToList();
+        Assert.Equal(4, tiles.Count);
+        // Mark complete from a tile.
+        var logoTile = tiles.First(t => ((GameImage)t.Tag!).RelativePath == "logo.png");
+        Click(w, logoTile.GetVisualDescendants().OfType<Button>().First());
+        Assert.Equal(GameImageStatus.Complete, game.Find("logo.png")!.Status);
+        Assert.Equal("Completion 25%", Find<TextBlock>(w, "GameProgressText").Text);
+        // Filters and search.
+        Click(w, ButtonWithText(w, "Complete"));
+        Assert.Equal(["logo.png"], tiles.Where(t => t.IsVisible).Select(t => ((GameImage)t.Tag!).RelativePath));
+        Click(w, ButtonWithText(w, "All"));
+        Find<TextBox>(w, "GameSearch").Text = "char";
+        Pump();
+        Assert.Equal(2, tiles.Count(t => t.IsVisible));
+
+        // Leaving and coming back: the same folder, no folder picker.
+        w.LeaveGameEditMode();
+        Assert.False(Has(w, "GameCatalog"));
+        await w.EnterGameEditModeAsync();
+        Assert.True(Has(w, "GameCatalog"));
+        Assert.Equal(GameImageStatus.Complete, w.Game!.Find("logo.png")!.Status);
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public void The_window_title_shows_the_milestone()
+    {
+        var w = Open(1280, 800, WorkspaceKind.Painting);
+        Assert.Equal("M009", MainWindow.Milestone);
+        Assert.Equal("DoodleNook — M009", w.Title);
+        w.Session.AddLayer();
+        Pump();
+        Assert.StartsWith("DoodleNook — M009 — Untitled", w.Title);
+        w.Close();
+    }
+}
+
+/// <summary>Screenshots of Game Edit Mode (out/screenshots/game-*.png).</summary>
+public class GameEditScreenshots
+{
+    [AvaloniaFact]
+    public async Task Capture_game_edit_screenshots()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dn-game-shots-" + Guid.NewGuid().ToString("N")[..8], "assets");
+        void Save(string relative, RasterImage image)
+        {
+            var path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, PngCodec.Encode(image));
+        }
+        // A small game's graphics: the sample animations' frames as sprites, plus a few tiles and a title.
+        var slime = Engine.Samples.SampleAnimations.PixelSlime();
+        for (int f = 0; f < 6; f++) Save($"characters/slime/slime_{f}.png", slime.RenderFrame(f, includePaper: false));
+        var ball = Engine.Samples.SampleAnimations.BouncingBall();
+        for (int f = 0; f < 4; f++) Save($"effects/ball_{f}.png", Engine.Operations.Resampler.Resize(ball.RenderFrame(f * 3), 320, 180, Engine.Operations.Interpolation.Bilinear));
+        string[] tiles = ["#7FA36B", "#6A9159", "#C9A26B", "#8E8E8E", "#5F8FA8"];
+        for (int i = 0; i < tiles.Length; i++)
+        {
+            var t = new Document(32, 32, null, "Tile");
+            t.AddShapeLayer(new ShapeContent(i % 2 == 0 ? ShapeType.RoundedRectangle : ShapeType.Ellipse, 2, 2, 28, 28, ColorRgb.Parse(tiles[i]), ColorRgb.Parse("#2B2230"), 2, 0, 6));
+            Save($"environment/tiles/tile_{i}.png", t.Flatten());
+        }
+        var title = new Document(480, 160, null, "Title");
+        title.AddTextLayer(new TextContent("Slime Quest", "Varela Round", 72, ColorRgb.Parse("#5B3A6B"), X: 20, Y: 30, Outline: new OutlineEffect(ColorRgb.Parse("#F6E7C8"), 5)));
+        Save("ui/title.png", title.Flatten());
+        var button = new Document(200, 64, null, "Button");
+        button.AddShapeLayer(new ShapeContent(ShapeType.RoundedRectangle, 4, 4, 192, 56, ColorRgb.Parse("#E9A94D"), ColorRgb.Parse("#2B2230"), 4, 0, 20));
+        Save("ui/button_play.png", button.Flatten());
+
+        var project = GameProject.Open(root);
+        project.SetBackupOriginals(true);
+        foreach (var rel in new[] { "characters/slime/slime_0.png", "characters/slime/slime_1.png", "ui/title.png", "environment/tiles/tile_0.png" })
+            project.MarkComplete(project.Find(rel)!);
+        foreach (var rel in new[] { "characters/slime/slime_2.png", "ui/button_play.png", "effects/ball_0.png" })
+            project.RecordSaved(project.Find(rel)!);
+
+        foreach (var (name, width, height, scaling) in new[] { ("kamvas13-150", 1280.0, 720.0, 1.5), ("desktop1080", 1920.0, 1080.0, 1.0) })
+        {
+            var w = WindowTests.Open(width, height, WorkspaceKind.Painting);
+            w.SetRenderScaling(scaling);
+            WindowTests.Pump();
+            Assert.True(await w.OpenGameFolderAsync(root));
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (w.GetVisualDescendants().OfType<Image>().Count(i => i.Source is not null && i.FindAncestorOfType<GameCatalogView>() is not null) < 10
+                   && DateTime.UtcNow < deadline)
+            {
+                WindowTests.Pump();
+                await Task.Delay(20);
+            }
+            WindowTests.Pump();
+            WorkshopScreenshots.Save(w, $"game-catalog-{name}");
+            Assert.True(await w.OpenGameImageAsync(w.Game!.Find("ui/button_play.png")!));
+            w.Canvas.FitToView();
+            WindowTests.Pump();
+            WorkshopScreenshots.Save(w, $"game-editing-{name}");
+            w.Close();
+        }
+        Directory.Delete(Path.GetDirectoryName(root)!, recursive: true);
+    }
+}

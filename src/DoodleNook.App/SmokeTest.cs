@@ -20,7 +20,7 @@ namespace DoodleNook.App;
 /// path (pen-like and mouse strokes, eraser, undo/redo, layers, every workspace, a transform, pixel art, saving and
 /// reopening a .dnk, PNG/JPEG/WebP export, animation, and the creative tools: a custom brush tip, stamps, pattern
 /// fill, palettes, the Brush Laboratory and the reference board; palette lock; text, shapes, groups, masks, adjustment
-/// layers, guides and perspective), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
+/// layers, guides and perspective; Game Edit Mode), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
 /// proves the packaged app starts and works, not how the pen feels.
 /// </summary>
 internal static class SmokeTest
@@ -498,6 +498,44 @@ internal static class SmokeTest
         Check("text, shapes, groups, masks and guides save and reopen (.dnk version 4)", designSaved && designVersion == 4
             && designBack.Flatten().Pixels.AsSpan().SequenceEqual(design.Flatten().Pixels) && designBack.Guides.Count == 2
             && designBack.Layers.Count(l => l.Kind == Engine.Documents.LayerKind.Text) == 2, $"version {designVersion}");
+
+        // 14. Mission 009 — Game Edit Mode: a game folder with PNGs in subfolders; open one, paint, Ctrl+S.
+        session.Document.MarkSaved();
+        var gameRoot = Path.Combine(dir, "smoke-game", "assets");
+        var spritePath = Path.Combine(gameRoot, "characters", "hero.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(spritePath)!);
+        var heroPixels = new RasterImage(48, 32);
+        for (int y = 8; y < 24; y++)
+            for (int x = 8; x < 40; x++)
+                heroPixels[x, y] = Pixel.Opaque(ColorRgb.Parse("#C8473E"));
+        File.WriteAllBytes(spritePath, PngCodec.Encode(heroPixels));
+        File.WriteAllBytes(Path.Combine(gameRoot, "logo.png"), PngCodec.Encode(new RasterImage(16, 16)));
+        var heroOriginal = File.ReadAllBytes(spritePath);
+        GameProject.Open(gameRoot).SetBackupOriginals(true); // as if chosen before (no first-time question)
+        bool gameOpened = await window.OpenGameFolderAsync(gameRoot);
+        var hero = window.Game?.Find("characters/hero.png");
+        Check("Game Edit Mode finds the PNGs in subfolders", gameOpened && window.Game!.Images.Count == 2 && hero is not null);
+        if (hero is not null && await window.OpenGameImageAsync(hero))
+        {
+            session.SelectTool(ToolKind.Brush);
+            session.ApplyPreset("ink");
+            session.SetSize(4);
+            session.SetForeground(ColorRgb.Parse("#1A1C2C"));
+            Drag(10, 28, 38, 28);
+            bool gameSaved = await window.SaveAsync();
+            var written = ImageFiles.Decode(spritePath);
+            Check("Ctrl+S saves the editable .dnk and replaces the game's PNG in place",
+                gameSaved && File.Exists(hero.DnkPath) && written.Width == 48 && written.Height == 32 && written[0, 0] == 0
+                && written.Pixels.AsSpan().SequenceEqual(session.Document.Flatten().Pixels),
+                Path.GetRelativePath(gameRoot, hero.DnkPath));
+            Check("the original PNG is backed up byte for byte, and the image is In progress (not complete)",
+                File.Exists(hero.BackupPath) && File.ReadAllBytes(hero.BackupPath).AsSpan().SequenceEqual(heroOriginal) && hero.Status == GameImageStatus.InProgress);
+            await Shot("smoke-K-game-edit.png");
+            window.LeaveGameEditMode();
+        }
+        report["windowTitle"] = window.Title;
+        Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
+            && MainWindow.Milestone == "M009", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

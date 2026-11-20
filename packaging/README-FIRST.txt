@@ -1,5 +1,5 @@
-DoodleNook — Mission 008 "The Designer's Toolkit"
-===================================================
+DoodleNook — Mission 009 "Game Edit Mode"
+=========================================
 
 Start
 -----
@@ -45,6 +45,13 @@ The Artist's Workshop
   converts artwork to another palette with a preview you can adjust. Transparency is never changed.
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
+
+Game Edit Mode
+--------------
+File › Game Edit Mode… and choose your game's graphics folder: every PNG in it (and its subfolders) appears
+in a catalog with its progress. Click one to edit it. Ctrl+S saves your editable version in a "_DoodleNook"
+folder inside the game folder and replaces the game's PNG in place (the original is backed up first, in
+_DoodleNook\Originals, if you leave that ticked). Saving makes an image "In progress"; "Mark complete" is up to you.
 
 The Designer's Toolkit
 ----------------------

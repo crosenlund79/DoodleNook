@@ -374,6 +374,8 @@ public sealed class TitleBar : Border
         var brand = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) };
         brand.Children.Add(new BrandMark());
         brand.Children.Add(new TextBlock { Text = "DoodleNook", Classes = { "brand" }, VerticalAlignment = VerticalAlignment.Center });
+        if (MainWindow.Milestone.Length > 0)
+            brand.Children.Add(new TextBlock { Text = MainWindow.Milestone, Classes = { "dim" }, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(-2, 3, 4, 0), Name = "MilestoneLabel" });
 
         var right = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         right.Children.Add(new WorkspaceSwitcher(app));

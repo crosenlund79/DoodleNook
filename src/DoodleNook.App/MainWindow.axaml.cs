@@ -115,6 +115,7 @@ public partial class MainWindow : Window
 
         InitAnimation();
         InitDesign();
+        InitGameEdit();
 
         _radial = new RadialPalette(this) { Name = "RadialPalette" };
         CanvasHost.Children.Add(_radial);
@@ -203,7 +204,23 @@ public partial class MainWindow : Window
         RefreshTitle();
     }
 
-    private void RefreshTitle() => Title = $"{Session.DisplayName}{(Session.Document.IsDirty ? " •" : "")} — DoodleNook";
+    /// <summary>The milestone shown in the window title ("M009"), from Directory.Build.props (one place to change).</summary>
+    public static string Milestone =>
+        typeof(MainWindow).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "Milestone")?.Value ?? "";
+
+    /// <summary>"DoodleNook — M009", then the picture's name once it has one or has changes ("DoodleNook — M009 — player.dnk •").</summary>
+    internal string WindowTitle
+    {
+        get
+        {
+            string app = Milestone.Length > 0 ? $"DoodleNook — {Milestone}" : "DoodleNook";
+            bool dirty = Session.Document.IsDirty;
+            if (Session.FilePath is null && !dirty) return app;
+            return $"{app} — {Session.DisplayName}{(dirty ? " •" : "")}";
+        }
+    }
+
+    private void RefreshTitle() => Title = WindowTitle;
 
     private void OnFlyoutOpened(Flyout flyout)
     {

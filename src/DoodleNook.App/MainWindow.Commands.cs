@@ -334,6 +334,7 @@ public partial class MainWindow
     /// </summary>
     public async Task<bool> SaveAsync()
     {
+        if (EditingGameImage) return await SaveGameImageAsync(); // the .dnk and the game's PNG
         var path = Session.FilePath;
         if (path is not null && ImageFiles.IsProject(path)) return await SaveToPathAsync(path);
         // Text, shapes, masks, guides… only survive in a .dnk, like layers: never flattened into a PNG by Ctrl+S.

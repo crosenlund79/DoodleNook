@@ -43,6 +43,9 @@ public sealed class AppSettings
     public DesignShapeOptions? DesignShape { get; set; }
     public AssistantOptions? Assistants { get; set; }
     public bool ShowGuides { get; set; } = true;
+
+    // Mission 009: the game graphics folder last used in Game Edit Mode.
+    public string? GameFolder { get; set; }
     public PatternToolOptions? PatternFill { get; set; }
     public string? ActivePalette { get; set; }
 

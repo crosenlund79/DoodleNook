@@ -122,7 +122,7 @@ public class WindowTests
         Assert.True(Has(w, "ToolStrip"));
         Assert.False(Has(w, "TitleBar"));
         Assert.True(w.Canvas.Bounds.Width > 1000 && w.Canvas.Bounds.Height > 600);
-        Assert.Equal("Untitled — DoodleNook", w.Title);
+        Assert.Equal($"DoodleNook — {MainWindow.Milestone}", w.Title);
         Assert.Equal(ToolKind.Brush, w.Session.Tool);
         Assert.Contains("on", Find<Button>(w, "ToolBrush").Classes);
         Assert.Equal(1920, w.Session.Document.Width);
@@ -140,7 +140,7 @@ public class WindowTests
         Assert.True(Alpha(w, 1000, 495) > 0 || Alpha(w, 1000, 494) > 0 || Alpha(w, 1000, 496) > 0);
         Assert.Equal(0, Alpha(w, 700, 700));
         Assert.Equal(1, w.Session.Document.History.UndoCount);
-        Assert.Equal("Untitled • — DoodleNook", w.Title);
+        Assert.Equal($"DoodleNook — {MainWindow.Milestone} — Untitled •", w.Title);
         Assert.True(Find<Button>(w, "UndoButton").IsEnabled);
         w.Close();
     }

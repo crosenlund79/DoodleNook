@@ -45,7 +45,7 @@ public sealed class WorkflowTests : IDisposable
         var path = Path.Combine(_dir, "landscape.dnk");
         Assert.True(await w.SaveToPathAsync(path));
         Assert.False(w.Session.Document.IsDirty);
-        Assert.Equal("landscape.dnk — DoodleNook", w.Title);
+        Assert.Equal($"DoodleNook — {MainWindow.Milestone} — landscape.dnk", w.Title);
         var flat = w.Session.Document.Flatten();
         w.Close();
 

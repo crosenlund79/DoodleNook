@@ -118,6 +118,9 @@ public partial class MainWindow
                 if (s.ActiveTransform is not null) ApplyTransform();
                 else if (!ApplyCrop()) return false;
                 return true;
+            case Key.Escape when CatalogShown && EditingGameImage:
+                HideCatalog();
+                return true;
             case Key.Escape:
                 if (s.ActiveTransform is not null) CancelTransform();
                 else if (CancelCrop()) { }
