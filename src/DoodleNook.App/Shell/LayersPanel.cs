@@ -20,7 +20,7 @@ namespace DoodleNook.App.Shell;
 /// opacity, lock badges; drag rows to reorder; the footer has opacity, blend mode, locks, clipping and layer
 /// actions; the paper sits at the bottom. The same panel appears in Quick Sketch's pop-over and in the docks.
 /// </summary>
-public sealed class LayersPanel : StackPanel
+public sealed partial class LayersPanel : StackPanel
 {
     private readonly EditorSession _session;
     private readonly StackPanel _rows = new() { Spacing = 2 };
@@ -91,7 +91,8 @@ public sealed class LayersPanel : StackPanel
         if (!Shown) return;
         var doc = _session.Document;
         foreach (var layer in doc.Layers)
-            if (_thumbImages.TryGetValue(layer.Id, out var image)) image.Source = Thumbnail(doc, layer);
+            if (layer.HasPixels && _thumbImages.TryGetValue(layer.Id, out var image)) image.Source = Thumbnail(doc, layer);
+        RefreshMaskThumbnails();
     }
 
     public void Rebuild()
@@ -105,12 +106,25 @@ public sealed class LayersPanel : StackPanel
         var doc = _session.Document;
         _rows.Children.Clear();
         _thumbImages.Clear();
-        for (int i = doc.Layers.Count - 1; i >= 0; i--) _rows.Children.Add(Row(doc, doc.Layers[i]));
+        _maskImages.Clear();
+        AddRows(doc, 0, 0);
         _rows.Children.Add(PaperRow(doc));
         RefreshFooter();
     }
 
-    private Control Row(Document doc, Layer layer)
+    /// <summary>The rows of a group (or the picture), top layer first; open groups show their layers indented below them.</summary>
+    private void AddRows(Document doc, int parentId, int depth)
+    {
+        var children = doc.ChildrenOf(parentId);
+        for (int i = children.Count - 1; i >= 0; i--)
+        {
+            var layer = children[i];
+            _rows.Children.Add(Row(doc, layer, depth));
+            if (layer.IsGroup && !layer.Properties.Collapsed && depth < 16) AddRows(doc, layer.Id, depth + 1);
+        }
+    }
+
+    private Control Row(Document doc, Layer layer, int depth = 0)
     {
         bool active = ReferenceEquals(layer, doc.ActiveLayer);
         var eye = UiKit.Button(layer.Visible ? "eye" : "eyeoff", tip: layer.Visible ? $"Hide {layer.Name}" : $"Show {layer.Name}",
@@ -120,20 +134,11 @@ public sealed class LayersPanel : StackPanel
         eye.MinWidth = 32;
         if (!layer.Visible) eye.Opacity = 0.55;
 
-        var thumb = new Border
-        {
-            Width = 46,
-            Height = 30,
-            CornerRadius = new CornerRadius(4),
-            ClipToBounds = true,
-            Background = UiKit.CheckerBrush(),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0)),
-            BorderThickness = new Thickness(1),
-            Child = _thumbImages[layer.Id] = new Image { Source = Thumbnail(doc, layer), Stretch = Stretch.Uniform },
-        };
+        var thumb = LayerThumb(doc, layer, active);
 
         var name = new TextBlock { Text = layer.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         var badges = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        foreach (var badge in DesignBadges(doc, layer)) badges.Children.Add(badge);
         if (layer.ClipToBelow) badges.Children.Add(new DnIcon { Kind = "clip", Width = 14, Height = 14, Foreground = new SolidColorBrush(DnColors.Text2) });
         if (layer.AlphaLocked) badges.Children.Add(new DnIcon { Kind = "alphalock", Width = 14, Height = 14, Foreground = new SolidColorBrush(DnColors.Text2) });
         if (layer.Locked) badges.Children.Add(new DnIcon { Kind = "lock", Width = 14, Height = 14, Foreground = new SolidColorBrush(DnColors.Text2) });
@@ -154,7 +159,17 @@ public sealed class LayersPanel : StackPanel
         DockPanel.SetDock(thumb, Dock.Left);
         DockPanel.SetDock(right, Dock.Right);
         dock.Children.Add(eye);
+        if (Expander(layer) is { } expander)
+        {
+            DockPanel.SetDock(expander, Dock.Left);
+            dock.Children.Add(expander);
+        }
         dock.Children.Add(thumb);
+        if (MaskThumb(doc, layer, active) is { } maskThumb)
+        {
+            DockPanel.SetDock(maskThumb, Dock.Left);
+            dock.Children.Add(maskThumb);
+        }
         dock.Children.Add(right);
         name.Margin = new Thickness(8, 0, 6, 0);
         dock.Children.Add(name);
@@ -170,10 +185,11 @@ public sealed class LayersPanel : StackPanel
             Background = active ? new SolidColorBrush(Color.Parse("#2BE9A94D")) : Brushes.Transparent,
             Cursor = new Cursor(StandardCursorType.Hand),
             Tag = layer,
+            Margin = new Thickness(depth * 14, 0, 0, 0),
         };
         if (layer.Label != LayerLabel.None)
             row.BorderBrush = new SolidColorBrush(LabelColor(layer.Label));
-        ToolTip.SetTip(row, $"{layer.Name} · click to paint on it · drag to reorder · double-click to rename");
+        ToolTip.SetTip(row, RowTip(layer));
 
         row.PointerPressed += (_, e) =>
         {
@@ -188,7 +204,9 @@ public sealed class LayersPanel : StackPanel
             if (!props.IsLeftButtonPressed) return;
             if (e.ClickCount == 2)
             {
-                BeginRename(dock, name, layer);
+                // Adjustment layers: double-click opens their settings (the name still renames from the menu).
+                if (layer.Kind == LayerKind.Adjustment && !name.IsPointerOver) _ = (TopLevel.GetTopLevel(this) as MainWindow)?.EditAdjustmentLayerAsync(layer);
+                else BeginRename(dock, name, layer);
                 e.Handled = true;
                 return;
             }
@@ -214,9 +232,7 @@ public sealed class LayersPanel : StackPanel
             e.Pointer.Capture(null);
             row.Opacity = 1;
             if (!_dragging) return;
-            double y = e.GetPosition(_rows).Y;
-            int target = TargetIndex(y);
-            if (target >= 0) _session.Document.MoveLayer(dragged, target);
+            Drop(dragged, e.GetPosition(_rows).Y);
         };
         return row;
     }
@@ -227,19 +243,20 @@ public sealed class LayersPanel : StackPanel
         var flyout = UiKit.PopFlyout(new Panel(), Avalonia.Controls.PlacementMode.Pointer);
         var doc = _session.Document;
         int index = doc.IndexOf(layer);
-        var entries = new List<MenuEntry>
-        {
+        List<MenuEntry> entries =
+        [
             new(null, "Rename…", "double-click", () => BeginRename(dock, name, layer)),
             new("copy", "Duplicate", "Ctrl+J", _session.DuplicateLayer),
-            new("merge", "Merge down", "Ctrl+E", _session.MergeDown, index > 0),
+            new("merge", "Merge down", "Ctrl+E", _session.MergeDown, doc.MergeDownProblem(layer) is null),
             new("trash", "Delete", null, _session.DeleteLayer, doc.Layers.Count > 1),
             MenuEntry.Separator,
+            .. DesignRowEntries(layer),
             new("clip", "Clip to layer below", null, () => _session.SetLayerProperty(layer, p => p with { ClipToBelow = !p.ClipToBelow }), index > 0, layer.ClipToBelow),
             new("alphalock", "Lock transparency", null, () => _session.SetLayerProperty(layer, p => p with { AlphaLocked = !p.AlphaLocked }), Checked: layer.AlphaLocked),
             new("lock", "Lock layer", null, () => _session.SetLayerProperty(layer, p => p with { Locked = !p.Locked }), Checked: layer.Locked),
             MenuEntry.Separator,
             MenuEntry.Heading("Colour label"),
-        };
+        ];
         var menu = (StackPanel)Menus.Build(entries, flyout.Hide, 230);
         var labels = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, Margin = new Thickness(8, 2, 8, 4) };
         foreach (var label in Enum.GetValues<LayerLabel>())
@@ -261,21 +278,6 @@ public sealed class LayersPanel : StackPanel
         menu.Children.Add(labels);
         flyout.Content = menu;
         flyout.ShowAt(row, showAtPointer: true);
-    }
-
-    /// <summary>Layer index (bottom = 0) for a drop at a y position in the list (rows are drawn top layer first).</summary>
-    private int TargetIndex(double y)
-    {
-        var doc = _session.Document;
-        double top = 0;
-        for (int i = 0; i < doc.Layers.Count; i++)
-        {
-            var child = _rows.Children[i];
-            double h = child.Bounds.Height + _rows.Spacing;
-            if (y < top + h) return doc.Layers.Count - 1 - i;
-            top += h;
-        }
-        return 0;
     }
 
     private void BeginRename(DockPanel dock, TextBlock name, Layer layer)
@@ -419,14 +421,15 @@ public sealed class LayersPanel : StackPanel
         var up = UiKit.Button("chevu", tip: "Move layer up", click: () => _session.MoveLayer(+1));
         var down = UiKit.Button("chevd", tip: "Move layer down", click: () => _session.MoveLayer(-1));
         var del = UiKit.Button("trash", tip: "Delete layer", click: _session.DeleteLayer);
-        foreach (var b in new[] { lockB, alphaB, clipB, add, dup, merge, up, down, del })
+        var (group, mask, adjust) = DesignFooterButtons();
+        foreach (var b in new[] { lockB, alphaB, clipB, add, group, mask, adjust, dup, merge, up, down, del })
         {
             b.Width = 25;
             b.Height = 28;
             b.MinWidth = 25;
         }
         var row2 = new WrapPanel();
-        foreach (var b in new Control[] { lockB, alphaB, clipB, UiKit.Sep(), add, dup, merge, up, down, del }) row2.Children.Add(b);
+        foreach (var b in new Control[] { lockB, alphaB, clipB, UiKit.Sep(), add, group, mask, adjust, dup, merge, up, down, del }) row2.Children.Add(b);
         footer.Children.Add(row2);
         return footer;
     }

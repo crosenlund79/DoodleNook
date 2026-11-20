@@ -36,6 +36,7 @@ public sealed class TimelineGrid : Control
     private static readonly IBrush ActiveRowBrush = new SolidColorBrush(Color.Parse("#2BE9A94D"));
     private static readonly IBrush DotBrush = new SolidColorBrush(Color.FromArgb(70, 239, 231, 221));
     private static readonly IBrush KeyBrush = new SolidColorBrush(DnColors.Text2);
+    private static readonly IBrush StaticBrush = new SolidColorBrush(Color.FromArgb(90, 233, 169, 77));
     private static readonly Pen LinePen = new(new SolidColorBrush(DnColors.Line), 1);
     private static readonly Pen AccentPen = new(new SolidColorBrush(DnColors.Accent), 2);
     private static readonly Pen HoldPen = new(new SolidColorBrush(Color.FromArgb(150, 239, 231, 221)), 1.5);
@@ -284,6 +285,14 @@ public sealed class TimelineGrid : Control
     private void DrawTrack(DrawingContext ctx, Document doc, Layer layer, double y, double rh, double cw, int first, int last, bool active)
     {
         var track = layer.Track;
+        if (track.Count == 0 && doc.IsAnimated)
+        {
+            // Text, shapes, groups and adjustment layers are the same on every frame: a thin bar across the frames.
+            int a = Math.Max(first, 0), b = Math.Min(last, doc.FrameCount - 1);
+            if (b >= a)
+                ctx.DrawRectangle(StaticBrush, null, new RoundedRect(new Rect(FrameX(a) + 2, y + rh / 2 - 3, (b - a + 1) * cw - 4, 6), 3));
+            return;
+        }
         if (track.Count == 0)
         {
             // A still picture: its layer is the first (and only) drawing.

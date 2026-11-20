@@ -50,12 +50,15 @@ public static class Workspaces
 
     /// <summary>The tools shown in a workspace (Animation Studio swaps in pixel tools for pixel-art animation; the
     /// stamp tool can be added through Customize workspace where it isn't there by default).</summary>
-    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation, bool optionalStamp = false)
+    public static ToolKind[] ToolsOf(WorkspaceInfo ws, bool pixelAnimation, bool optionalStamp = false, bool optionalText = false)
     {
         var tools = ws.Kind == WorkspaceKind.Animation && pixelAnimation ? PixelAnimationTools : ws.Tools;
-        if (!optionalStamp || tools.Contains(ToolKind.Stamp)) return tools;
-        // Before the Hand (always last).
-        return [.. tools.Where(t => t != ToolKind.Hand), ToolKind.Stamp, .. tools.Where(t => t == ToolKind.Hand)];
+        // Optional tools go before the Hand (always last).
+        if (optionalText && !tools.Contains(ToolKind.Text))
+            tools = [.. tools.Where(t => t != ToolKind.Hand), ToolKind.Text, .. tools.Where(t => t == ToolKind.Hand)];
+        if (optionalStamp && !tools.Contains(ToolKind.Stamp))
+            tools = [.. tools.Where(t => t != ToolKind.Hand), ToolKind.Stamp, .. tools.Where(t => t == ToolKind.Hand)];
+        return tools;
     }
 
     public static WorkspaceInfo Get(WorkspaceKind kind) => All[(int)kind];
@@ -122,6 +125,7 @@ public static class CustomOptions
     public const string StampTool = "stamp-tool";
     public const string FavouriteBrushes = "favourite-brushes";
     public const string ReferenceBoard = "reference-board";
+    public const string TextTool = "text-tool";
 
     private static readonly WorkspaceKind[] None = [];
 
@@ -148,6 +152,8 @@ public static class CustomOptions
             [WorkspaceKind.QuickSketch, WorkspaceKind.Editing, WorkspaceKind.Animation], None),
         new(FavouriteBrushes, "Favourite brushes", "Your starred brushes as one-click buttons next to the brush picker",
             [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Animation], None),
+        new(TextTool, "Text tool", "Editable text (Painting and Editing always have it)",
+            [WorkspaceKind.QuickSketch, WorkspaceKind.PixelArt, WorkspaceKind.Animation], None),
         new(ReferenceBoard, "Reference board", "Your reference pictures in a floating panel (also Window › Reference board)",
             [WorkspaceKind.QuickSketch, WorkspaceKind.Painting, WorkspaceKind.Editing, WorkspaceKind.PixelArt, WorkspaceKind.Animation], None),
     ];

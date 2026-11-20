@@ -28,6 +28,9 @@ public sealed partial class Document
     /// <summary>Raised when guides or the perspective assistant change.</summary>
     public event Action? GuidesChanged;
 
+    /// <summary>Raised when a text, shape or adjustment layer's content changes (also while it is being dragged).</summary>
+    public event Action<Layer>? ContentChanged;
+
     // ================================================================== mask editing target
 
     /// <summary>True when painting goes to the active layer's mask (white shows, black hides) instead of its pixels.</summary>
@@ -413,7 +416,7 @@ public sealed partial class Document
         layer.Content = content;
         layer.Revision++;
         Render(layer);
-        LayersChanged?.Invoke();
+        ContentChanged?.Invoke(layer);
         // Text and shapes only change where they were and are; an adjustment changes everything below it.
         if (layer.IsObject && !_layers.Any(l => l.ClipToBelow)) Recomposite(old.Union(layer.ContentBounds));
         else RecompositeAll();

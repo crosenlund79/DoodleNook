@@ -37,7 +37,8 @@ public partial class MainWindow
     public bool PixelAnimation => Workspace.Kind == WorkspaceKind.Animation && WsState.PixelAnimation;
 
     /// <summary>The tools of the current workspace (and drawing style).</summary>
-    public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation, WsState.IsShown(CustomOptions.StampTool, Workspace.Kind));
+    public ToolKind[] CurrentTools => Workspaces.ToolsOf(Workspace, PixelAnimation, WsState.IsShown(CustomOptions.StampTool, Workspace.Kind),
+        WsState.IsShown(CustomOptions.TextTool, Workspace.Kind));
 
     internal Animation.TimelinePanel? Timeline => _timeline;
 

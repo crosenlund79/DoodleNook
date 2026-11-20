@@ -17,7 +17,7 @@ namespace DoodleNook.App.Shell;
 /// Builds the context options of a tool (the playground's ".opts" bar): what the current tool can do right now,
 /// including the "next step" buttons when a selection exists, the free-transform bar and the crop confirmation.
 /// </summary>
-public sealed class OptionsBuilder
+public sealed partial class OptionsBuilder
 {
     private readonly MainWindow _app;
     private readonly List<Action> _refresh = new();
@@ -34,7 +34,7 @@ public sealed class OptionsBuilder
         bool crop = _app.Canvas.Input?.PendingCrop is not null;
         bool transform = s.ActiveTransform is not null;
         return $"{tool}|{sel}|{crop}|{transform}|{s.PixelMode}|{_app.Workspace.Kind}|{(tool == ToolKind.Shape ? s.Shape.Kind : 0)}|{(tool == ToolKind.Brush ? s.Brush.BuildUp : false)}" +
-               $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}";
+               $"|{(tool == ToolKind.Fill && s.PatternOptions.UsePattern)}|{(tool == ToolKind.Brush ? FavouritesKey() : "")}|{DesignKey(tool)}";
     }
 
     public void Refresh()
@@ -134,7 +134,15 @@ public sealed class OptionsBuilder
                 items.Add(Slider("Opacity", 0.05, 1, () => s.Gradient.Opacity, v => s.SetGradientOptions(s.Gradient with { Opacity = v }), v => $"{v * 100:0}%"));
                 if (!compact) items.Add(Hint("Drag from start to end · Shift snaps to 45°"));
                 break;
+            case ToolKind.Text:
+                items.AddRange(TextItems(compact));
+                break;
+            case ToolKind.Shape when s.EditableShapesNow:
+                items.AddRange(ShapeModeItems());
+                items.AddRange(EditableShapeItems(compact));
+                break;
             case ToolKind.Shape:
+                if (!s.PixelMode) items.AddRange(ShapeModeItems());
                 items.Add(Seg([(ShapeKind.Line, "line", null, "Line"), (ShapeKind.Rectangle, "rect", null, "Rectangle"), (ShapeKind.Ellipse, "ellipse", null, "Ellipse")],
                     () => s.Shape.Kind, v => s.SetShapeOptions(s.Shape with { Kind = v })));
                 if (s.Shape.Kind != ShapeKind.Line)
@@ -148,6 +156,9 @@ public sealed class OptionsBuilder
             case ToolKind.Lasso:
             case ToolKind.MagicWand:
                 items.AddRange(SelectionItems(tool, compact));
+                break;
+            case ToolKind.Move when s.ActiveObject is not null:
+                items.AddRange(ObjectItems(compact));
                 break;
             case ToolKind.Move:
                 items.Add(Action("transform", "Free transform", "Scale and rotate with handles (Ctrl+T)", () => _app.FreeTransform()));
@@ -317,7 +328,7 @@ public sealed class OptionsBuilder
         yield return Slider("Smoothing", 0, 1, () => s.CurrentPaintSettings.Smoothing, s.SetSmoothing, v => $"{v * 100:0}%", tip: "Steadies wobbly lines (more = smoother, slightly behind the pen)");
         yield return Toggle("pressure", "Size", "Pen pressure controls the size", () => s.CurrentPaintSettings.PressureSize, s.SetPressureSize);
         if (tool == ToolKind.Brush) yield return Toggle("pressure", "Opacity", "Pen pressure controls the opacity", () => s.CurrentPaintSettings.PressureOpacity, s.SetPressureOpacity);
-        yield return Toggle("sym", null, "Mirror painting left ↔ right around the picture's centre", () => s.Symmetry != Symmetry.None, v => s.SetSymmetry(v ? Symmetry.Vertical : Symmetry.None));
+        yield return MirrorItems();
     }
 
     private IEnumerable<Control> SelectionItems(ToolKind tool, bool compact)
@@ -391,8 +402,15 @@ public sealed class OptionsBuilder
         if (tool is ToolKind.PixelRect or ToolKind.PixelEllipse)
             yield return Toggle(null, "Filled", "Fill the shape", () => s.Pixel.FilledShapes, v => s.SetPixelOptions(s.Pixel with { FilledShapes = v }));
         if (tool is ToolKind.PixelPencil or ToolKind.PixelEraser)
+        {
             yield return Seg([(Symmetry.None, "sym", "Off", "No mirroring"), (Symmetry.Vertical, null, "↔", "Mirror left ↔ right"), (Symmetry.Horizontal, null, "↕", "Mirror top ↕ bottom"), (Symmetry.Both, null, "4×", "Mirror both ways")],
                 () => s.Pixel.Symmetry, v => s.SetSymmetry(v));
+            var more = UiKit.Button("chevd", tip: "Drawing assistants: symmetry centre and radial, perspective, snapping");
+            more.Width = more.MinWidth = 22;
+            more.Height = 30;
+            more.Click += (_, _) => _app.ShowAssistants(more);
+            yield return more;
+        }
         yield return UiKit.Sep();
         bool animation = _app.Workspace.Kind == WorkspaceKind.Animation;
         yield return Toggle("grid", "Grid", "Show the pixel grid when zoomed in (Ctrl+')", () => _app.WsState.ShowGrid, _app.SetShowGrid);
@@ -487,11 +505,22 @@ public sealed class OptionsBar : Border
 
     private void Watch()
     {
-        if (_watched is not null) _watched.SelectionChanged -= Refresh;
+        if (_watched is not null)
+        {
+            _watched.SelectionChanged -= Refresh;
+            _watched.ActiveLayerChanged -= Refresh;
+            _watched.LayersChanged -= Refresh;
+            _watched.ContentChanged -= OnContent;
+        }
         _watched = _app.Session.Document;
         _watched.SelectionChanged += Refresh;
+        _watched.ActiveLayerChanged += Refresh; // text and shape options follow the chosen layer
+        _watched.LayersChanged += Refresh;
+        _watched.ContentChanged += OnContent;
         Refresh();
     }
+
+    private void OnContent(Layer _) => Refresh();
 
     public void Refresh()
     {

@@ -37,6 +37,12 @@ public sealed class AppSettings
     public OnionSkinSettings? OnionPixel { get; set; }
 
     public StampToolOptions? Stamp { get; set; }
+
+    // Mission 008
+    public TextToolOptions? TextTool { get; set; }
+    public DesignShapeOptions? DesignShape { get; set; }
+    public AssistantOptions? Assistants { get; set; }
+    public bool ShowGuides { get; set; } = true;
     public PatternToolOptions? PatternFill { get; set; }
     public string? ActivePalette { get; set; }
 
@@ -117,6 +123,10 @@ public sealed class AppSettings
         session.RestoreOnion(OnionRaster, OnionPixel);
         if (Stamp is not null) session.SetStampOptions(Stamp);
         if (PatternFill is not null) session.SetPatternOptions(PatternFill);
+        if (TextTool is not null) session.SetTextOptions(TextTool);
+        if (DesignShape is not null) session.SetDesignShapeOptions(DesignShape);
+        if (Assistants is not null) session.SetAssistOptions(Assistants with { OriginX = null, OriginY = null }); // a new picture starts centred
+        session.SetShowGuides(ShowGuides);
         session.SetActivePalette(ActivePalette);
         if (Brush is null || Eraser is null) return;
         var fg = ColorRgb.TryParse(Foreground, out var f) ? f : EditorSession.DefaultForeground;
@@ -148,6 +158,10 @@ public sealed class AppSettings
         ActivePalette = session.ActivePaletteId;
         OnionRaster = session.OnionRaster;
         OnionPixel = session.OnionPixel;
+        TextTool = session.Text;
+        DesignShape = session.DesignShape;
+        Assistants = session.Assist;
+        ShowGuides = session.ShowGuides;
     }
 }
 

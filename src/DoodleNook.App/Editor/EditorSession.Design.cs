@@ -29,6 +29,7 @@ public sealed record AssistantOptions(
     bool PerspectiveAssist = true,
     bool ShowPerspective = true)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public SymmetryPlacement Placement => new(OriginX, OriginY, Spokes);
 }
 
@@ -57,6 +58,10 @@ public sealed partial class EditorSession
         Assist.Snap ? SnapTargets.For(Document, new SnapOptions(Guides: ShowGuides, Grid: Assist.SnapGrid ? Assist.GridSize : 0), moving) : null;
 
     // ================================================================== text and shapes
+
+    /// <summary>The Shapes tool makes editable shapes: chosen in its options, or because an editable shape is the active
+    /// layer (pixels can't be painted onto it). Pixel Art always paints pixels.</summary>
+    public bool EditableShapesNow => !PixelMode && (DesignShape.Editable || ActiveObject is { Kind: LayerKind.Shape });
 
     /// <summary>The active layer when it is text or a shape.</summary>
     public Layer? ActiveObject => Document.ActiveLayer is { IsObject: true } l ? l : null;

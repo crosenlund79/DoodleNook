@@ -46,7 +46,7 @@ public sealed partial class CanvasInputController
             {
                 ToolKind.Move => layer,
                 ToolKind.Text when layer.Kind == LayerKind.Text => layer,
-                ToolKind.Shape when layer.Kind == LayerKind.Shape && _session.DesignShape.Editable && !_session.PixelMode => layer,
+                ToolKind.Shape when layer.Kind == LayerKind.Shape && _session.EditableShapesNow => layer,
                 _ => null,
             };
         }
@@ -114,7 +114,7 @@ public sealed partial class CanvasInputController
                 }
                 return Gesture.NewText;
             }
-            case ToolKind.Shape when _session.DesignShape.Editable && !_session.PixelMode:
+            case ToolKind.Shape when _session.EditableShapesNow:
             {
                 if (_session.ActiveObject is { Kind: LayerKind.Shape } shape && Document.IsShown(shape))
                 {

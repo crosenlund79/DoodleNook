@@ -336,10 +336,12 @@ public partial class MainWindow
     {
         var path = Session.FilePath;
         if (path is not null && ImageFiles.IsProject(path)) return await SaveToPathAsync(path);
-        if (path is not null && ImageFiles.FormatForPath(path) == ExportFormat.Png && Session.Document.Layers.Count == 1)
+        // Text, shapes, masks, guides… only survive in a .dnk, like layers: never flattened into a PNG by Ctrl+S.
+        bool flat = Session.Document.Layers.Count == 1 && !Session.Document.UsesDesignFeatures;
+        if (path is not null && ImageFiles.FormatForPath(path) == ExportFormat.Png && flat)
             return await SaveToPathAsync(path);
-        if (path is not null && Session.Document.Layers.Count > 1)
-            ShowToast("This picture has layers now — save it as a DoodleNook picture (.dnk) to keep them");
+        if (path is not null && !flat)
+            ShowToast("This picture has layers, text or shapes now — save it as a DoodleNook picture (.dnk) to keep them");
         return await SaveAsAsync();
     }
 
@@ -347,7 +349,7 @@ public partial class MainWindow
     {
         if (Session.IsStrokeActive) Session.EndStroke();
         Session.CommitTransform();
-        bool single = Session.Document.Layers.Count == 1;
+        bool single = Session.Document.Layers.Count == 1 && !Session.Document.UsesDesignFeatures;
         var suggested = Path.ChangeExtension(Session.DisplayName, DnkFile.Extension);
         IStorageFolder? folder = null;
         if (Session.FilePath is { } current && Path.GetDirectoryName(current) is { } dir)
