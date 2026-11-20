@@ -79,8 +79,9 @@ assets/                      ← the folder you chose
 | | |
 |---|---|
 | Game Edit tests | 9 window and file tests + 1 screenshot run: recursive discovery, relative paths, `_DoodleNook` skipped, opening a tile, the `.dnk` and the PNG written (size, transparency, pixels), the backup made once and never overwritten, Not started → In progress on a complete save only, Mark complete / Mark in progress, saving a complete image keeps it complete, progress %, statuses after reopening and rescans, reopening a `.dnk` with its layers, the unsaved-changes question, a failed backup leaving the PNG and status alone and *Try again*, a PNG changed elsewhere, an unreadable `.dnk`, filters and search, the remembered folder, the window title |
-| All suites | see the completion report (engine and app tests on Windows CI) |
-| Smoke test (packaged exe on Windows) | 4 new checks: subfolder discovery, Ctrl+S writes the `.dnk` and replaces the PNG (size, transparency, pixels), the byte-exact backup and *In progress*, the milestone in the title |
+| All suites, Windows CI run #20 (Release) | engine **251 / 251**, app **149 / 149** (139 from before, with three title checks updated to the new title, + 10 Game Edit) |
+| Smoke test of the packaged `DoodleNook.exe` on Windows (run #20) | **58 / 58** (54 from before + 4 new: subfolder discovery, Ctrl+S writes `_DoodleNook\characters\hero.dnk` and replaces the PNG (size, transparency, pixels), the byte-exact backup and *In progress*, the title "DoodleNook — M009 — hero.dnk") |
+| Artifact (run #20) | `DoodleNook-win-x64.zip`, 64,049,219 bytes, SHA-256 `44c737f8b53633c18bba09e674db24c43fe83124c622480ad9d05015a8bd54c1`: `DoodleNook.exe` (PE32+ x86-64, version 0.9.0+c42964a, milestone M009), native libraries, README-FIRST, licences, Samples |
 
 ## Known limitations
 
