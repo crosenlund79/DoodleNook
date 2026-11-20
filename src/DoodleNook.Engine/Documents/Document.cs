@@ -514,7 +514,9 @@ public sealed partial class Document
         if (makeActive) _active = layer;
         LayersChanged?.Invoke();
         ActiveLayerChanged?.Invoke();
-        if (!layer.ContentBounds.IsEmpty || layer.Visible) Recomposite(layer.ContentBounds.IsEmpty ? PixelRect.Empty : layer.ContentBounds);
+        // Adjustment layers and groups change what is below them / their whole area; masks and clipping can too.
+        if (!layer.HasPixels || layer.HasMask || _layers.Any(l => l.ClipToBelow || l.Kind == LayerKind.Adjustment)) RecompositeAll();
+        else if (!layer.ContentBounds.IsEmpty || layer.Visible) Recomposite(layer.ContentBounds.IsEmpty ? PixelRect.Empty : layer.ContentBounds);
     }
 
     internal void RemoveLayerInternal(Layer layer)

@@ -500,6 +500,46 @@ public class DesignToolkitTests
         Assert.Contains(doc.Layers, l => l.Kind == LayerKind.Text);
     }
 
+    // ================================================================== the screen stays right
+
+    [Fact]
+    public void After_every_operation_undo_and_redo_the_screen_shows_exactly_the_composite()
+    {
+        var doc = Doc(120, 90);
+        void Same(string after)
+        {
+            var flat = doc.Flatten().Pixels;
+            var shown = doc.Projection.Pixels;
+            Assert.True(flat.AsSpan().SequenceEqual(shown), $"the screen is stale after {after}");
+        }
+        var steps = new (string Name, Action Do)[]
+        {
+            ("painting", () => FillLayer(doc, doc.ActiveLayer, Blue, new PixelRect(0, 0, 60, 90))),
+            ("a shape", () => doc.AddShapeLayer(new ShapeContent(ShapeType.Ellipse, 10, 10, 50, 40, Red))),
+            ("text", () => doc.AddTextLayer(new TextContent("Hi", Size: 20, Color: Black, X: 70, Y: 10))),
+            ("an adjustment layer", () => doc.AddAdjustmentLayer(new HueSaturation(90, 0, 0))),
+            ("editing the adjustment", () => doc.SetContent(doc.ActiveLayer, new AdjustmentContent(new BrightnessContrast(40, 20)), "Edit")),
+            ("a group", () => doc.GroupLayers([doc.Layers.First(l => l.Kind == LayerKind.Shape)])),
+            ("group opacity", () => doc.SetLayerProperties(doc.Layers.First(l => l.IsGroup), doc.Layers.First(l => l.IsGroup).Properties with { Opacity = 0.5 })),
+            ("a mask", () => doc.AddMask(doc.Layers[0])),
+            ("inverting the mask", () => doc.InvertMask(doc.Layers[0])),
+            ("moving text", () => doc.MoveObjects([doc.Layers.First(l => l.Kind == LayerKind.Text)], 10, 30)),
+            ("ungrouping", () => doc.Ungroup(doc.Layers.First(l => l.IsGroup))),
+            ("deleting the adjustment layer", () => doc.DeleteLayer(doc.Layers.First(l => l.Kind == LayerKind.Adjustment))),
+            ("converting text to pixels", () => doc.ConvertToPixels(doc.Layers.First(l => l.Kind == LayerKind.Text))),
+            ("flipping the picture", () => ImageOperations.Flip(doc, horizontal: true)),
+        };
+        foreach (var (name, run) in steps)
+        {
+            run();
+            Same(name);
+            doc.Undo();
+            Same($"undoing {name}");
+            doc.Redo();
+            Same($"redoing {name}");
+        }
+    }
+
     // ================================================================== files
 
     [Fact]

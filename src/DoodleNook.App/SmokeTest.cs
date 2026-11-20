@@ -19,7 +19,8 @@ namespace DoodleNook.App;
 /// "DoodleNook.exe --smoke-test &lt;folder&gt;": starts the real application window, drives it through its own input
 /// path (pen-like and mouse strokes, eraser, undo/redo, layers, every workspace, a transform, pixel art, saving and
 /// reopening a .dnk, PNG/JPEG/WebP export, animation, and the creative tools: a custom brush tip, stamps, pattern
-/// fill, palettes, the Brush Laboratory and the reference board), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
+/// fill, palettes, the Brush Laboratory and the reference board; palette lock; text, shapes, groups, masks, adjustment
+/// layers, guides and perspective), saves screenshots and a JSON report into the folder, then exits with code 0 (all checks passed) or 1. Used by CI on a Windows runner; it
 /// proves the packaged app starts and works, not how the pen feels.
 /// </summary>
 internal static class SmokeTest
@@ -417,6 +418,86 @@ internal static class SmokeTest
         bool lockedSaved = await window.SaveToPathAsync(lockedDnk);
         var lockedBack = DnkFile.Load(lockedDnk);
         Check("a locked picture reopens locked (.dnk version 3)", lockedSaved && lockedBack.PaletteLocked && lockedBack.Palette.Colors.SequenceEqual(lockTarget.Colors));
+
+        // 13. Mission 008: text with the computer's fonts, an editable shape, a group, a mask, an adjustment layer,
+        //     guides (never exported), a stroke held to a perspective line and a version 4 file.
+        session.Document.MarkSaved();
+        session.SetDesignShapeOptions(session.DesignShape with { Editable = true, Kind = Engine.Documents.ShapeType.RoundedRectangle, Fill = true, Outline = true });
+        session.SetAssistOptions(session.Assist with { Snap = false });
+        window.SetWorkspace(WorkspaceKind.Painting);
+        session.ReplaceDocument(new Engine.Documents.Document(1200, 800, ColorRgb.White, "Background"), null);
+        var design = session.Document;
+        bool segoe = SkiaSharp.SKFontManager.Default.MatchFamily("Segoe UI") is { } face && face.FamilyName == "Segoe UI";
+        var winText = design.AddTextLayer(new Engine.Documents.TextContent("Segoe UI text", "Segoe UI", 48, ColorRgb.Parse("#2B2230"), X: 60, Y: 40));
+        Check("text with a Windows font is drawn (no substitute when the font is installed)",
+            !winText.ContentBounds.IsEmpty && (winText.SubstituteFont is null || !segoe), $"Segoe UI installed: {segoe}, substitute: {winText.SubstituteFont ?? "none"}");
+        session.SelectTool(ToolKind.Text);
+        undoBefore = design.History.UndoCount;
+        input.Press(Mouse(80, 300));
+        input.Release(Mouse(80, 300, down: false));
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        bool editorOpened = window.TextEditor.IsOpen;
+        var typed = window.TextEditor.Layer;
+        window.TextEditor.Type("Typed with the Text tool");
+        window.TextEditor.Finish();
+        Check("Text tool: a click opens the text editor and the new text is one undo step",
+            editorOpened && typed is { Kind: Engine.Documents.LayerKind.Text } && design.History.UndoCount == undoBefore + 1 && design.History.NextUndoName == "Add text");
+        session.SetForeground(ColorRgb.Parse("#E9A94D"));
+        session.SelectTool(ToolKind.Shape);
+        undoBefore = design.History.UndoCount;
+        Drag(400, 400, 800, 520);
+        var buttonLayer = design.ActiveLayer;
+        Check("an editable shape is drawn with the Shapes tool as one undo step",
+            buttonLayer.Kind == Engine.Documents.LayerKind.Shape && design.History.UndoCount == undoBefore + 1 && Pixel.A(buttonLayer.Image[600, 460]) == 255);
+        session.SelectTool(ToolKind.Move);
+        Drag(600, 460, 650, 480);
+        var moved = (Engine.Documents.ShapeContent)buttonLayer.Content!;
+        Check("the Move tool moves the shape by its handles (still editable)", Math.Abs(moved.X - 450) < 1.5 && Math.Abs(moved.Y - 420) < 1.5, $"{moved.X:0.#}, {moved.Y:0.#}");
+        window.HandleKey(Avalonia.Input.Key.G, Avalonia.Input.KeyModifiers.Control);
+        var groupLayer = design.Layers.FirstOrDefault(l => l.IsGroup);
+        var painted2 = session.AddLayer();
+        session.SelectTool(ToolKind.Brush);
+        session.ApplyPreset("ink");
+        session.SetSize(40);
+        session.SetForeground(ColorRgb.Parse("#3F6A82"));
+        Drag(100, 650, 1100, 650);
+        session.AddMask();
+        session.SetForeground(ColorRgb.Black);
+        Drag(500, 650, 700, 650);
+        bool maskHides = design.Flatten()[600, 650] == Pixel.Opaque(ColorRgb.White) && Pixel.A(painted2.Image[600, 650]) == 255;
+        session.SetEditingMask(false);
+        var adjustmentLayer = session.AddAdjustmentLayer(new Engine.Operations.HueSaturation(0, -100, 0));
+        var grey = Pixel.ToStraight(design.Flatten()[300, 650]);
+        Check("the screen shows the adjustment layer at once", design.Projection.Pixels.AsSpan().SequenceEqual(design.Flatten().Pixels));
+        Check("group, mask (hides without erasing) and adjustment layer (changes the look, not the pixels)",
+            groupLayer is not null && buttonLayer.ParentId == groupLayer.Id && maskHides && Math.Abs(grey.R - grey.B) <= 1 && painted2.Image[300, 650] == Pixel.Opaque(ColorRgb.Parse("#3F6A82")));
+        design.SetGuides([new Engine.Documents.Guide(true, 300), new Engine.Documents.Guide(false, 200)], "Add guide");
+        window.SetShowRulers(true);
+        await Shot("smoke-J-design.png");
+        window.SetShowRulers(false);
+        var designPng = Path.Combine(dir, "smoke-design.png");
+        window.ExportToPath(designPng, ExportFormat.Png);
+        Check("guides are shown but never exported", ImageFiles.Decode(designPng).Pixels.AsSpan().SequenceEqual(design.Flatten().Pixels));
+        design.DeleteLayer(adjustmentLayer);
+        var lines = session.AddLayer();
+        design.SetPerspective(new Engine.Documents.PerspectiveGuide(1, 600, 100, 0, 0));
+        session.SetAssistOptions(session.Assist with { PerspectiveAssist = true, ShowPerspective = true });
+        input.Press(Pen(200, 500, 0.8f));
+        input.Move([Pen(260, 470, 0.8f), Pen(330, 460, 0.8f), Pen(400, 400, 0.8f)]);
+        input.Release(Pen(400, 400, 0f, down: false));
+        // On the line from (200, 500) to (600, 100): x = 330 → y = 370; the hand was at y = 460 there.
+        Check("a stroke follows the perspective line towards the vanishing point", Pixel.A(lines.Image[330, 370]) > 0 && Pixel.A(lines.Image[330, 460]) == 0);
+        design.SetPerspective(Engine.Documents.PerspectiveGuide.Off);
+        var designDnk = Path.Combine(dir, "smoke-design.dnk");
+        bool designSaved = await window.SaveToPathAsync(designDnk);
+        var designBack = DnkFile.Load(designDnk);
+        int designVersion;
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(designDnk))
+        using (var json = zip.GetEntry("document.json")!.Open())
+            designVersion = JsonDocument.Parse(json).RootElement.GetProperty("version").GetInt32();
+        Check("text, shapes, groups, masks and guides save and reopen (.dnk version 4)", designSaved && designVersion == 4
+            && designBack.Flatten().Pixels.AsSpan().SequenceEqual(design.Flatten().Pixels) && designBack.Guides.Count == 2
+            && designBack.Layers.Count(l => l.Kind == Engine.Documents.LayerKind.Text) == 2, $"version {designVersion}");
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

@@ -71,6 +71,12 @@ public sealed class TextEditorOverlay : Border
 
     public bool IsOpen => _layer is not null;
 
+    /// <summary>Types into the editor as if from the keyboard (smoke test).</summary>
+    internal void Type(string text)
+    {
+        if (IsOpen) _box.Text = text;
+    }
+
     /// <summary>The layer being typed into, or null.</summary>
     public Layer? Layer => _layer;
 
@@ -119,6 +125,7 @@ public sealed class TextEditorOverlay : Border
     public void Finish()
     {
         if (_layer is not { } layer || _finishing) return;
+        Preview(); // the very last key press, even if its change event hasn't arrived yet
         _finishing = true;
         try
         {
