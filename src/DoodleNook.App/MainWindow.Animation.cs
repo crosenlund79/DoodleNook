@@ -291,8 +291,15 @@ public partial class MainWindow
                 if (ok != "ok") return false;
             }
         }
+        if (_exporting)
+        {
+            ShowToast("An export is still being written — one moment");
+            return false;
+        }
+        _exporting = true;
         try
         {
+            ShowToast($"Exporting {AnimationDialogs.FormatName(settings.Format).ToLowerInvariant()}… you can keep working");
             var written = await ExportAnimationToPathAsync(path, settings);
             ShowToast($"Exported {written}");
             return true;
@@ -302,7 +309,13 @@ public partial class MainWindow
             await _dialogs.ShowMessageAsync("Couldn't export", $"{Path.GetFileName(path)}: {ex.Message}");
             return false;
         }
+        finally
+        {
+            _exporting = false;
+        }
     }
+
+    private bool _exporting;
 
     /// <summary>Writes an animation export without asking (tests and smoke test). Returns a description of what was written.</summary>
     public async Task<string> ExportAnimationToPathAsync(string path, AnimationExportSettings settings)
@@ -490,6 +503,38 @@ public partial class MainWindow
         catch (Exception)
         {
             return false; // recovery copies are a safety net; a full disk must not interrupt drawing
+        }
+    }
+
+    private DateTime _lastErrorMessage = DateTime.MinValue;
+
+    /// <summary>
+    /// An unexpected error reached the UI thread: log it, keep a recovery copy of unsaved work and tell the user once
+    /// (not for every repeat). DoodleNook keeps running; the work in progress is protected either way.
+    /// </summary>
+    internal async void ReportUnexpectedError(Exception ex)
+    {
+        ErrorLog.Write(ex);
+        try
+        {
+            Canvas.InterruptGesture();
+            await AutosaveNowAsync();
+        }
+        catch (Exception)
+        {
+            // Best effort only.
+        }
+        if ((DateTime.UtcNow - _lastErrorMessage).TotalSeconds < 10) return;
+        _lastErrorMessage = DateTime.UtcNow;
+        try
+        {
+            await _dialogs.ShowMessageAsync("Something went wrong",
+                $"DoodleNook ran into an unexpected problem ({ex.GetType().Name}: {ex.Message}). It kept running, and unsaved work " +
+                $"has a recovery copy. Saving now is a good idea.\n\nDetails were written to {ErrorLog.DefaultPath}.");
+        }
+        catch (Exception)
+        {
+            ShowToast("Something went wrong — details are in the DoodleNook error log");
         }
     }
 

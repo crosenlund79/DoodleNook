@@ -137,28 +137,24 @@ public static class AnimationDialogs
         };
         var options = new StackPanel { Spacing = 10 };
         var summary = new TextBlock { Classes = { "dim", "num" }, TextWrapping = TextWrapping.Wrap };
-        var columns = Number(s.Columns, 60);
-        var spacing = Number(s.Spacing, 60);
-        var padding = Number(s.Padding, 60);
-        var margin = Number(s.Margin, 60);
         var error = Error();
 
-        int Read(TextBox box, int fallback, int min, int max) => int.TryParse(box.Text, out int v) ? Math.Clamp(v, min, max) : fallback;
-
-        void Capture()
+        // The format's option controls are created afresh whenever the format changes. (Mission 006 reused the same
+        // number boxes, still attached to the previous rows: switching back to Sprite sheet threw and crashed the app.)
+        // Every box writes its value into the settings as it changes, so nothing has to be read back later.
+        TextBox NumberBox(int value, int min, int max, Func<AnimationExportSettings, int, AnimationExportSettings> set)
         {
-            s = s with
+            var box = Number(value, 60);
+            box.TextChanged += (_, _) =>
             {
-                Columns = Read(columns, s.Columns, 1, 999),
-                Spacing = Read(spacing, s.Spacing, 0, 256),
-                Padding = Read(padding, s.Padding, 0, 256),
-                Margin = Read(margin, s.Margin, 0, 256),
+                if (int.TryParse(box.Text, out int v)) s = set(s, Math.Clamp(v, min, max));
+                Summarise();
             };
+            return box;
         }
 
         void Summarise()
         {
-            Capture();
             int fw = width * s.Scale, fh = height * s.Scale;
             string what = s.Format switch
             {
@@ -179,14 +175,12 @@ public static class AnimationDialogs
             return $"{frames} frames of {fw} × {fh} in {cols} × {rows} → {sw} × {sh} px{(s.Json ? " + .json" : "")}";
         }
 
-        foreach (var box in new[] { columns, spacing, padding, margin }) box.TextChanged += (_, _) => Summarise();
-
         Action rebuild = () => { };
         var (format, refreshFormat) = UiKit.Segmented(
             [(AnimationExportFormat.SpriteSheet, null, "Sprite sheet", "All frames in one PNG (game engines), optionally with JSON"),
              (AnimationExportFormat.PngSequence, null, "PNG sequence", "One numbered PNG per frame"),
              (AnimationExportFormat.Gif, null, "Animated GIF", "Plays in browsers and chats")],
-            () => s.Format, v => { Capture(); s = s with { Format = v }; rebuild(); });
+            () => s.Format, v => { s = s with { Format = v }; rebuild(); });
 
         Control ToggleRow(string label, string tip, Func<bool> get, Action<bool> set)
         {
@@ -223,8 +217,12 @@ public static class AnimationDialogs
                         () => s.Layout, v => { s = s with { Layout = v }; refreshLayout(); rebuild(); });
                     refreshLayout = rl;
                     options.Children.Add(UiKit.Row(8, Dim("Layout", 76), layout));
-                    if (s.Layout == SheetLayout.Grid) options.Children.Add(UiKit.Row(8, Dim("Columns", 76), columns));
-                    options.Children.Add(UiKit.Row(8, Dim("Spacing", 76), spacing, Dim("Padding"), padding, Dim("Margin"), margin, Dim("px")));
+                    if (s.Layout == SheetLayout.Grid)
+                        options.Children.Add(UiKit.Row(8, Dim("Columns", 76), NumberBox(s.Columns, 1, 999, (x, v) => x with { Columns = v })));
+                    options.Children.Add(UiKit.Row(8, Dim("Spacing", 76),
+                        NumberBox(s.Spacing, 0, 256, (x, v) => x with { Spacing = v }), Dim("Padding"),
+                        NumberBox(s.Padding, 0, 256, (x, v) => x with { Padding = v }), Dim("Margin"),
+                        NumberBox(s.Margin, 0, 256, (x, v) => x with { Margin = v }), Dim("px")));
                     options.Children.Add(ScaleRow());
                     options.Children.Add(UiKit.Row(8, Dim("", 76),
                         ToggleRow("JSON metadata", "A .json file next to the PNG with every frame's position and duration", () => s.Json, v => s = s with { Json = v })));
@@ -258,9 +256,7 @@ public static class AnimationDialogs
         body.Children.Add(DialogHost.Text("Onion skins and the timeline are never exported."));
         body.Children.Add(error);
         var r = await host.ShowAsync("Export animation", body, [("cancel", "Cancel", false), ("ok", "Choose file…", true)], "ok", "cancel", 520);
-        if (r != "ok") return null;
-        Capture();
-        return s;
+        return r == "ok" ? s : null;
     }
 
     // ================================================================== frame duration

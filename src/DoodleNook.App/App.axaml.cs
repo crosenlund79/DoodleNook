@@ -14,6 +14,14 @@ public partial class App : Application
         {
             var window = new MainWindow();
             desktop.MainWindow = window;
+            // Interactive use only: an unexpected error in a click or key handler is logged and reported instead of
+            // ending the app (and taking unsaved work with it). Tests and the CI smoke test still fail loudly.
+            if (Program.Options.SmokeTestDirectory is null)
+                Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+                {
+                    e.Handled = true;
+                    window.ReportUnexpectedError(e.Exception);
+                };
             if (Program.Options.SmokeTestDirectory is { } dir)
                 SmokeTest.Attach(window, dir);
             else if (Program.Options.OpenPath is { } path)

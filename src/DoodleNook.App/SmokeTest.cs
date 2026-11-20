@@ -3,6 +3,8 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using DoodleNook.App.Dialogs;
 using DoodleNook.App.Editor;
 using DoodleNook.App.Files;
 using DoodleNook.App.Input;
@@ -253,6 +255,39 @@ internal static class SmokeTest
             bool exists = format == AnimationExportFormat.PngSequence ? File.Exists(Path.Combine(dir, "smoke-pngsequence_0013.png")) : File.Exists(target);
             Check($"export animation: {format}", exists, $"{what} in {swExport.ElapsedMilliseconds} ms");
         }
+
+        // 10. Mission 006 bug: switching formats in Export animation with a large animation must stay responsive
+        //     (it used to throw when going back to Sprite sheet, which ended the app).
+        session.Document.MarkSaved();
+        window.CreateNewAnimation(new Dialogs.NewAnimationChoice(1920, 1080, 21, 12, false, ColorRgb.White));
+        for (int f = 0; f < 21; f++) // a different drawing on every frame (identical neighbours would be merged in the GIF)
+        {
+            session.GoToFrame(f);
+            Drag(200 + f * 50, 500, 300 + f * 50, 600);
+        }
+        var exportDialog = window.Dialogs.AskExportAnimationAsync(new AnimationExportSettings(), 21, 1920, 1080, hasPaper: true);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        long slowestSwitch = 0;
+        bool switched = true;
+        foreach (var label in new[] { "Animated GIF", "Sprite sheet", "PNG sequence", "Animated GIF", "Sprite sheet", "Animated GIF", "PNG sequence", "Sprite sheet" })
+        {
+            var button = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().FirstOrDefault(b => b.IsEffectivelyVisible
+                && b.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Any(t => t.Text == label));
+            if (button is null) { switched = false; break; }
+            var swSwitch = Stopwatch.StartNew();
+            button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            slowestSwitch = Math.Max(slowestSwitch, swSwitch.ElapsedMilliseconds);
+        }
+        window.Dialogs.Close(null);
+        bool cancelled = await exportDialog is null;
+        Check("export dialog: switching formats with a 1920×1080, 21-frame animation stays responsive", switched && cancelled && slowestSwitch < 2000, $"slowest switch {slowestSwitch} ms");
+        var bigGif = Path.Combine(dir, "smoke-1080p.gif");
+        var swGif = Stopwatch.StartNew();
+        await window.ExportAnimationToPathAsync(bigGif, new AnimationExportSettings(AnimationExportFormat.Gif, Background: true));
+        using (var codec = SkiaSharp.SKCodec.Create(bigGif))
+            Check("1080p GIF export has all 21 frames with their timing", codec is not null && codec.FrameCount == 21 && codec.FrameInfo[0].Duration is >= 80 and <= 90,
+                $"{codec?.FrameCount} frames in {swGif.ElapsedMilliseconds} ms, {new FileInfo(bigGif).Length / 1024} KB");
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
