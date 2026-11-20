@@ -6,12 +6,15 @@ namespace DoodleNook.Engine.Documents;
 public sealed class LayerPixelsAction : IHistoryAction
 {
     private readonly int _layerId;
+    private readonly Cel? _cel;
     private readonly IReadOnlyList<TilePatch> _patches;
 
-    public LayerPixelsAction(string name, int layerId, IReadOnlyList<TilePatch> patches)
+    /// <param name="cel">In an animation, the drawing that was edited (it may not be on screen when this is undone).</param>
+    public LayerPixelsAction(string name, int layerId, IReadOnlyList<TilePatch> patches, Cel? cel = null)
     {
         Name = name;
         _layerId = layerId;
+        _cel = cel;
         _patches = patches;
         Bounds = patches.Aggregate(PixelRect.Empty, (r, p) => r.Union(p.Rect));
         ByteSize = patches.Sum(p => (long)p.Pixels.Length * sizeof(uint)) + 64;
@@ -28,9 +31,18 @@ public sealed class LayerPixelsAction : IHistoryAction
     private void Swap(Document d)
     {
         var layer = d.FindLayer(_layerId) ?? throw new InvalidOperationException("Layer missing for undo.");
-        foreach (var p in _patches) p.SwapWith(layer.Image);
-        layer.Touch(Bounds);
-        d.OnLayerPixelsChanged(layer, Bounds);
+        var target = _cel?.Image ?? layer.Image;
+        foreach (var p in _patches) p.SwapWith(target);
+        if (ReferenceEquals(target, layer.Image))
+        {
+            layer.Touch(Bounds);
+            d.OnLayerPixelsChanged(layer, Bounds);
+        }
+        else if (_cel is not null)
+        {
+            _cel.ContentBounds = _cel.ContentBounds.Union(Bounds);
+            _cel.Revision++;
+        }
     }
 }
 
@@ -113,19 +125,28 @@ public sealed class DocumentStateAction : IHistoryAction
 /// <summary>Size, layer pixels and selection of a document at one moment.</summary>
 public sealed class DocumentState
 {
-    public DocumentState(int width, int height, IReadOnlyDictionary<int, RasterImage> images, SelectionMask? selection)
+    public DocumentState(int width, int height, IReadOnlyDictionary<int, RasterImage> images, SelectionMask? selection,
+        IReadOnlyDictionary<Cel, RasterImage>? celImages = null)
     {
         Width = width;
         Height = height;
         Images = images;
         Selection = selection;
+        CelImages = celImages;
     }
 
     public int Width { get; }
     public int Height { get; }
+
+    /// <summary>Layer pixels by layer id (still pictures).</summary>
     public IReadOnlyDictionary<int, RasterImage> Images { get; }
+
+    /// <summary>Every cel's pixels (animations); null for still pictures.</summary>
+    public IReadOnlyDictionary<Cel, RasterImage>? CelImages { get; }
+
     public SelectionMask? Selection { get; }
-    public long ByteSize => Images.Values.Sum(i => (long)i.Pixels.Length * 4) + (Selection?.ByteSize ?? 0) + 64;
+    public long ByteSize => Images.Values.Sum(i => (long)i.Pixels.Length * 4) + (CelImages?.Values.Sum(i => (long)i.Pixels.Length * 4) ?? 0)
+                            + (Selection?.ByteSize ?? 0) + 64;
 }
 
 /// <summary>Several actions recorded as one step (e.g. merge down, paste, transform).</summary>

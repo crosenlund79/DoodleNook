@@ -19,7 +19,11 @@ public sealed class LayerEdit
         Document = document;
         Layer = layer;
         Name = name;
+        Cel = layer.CurrentCel;
     }
+
+    /// <summary>The drawing being edited in an animation (null for an empty cell or a still picture).</summary>
+    public Cel? Cel { get; private set; }
 
     public Document Document { get; }
     public Layer Layer { get; }
@@ -107,7 +111,7 @@ public sealed class LayerEdit
     }
 
     /// <summary>The undo action for the tiles that differ from their originals (null when nothing changed).</summary>
-    public LayerPixelsAction? BuildAction()
+    public IHistoryAction? BuildAction()
     {
         var patches = new List<TilePatch>();
         var layer = Layer.Image.Pixels;
@@ -129,7 +133,13 @@ public sealed class LayerEdit
         }
         _finished = true;
         if (patches.Count == 0) return null;
-        return new LayerPixelsAction(Name, Layer.Id, patches);
+        if (Document.IsAnimated && Cel is null && Layer.Cells is not null)
+        {
+            // Drawing on an empty cell: the blank becomes a new drawing in this frame, as part of the same step.
+            Cel = Document.AdoptBlank(Layer);
+            return new CompositeAction(Name, [new AdoptCelAction(Layer.Id, Document.CurrentFrame, Cel), new LayerPixelsAction(Name, Layer.Id, patches, Cel)]);
+        }
+        return new LayerPixelsAction(Name, Layer.Id, patches, Cel);
     }
 
     /// <summary>Records the edit as one undo step. Returns false when no pixel changed (nothing is recorded).</summary>

@@ -37,13 +37,17 @@ public sealed class TilePatch
 /// <summary>One entry in the history list.</summary>
 public sealed class HistoryEntry
 {
-    internal HistoryEntry(long id, IHistoryAction action)
+    internal HistoryEntry(long id, IHistoryAction action, int? frame = null)
     {
         Id = id;
         Action = action;
+        Frame = frame;
     }
 
     public long Id { get; }
+
+    /// <summary>The animation frame shown when the change was made (null for still pictures).</summary>
+    public int? Frame { get; }
     public IHistoryAction Action { get; }
     public string Name => Action.Name;
     public long ByteSize => Action.ByteSize;
@@ -80,10 +84,10 @@ public sealed class UndoHistory
     /// <summary>Identifies the current document state; used to know whether there are unsaved changes.</summary>
     public long CurrentStateId => _undo.Count > 0 ? _undo[^1].Id : _baseStateId;
 
-    internal void Push(IHistoryAction action)
+    internal void Push(IHistoryAction action, int? frame = null)
     {
         _redo.Clear();
-        _undo.Add(new HistoryEntry(_nextId++, action));
+        _undo.Add(new HistoryEntry(_nextId++, action, frame));
         Trim();
     }
 

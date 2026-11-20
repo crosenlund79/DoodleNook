@@ -11,10 +11,9 @@ public static class ImageOperations
     {
         RasterImage.Validate(width, height);
         if (width == doc.Width && height == doc.Height) return;
-        var images = doc.Layers.ToDictionary(l => l.Id, l => Resampler.Resize(l.Image, width, height, mode));
         SelectionMask? selection = null;
         if (doc.Selection is { } sel) selection = ResizeMask(sel.Data, sel.Width, sel.Height, width, height);
-        doc.ApplyState(new DocumentState(width, height, images, selection), "Image size");
+        doc.ApplyState(doc.MapAllImages(width, height, img => Resampler.Resize(img, width, height, mode), selection), "Image size");
     }
 
     /// <summary>Changes the canvas size without scaling. <paramref name="anchorX"/>/<paramref name="anchorY"/> (0–1) say
@@ -44,12 +43,11 @@ public static class ImageOperations
 
     private static void Reframe(Document doc, int width, int height, int offsetX, int offsetY, string name)
     {
-        var images = new Dictionary<int, RasterImage>();
-        foreach (var layer in doc.Layers)
+        static RasterImage Move(RasterImage source, int w, int h, int ox, int oy)
         {
-            var img = new RasterImage(width, height);
-            img.Paste(layer.Image, offsetX, offsetY);
-            images[layer.Id] = img;
+            var img = new RasterImage(w, h);
+            img.Paste(source, ox, oy);
+            return img;
         }
         SelectionMask? selection = null;
         if (doc.Selection is { } sel)
@@ -61,7 +59,7 @@ public static class ImageOperations
             m.UpdateBounds();
             selection = m.IsEmpty ? null : m;
         }
-        doc.ApplyState(new DocumentState(width, height, images, selection), name);
+        doc.ApplyState(doc.MapAllImages(width, height, img => Move(img, width, height, offsetX, offsetY), selection), name);
     }
 
     /// <summary>Rotates the whole picture by quarter turns clockwise (1 = 90°, 2 = 180°, 3 = 90° anticlockwise).</summary>
@@ -89,18 +87,17 @@ public static class ImageOperations
     private static void Remap(Document doc, int nw, int nh, Func<int, int, (int X, int Y)> map, string name)
     {
         int w = doc.Width, h = doc.Height;
-        var images = new Dictionary<int, RasterImage>();
-        foreach (var layer in doc.Layers)
+        RasterImage Map(RasterImage source)
         {
             var img = new RasterImage(nw, nh);
-            var src = layer.Image.Pixels;
+            var src = source.Pixels;
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
                     var (tx, ty) = map(x, y);
                     img.Pixels[ty * nw + tx] = src[y * w + x];
                 }
-            images[layer.Id] = img;
+            return img;
         }
         SelectionMask? selection = null;
         if (doc.Selection is { } sel)
@@ -115,7 +112,7 @@ public static class ImageOperations
             m.UpdateBounds();
             selection = m;
         }
-        doc.ApplyState(new DocumentState(nw, nh, images, selection), name);
+        doc.ApplyState(doc.MapAllImages(nw, nh, Map, selection), name);
     }
 
     private static SelectionMask ResizeMask(byte[] data, int w, int h, int nw, int nh)

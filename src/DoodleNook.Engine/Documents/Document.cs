@@ -7,7 +7,7 @@ namespace DoodleNook.Engine.Documents;
 /// undo history. The document owns all pixels; workspaces, panels and tools only ask it to change.
 /// It keeps a composited "projection" up to date incrementally, which is what the screen shows.
 /// </summary>
-public sealed class Document
+public sealed partial class Document
 {
     /// <summary>Tile size used for undo snapshots and stroke bookkeeping.</summary>
     public const int TileSize = 64;
@@ -128,6 +128,7 @@ public sealed class Document
     public Layer AddLayer(string? name = null, int? index = null)
     {
         var layer = NewLayer(new LayerProperties(name ?? NextLayerName()), new RasterImage(Width, Height));
+        PrepareNewLayerTrack(layer, hasPixels: false);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
         InsertLayerInternal(layer, at, makeActive: true);
         Commit(new AddLayerAction("New layer", layer, at));
@@ -139,6 +140,7 @@ public sealed class Document
     {
         if (image.Width != Width || image.Height != Height) throw new ArgumentException("Layer size differs from the document.");
         var layer = NewLayer(new LayerProperties(name), image);
+        PrepareNewLayerTrack(layer, hasPixels: true);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
         InsertLayerInternal(layer, at, makeActive: true);
         Commit(new AddLayerAction(name, layer, at));
@@ -147,7 +149,8 @@ public sealed class Document
 
     public Layer DuplicateLayer(Layer source)
     {
-        var copy = NewLayer(source.Properties with { Name = source.Name + " copy" }, source.Image.Clone());
+        var copy = NewLayer(source.Properties with { Name = source.Name + " copy" }, _animation is null ? source.Image.Clone() : new RasterImage(1, 1));
+        if (_animation is not null) CopyTrack(source, copy);
         int at = IndexOf(source) + 1;
         InsertLayerInternal(copy, at, makeActive: true);
         Commit(new AddLayerAction("Duplicate layer", copy, at));
@@ -179,6 +182,7 @@ public sealed class Document
     {
         int index = IndexOf(layer);
         if (index <= 0) return false;
+        if (_animation is not null) return MergeDownAnimated(layer, index);
         var below = _layers[index - 1];
         if (below.Locked) return false;
         var edit = BeginEdit(below, "Merge down");
@@ -288,8 +292,14 @@ public sealed class Document
 
     public void Commit(IHistoryAction action)
     {
-        History.Push(action);
+        History.Push(action, _animation?.CurrentFrame);
         HistoryChanged?.Invoke();
+    }
+
+    /// <summary>In an animation, undo and redo first show the frame where the change was made, so it is visible.</summary>
+    private void GoToEntryFrame(HistoryEntry entry)
+    {
+        if (_animation is { } a && entry.Frame is int f && f < a.FrameCount && f != a.CurrentFrame) ShowFrameInternal(f);
     }
 
     public bool CanUndo => History.CanUndo;
@@ -300,6 +310,7 @@ public sealed class Document
     {
         var entry = History.TakeUndo();
         if (entry is null) return false;
+        GoToEntryFrame(entry);
         entry.Action.Undo(this);
         HistoryChanged?.Invoke();
         return true;
@@ -309,6 +320,7 @@ public sealed class Document
     {
         var entry = History.TakeRedo();
         if (entry is null) return false;
+        GoToEntryFrame(entry);
         entry.Action.Redo(this);
         HistoryChanged?.Invoke();
         return true;
@@ -338,8 +350,21 @@ public sealed class Document
 
     // ================================================================ whole-document changes
 
-    public DocumentState CaptureState() =>
-        new(Width, Height, _layers.ToDictionary(l => l.Id, l => l.Image.Clone()), Selection?.Clone());
+    /// <summary>The current size, pixels and selection. Images are referenced, not copied: whole-picture operations
+    /// replace images with new ones rather than changing them, and undo restores the same objects.</summary>
+    public DocumentState CaptureState() => _animation is null
+        ? new(Width, Height, _layers.ToDictionary(l => l.Id, l => l.Image), Selection)
+        : new(Width, Height, new Dictionary<int, RasterImage>(), Selection, AllCels().ToDictionary(c => c, c => c.Image));
+
+    /// <summary>Every distinct cel of every layer.</summary>
+    public IEnumerable<Cel> AllCels() => _layers.Where(l => l.Cells is not null).SelectMany(l => l.Cells!).OfType<Cel>().Distinct();
+
+    /// <summary>Builds the state after applying <paramref name="map"/> to every image of the picture (every layer, or every
+    /// cel of an animation) — used by resize, crop, rotate and flip.</summary>
+    public DocumentState MapAllImages(int width, int height, Func<RasterImage, RasterImage> map, SelectionMask? selection) =>
+        _animation is null
+            ? new(width, height, _layers.ToDictionary(l => l.Id, l => map(l.Image)), selection)
+            : new(width, height, new Dictionary<int, RasterImage>(), selection, AllCels().ToDictionary(c => c, c => map(c.Image)));
 
     /// <summary>Replaces size, layer pixels and selection as one undo step (resize, crop, rotate…).</summary>
     public void ApplyState(DocumentState newState, string historyName)
@@ -358,7 +383,7 @@ public sealed class Document
     public RasterImage Flatten()
     {
         var image = new RasterImage(Width, Height);
-        Compositor.Compose(this, Bounds, image, includeFloating: false);
+        Compositor.Compose(this, Bounds, image, includeOverlays: false, includePaper: true);
         return image;
     }
 
@@ -384,7 +409,7 @@ public sealed class Document
 
     public void RecompositeAll(bool notify = true)
     {
-        Compositor.Compose(this, Bounds, Projection, includeFloating: true);
+        Compositor.Compose(this, Bounds, Projection, includeOverlays: true, includePaper: true);
         if (notify) ProjectionChanged?.Invoke(Bounds);
     }
 
@@ -392,7 +417,7 @@ public sealed class Document
     {
         area = area.Intersect(Bounds);
         if (area.IsEmpty) return;
-        Compositor.Compose(this, area, Projection, includeFloating: true);
+        Compositor.Compose(this, area, Projection, includeOverlays: true, includePaper: true);
         ProjectionChanged?.Invoke(area);
     }
 
@@ -406,6 +431,7 @@ public sealed class Document
     internal void InsertLayerInternal(Layer layer, int index, bool makeActive)
     {
         _layers.Insert(Math.Clamp(index, 0, _layers.Count), layer);
+        if (_animation is not null && layer.Cells is not null) DisplayCell(layer);
         if (makeActive) _active = layer;
         LayersChanged?.Invoke();
         ActiveLayerChanged?.Invoke();
@@ -465,27 +491,43 @@ public sealed class Document
         bool resized = state.Width != Width || state.Height != Height;
         Width = state.Width;
         Height = state.Height;
-        foreach (var layer in _layers)
+        if (state.CelImages is { } cels)
         {
-            if (state.Images.TryGetValue(layer.Id, out var img))
+            foreach (var (cel, img) in cels)
             {
-                layer.Image = img.Clone();
-                layer.RecalculateBounds();
+                cel.Image = img;
+                cel.ContentBounds = img.ContentBounds();
+                cel.Revision++;
             }
-            else if (resized)
+        }
+        else
+        {
+            foreach (var layer in _layers)
             {
-                layer.Image = new RasterImage(Width, Height);
-                layer.RecalculateBounds();
+                if (state.Images.TryGetValue(layer.Id, out var img))
+                {
+                    layer.Image = img;
+                    layer.RecalculateBounds();
+                }
+                else if (resized)
+                {
+                    layer.Image = new RasterImage(Width, Height);
+                    layer.RecalculateBounds();
+                }
             }
         }
         _overrides.Clear();
         _floating = null;
-        Selection = state.Selection?.Clone();
+        Selection = state.Selection;
         if (resized)
         {
             Projection = new RasterImage(Width, Height);
+            _onion = null;
+            _onionBounds = PixelRect.Empty;
+            ClearFrameCache();
             SizeChanged?.Invoke();
         }
+        if (_animation is not null) foreach (var layer in _layers) DisplayCell(layer);
         SelectionChanged?.Invoke();
         LayersChanged?.Invoke();
         RecompositeAll();
