@@ -64,7 +64,7 @@ public static class FloodFill
     public static bool Apply(Document doc, Layer layer, int x, int y, ColorRgb color, FillOptions options)
     {
         if (layer.Locked || !doc.Bounds.Contains(x, y) || doc.SelectionAt(x, y) == 0) return false;
-        var source = options.SampleMerged ? doc.Flatten() : layer.Image;
+        var source = options.SampleMerged ? doc.Flatten() : doc.EditTargetOf(layer);
         var region = Region(source, x, y, options.Tolerance, options.Contiguous);
         return FillMask(doc, layer, region, color, options.Opacity, options.Exact, "Fill");
     }
@@ -86,7 +86,7 @@ public static class FloodFill
         if (bounds.IsEmpty) return false;
         var edit = doc.BeginEdit(layer, name);
         edit.Capture(bounds);
-        var px = layer.Image.Pixels;
+        var px = edit.Target.Pixels;
         int op = (int)Math.Round(Math.Clamp(opacity, 0, 1) * 255);
         for (int y = bounds.Y; y < bounds.Bottom; y++)
         {
@@ -100,14 +100,14 @@ public static class FloodFill
                 if (exact)
                 {
                     if (s < 128) continue;
-                    px[i] = layer.AlphaLocked
+                    px[i] = edit.AlphaLocked
                         ? (Pixel.A(baseline) == 0 ? baseline : Pixel.FromStraight(color.R, color.G, color.B, Pixel.A(baseline)))
                         : Pixel.Opaque(color);
                     continue;
                 }
                 int a = op * s / 255;
                 if (a == 0) continue;
-                if (layer.AlphaLocked)
+                if (edit.AlphaLocked)
                 {
                     if (Pixel.A(baseline) == 0) continue;
                     var (r, g, b, ba) = Pixel.ToStraight(baseline);

@@ -505,7 +505,7 @@ public sealed class StrokeEngine
         float wet = (float)_brush.WetEdges;
 
         var layer = _edit.Layer;
-        var pixels = layer.Image.Pixels;
+        var pixels = _edit.Target.Pixels;
         int w = _doc.Width;
         float opacity = (float)_brush.Opacity * 255f;
         bool erase = _style.Mode == PaintMode.Erase;
@@ -564,7 +564,7 @@ public sealed class StrokeEngine
     private PixelRect FlushColor(PixelRect area)
     {
         var layer = _edit!.Layer;
-        var pixels = layer.Image.Pixels;
+        var pixels = _edit.Target.Pixels;
         int w = _doc.Width;
         float opacity = (float)_brush.Opacity;
         bool alphaLock = layer.AlphaLocked;

@@ -138,9 +138,9 @@ public sealed class PixelStroke
                 if (_doc.SelectionAt(x, y) < 128) continue;
                 var rect = new PixelRect(x, y, 1, 1);
                 _edit!.Capture(rect);
-                var image = _edit.Layer.Image;
+                var image = _edit.Target;
                 if (restore) _edit.RestorePixel(x, y);
-                else if (_edit.Layer.AlphaLocked)
+                else if (_edit.AlphaLocked)
                 {
                     uint baseline = image[x, y];
                     byte a = Pixel.A(baseline);

@@ -14,13 +14,24 @@ public sealed class LayerEdit
     private PixelRect _changed = PixelRect.Empty;
     private bool _finished;
 
-    internal LayerEdit(Document document, Layer layer, string name)
+    internal LayerEdit(Document document, Layer layer, string name, bool mask = false)
     {
         Document = document;
         Layer = layer;
         Name = name;
-        Cel = layer.CurrentCel;
+        IsMask = mask && layer.Mask is not null;
+        Target = IsMask ? layer.Mask! : layer.Image;
+        Cel = IsMask ? null : layer.CurrentCel;
     }
+
+    /// <summary>True when this edit paints on the layer's mask (white shows, black hides) rather than its pixels.</summary>
+    public bool IsMask { get; }
+
+    /// <summary>The pixels being edited: the layer's image, or its mask.</summary>
+    public RasterImage Target { get; }
+
+    /// <summary>Transparency lock applies to a layer's pixels, never to its mask.</summary>
+    public bool AlphaLocked => !IsMask && Layer.AlphaLocked;
 
     /// <summary>The drawing being edited in an animation (null for an empty cell or a still picture).</summary>
     public Cel? Cel { get; private set; }
@@ -55,7 +66,7 @@ public sealed class LayerEdit
         if (_before.TryGetValue(key, out var tile)) return tile;
         tile = new uint[T * T];
         var rect = Document.TileRect(tx, ty);
-        var src = Layer.Image.Pixels;
+        var src = Target.Pixels;
         for (int y = 0; y < rect.Height; y++)
             Array.Copy(src, (rect.Y + y) * Document.Width + rect.X, tile, y * T, rect.Width);
         _before[key] = tile;
@@ -67,13 +78,13 @@ public sealed class LayerEdit
     {
         if (!Document.Bounds.Contains(x, y)) return 0;
         int tx = x / T, ty = y / T;
-        return _before.TryGetValue(TileKey(tx, ty), out var tile) ? tile[(y - ty * T) * T + (x - tx * T)] : Layer.Image[x, y];
+        return _before.TryGetValue(TileKey(tx, ty), out var tile) ? tile[(y - ty * T) * T + (x - tx * T)] : Target[x, y];
     }
 
     /// <summary>Restores the original value of one pixel (if it was captured).</summary>
     public void RestorePixel(int x, int y)
     {
-        Layer.Image[x, y] = BeforePixel(x, y);
+        Target[x, y] = BeforePixel(x, y);
     }
 
     /// <summary>Tells the document that pixels in <paramref name="area"/> changed (updates the screen).</summary>
@@ -81,9 +92,16 @@ public sealed class LayerEdit
     {
         area = area.Intersect(Document.Bounds);
         if (area.IsEmpty) return;
+        _changed = _changed.Union(area);
+        if (IsMask)
+        {
+            // A mask is not artwork: no palette, no content bounds; the layer just shows differently.
+            Layer.Revision++;
+            Document.OnLayerPixelsChanged(Layer, area);
+            return;
+        }
         // A palette-locked picture keeps only palette colours (same alpha), within this same edit and undo step.
         Document.ConformToPalette(Layer.Image, area);
-        _changed = _changed.Union(area);
         Layer.Touch(area);
         Document.OnLayerPixelsChanged(Layer, area);
     }
@@ -100,7 +118,8 @@ public sealed class LayerEdit
         }
         if (!area.IsEmpty)
         {
-            Layer.Touch(area);
+            if (IsMask) Layer.Revision++;
+            else Layer.Touch(area);
             Document.OnLayerPixelsChanged(Layer, area);
         }
     }
@@ -116,7 +135,7 @@ public sealed class LayerEdit
     public IHistoryAction? BuildAction()
     {
         var patches = new List<TilePatch>();
-        var layer = Layer.Image.Pixels;
+        var layer = Target.Pixels;
         int w = Document.Width;
         foreach (var (key, before) in _before.OrderBy(kv => kv.Key))
         {
@@ -135,6 +154,7 @@ public sealed class LayerEdit
         }
         _finished = true;
         if (patches.Count == 0) return null;
+        if (IsMask) return new LayerPixelsAction(Name, Layer.Id, patches, mask: true);
         if (Document.IsAnimated && Cel is null && Layer.Cells is not null)
         {
             // Drawing on an empty cell: the blank becomes a new drawing in this frame, as part of the same step.
@@ -156,7 +176,7 @@ public sealed class LayerEdit
 
     private void WriteTile(PixelRect rect, uint[] tile)
     {
-        var dst = Layer.Image.Pixels;
+        var dst = Target.Pixels;
         for (int y = 0; y < rect.Height; y++)
             Array.Copy(tile, y * T, dst, (rect.Y + y) * Document.Width + rect.X, rect.Width);
     }

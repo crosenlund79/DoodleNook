@@ -36,7 +36,7 @@ public sealed class ShapeOperation
         // Undo the previous preview, then draw the new shape.
         if (!_last.IsEmpty)
         {
-            var px = _edit.Layer.Image.Pixels;
+            var px = _edit.Target.Pixels;
             for (int y = _last.Y; y < _last.Bottom; y++)
                 for (int x = _last.X; x < _last.Right; x++)
                     px[y * _doc.Width + x] = _edit.BeforePixel(x, y);
@@ -59,13 +59,13 @@ public sealed class ShapeOperation
         {
             if (!_doc.Bounds.Contains(x, y) || _doc.SelectionAt(x, y) < 128) return;
             _edit.Capture(new PixelRect(x, y, 1, 1));
-            if (layer.AlphaLocked)
+            if (_edit.AlphaLocked)
             {
                 byte a = Pixel.A(_edit.BeforePixel(x, y));
                 if (a == 0) return;
-                layer.Image[x, y] = Pixel.FromStraight(_color.R, _color.G, _color.B, a);
+                _edit.Target[x, y] = Pixel.FromStraight(_color.R, _color.G, _color.B, a);
             }
-            else layer.Image[x, y] = value;
+            else _edit.Target[x, y] = value;
             area = area.Union(new PixelRect(x, y, 1, 1));
         }
         int n = Math.Max(1, (int)Math.Round(_o.Width));
@@ -121,7 +121,7 @@ public sealed class ShapeOperation
         if (area.IsEmpty) return area;
         _edit.Capture(area);
         var layer = _edit.Layer;
-        var px = layer.Image.Pixels;
+        var px = _edit.Target.Pixels;
         int op = (int)Math.Round(Math.Clamp(_o.Opacity, 0, 1) * 255);
         for (int y = area.Y; y < area.Bottom; y++)
             for (int x = area.X; x < area.Right; x++)
@@ -132,7 +132,7 @@ public sealed class ShapeOperation
                 if (a == 0) continue;
                 int i = y * _doc.Width + x;
                 uint baseline = px[i];
-                if (layer.AlphaLocked)
+                if (_edit.AlphaLocked)
                 {
                     if (Pixel.A(baseline) == 0) continue;
                     var (br, bg, bb, ba) = Pixel.ToStraight(baseline);

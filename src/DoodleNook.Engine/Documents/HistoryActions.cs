@@ -8,14 +8,17 @@ public sealed class LayerPixelsAction : IHistoryAction
     private readonly int _layerId;
     private readonly Cel? _cel;
     private readonly IReadOnlyList<TilePatch> _patches;
+    private readonly bool _mask;
 
     /// <param name="cel">In an animation, the drawing that was edited (it may not be on screen when this is undone).</param>
-    public LayerPixelsAction(string name, int layerId, IReadOnlyList<TilePatch> patches, Cel? cel = null)
+    /// <param name="mask">The patches belong to the layer's mask.</param>
+    public LayerPixelsAction(string name, int layerId, IReadOnlyList<TilePatch> patches, Cel? cel = null, bool mask = false)
     {
         Name = name;
         _layerId = layerId;
         _cel = cel;
         _patches = patches;
+        _mask = mask;
         Bounds = patches.Aggregate(PixelRect.Empty, (r, p) => r.Union(p.Rect));
         ByteSize = patches.Sum(p => (long)p.Pixels.Length * sizeof(uint)) + 64;
     }
@@ -31,6 +34,13 @@ public sealed class LayerPixelsAction : IHistoryAction
     private void Swap(Document d)
     {
         var layer = d.FindLayer(_layerId) ?? throw new InvalidOperationException("Layer missing for undo.");
+        if (_mask)
+        {
+            if (layer.Mask is { } m) foreach (var p in _patches) p.SwapWith(m);
+            layer.Revision++;
+            d.OnLayerPixelsChanged(layer, Bounds);
+            return;
+        }
         var target = _cel?.Image ?? layer.Image;
         foreach (var p in _patches) p.SwapWith(target);
         if (ReferenceEquals(target, layer.Image))

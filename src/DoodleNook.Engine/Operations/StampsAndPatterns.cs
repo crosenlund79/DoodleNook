@@ -97,7 +97,7 @@ public static class StampsAndPatterns
     public static bool FillAt(Document doc, Layer layer, int x, int y, RasterImage tile, PatternFillOptions o, FillOptions region, bool pixelExact = false)
     {
         if (layer.Locked || !doc.Bounds.Contains(x, y) || doc.SelectionAt(x, y) == 0) return false;
-        var source = region.SampleMerged ? doc.Flatten() : layer.Image;
+        var source = region.SampleMerged ? doc.Flatten() : doc.EditTargetOf(layer);
         var mask = FloodFill.Region(source, x, y, region.Tolerance, region.Contiguous);
         return FillMask(doc, layer, mask, tile, o, pixelExact, "Pattern fill");
     }
@@ -131,9 +131,9 @@ public static class StampsAndPatterns
     {
         var edit = doc.BeginEdit(layer, name);
         edit.Capture(box);
-        var px = layer.Image.Pixels;
+        var px = edit.Target.Pixels;
         int w = doc.Width;
-        bool alphaLocked = layer.AlphaLocked;
+        bool alphaLocked = edit.AlphaLocked;
         void Row(int y)
         {
             for (int x = box.X; x < box.Right; x++)

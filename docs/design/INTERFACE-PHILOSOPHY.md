@@ -152,6 +152,23 @@ settings, playback settings, timeline zoom and frame properties. They are **not*
 The result is capable but uncluttered: an artist can start drawing frames immediately, and every deeper option
 is one obvious step away.
 
+## 13. The Personal Tool Principle and the three levels
+
+DoodleNook is its owner's tool (see *The Personal Tool Principle* in [`CLAUDE.md`](../../CLAUDE.md)). The three levels
+of access decide **where** a capability lives; the Personal Tool Principle decides **whether** it belongs at all, and
+how high it may climb:
+
+- **Admission.** A capability enters DoodleNook only when it makes something the owner actually enjoys doing easier.
+  Parity with another application is not a reason; "it might be useful to someone" is not a reason.
+- **Starting level.** New capabilities start at Level 2 or 3 (contextual, menus, Customize workspace), even when
+  they're substantial. They move to Level 1 only when the owner's playtests show everyday use.
+- **Reuse before invention.** A new tool should borrow an existing workspace, panel, pop-over or interaction
+  (the options bar, the layers panel, right-click menus) before anything new is drawn on screen.
+- **Protection.** What the owner already enjoys (the calm default workspaces, the drawing feel, the Mission 003
+  look) outranks any new feature. If a feature can't be added without disturbing them, it waits.
+- **Omission is a decision.** Leaving a feature out, or keeping it one step away, is a valid and often the best
+  outcome; it should be recorded as such rather than treated as unfinished work.
+
 ## The UI decision checklist
 
 Before adding a **permanently visible** control, answer these questions in the change's description or review:
@@ -165,5 +182,7 @@ Before adding a **permanently visible** control, answer these questions in the c
 7. Does the interface stay comfortable on a 13.3-inch 1080p display at 150 %?
 8. If it is hidden, is it still discoverable (menu entry, tooltip, shortcut)?
 9. Does it preserve DoodleNook's established visual identity (Mission 003)?
+
+10. Does it make something the owner actually enjoys doing easier, or does it merely make DoodleNook bigger?
 
 If the answers to 1 and 2 are not a clear "yes", the control does not belong on the main screen by default.

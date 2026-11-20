@@ -38,11 +38,11 @@ public sealed class GradientOperation
 
     public void Update(double x0, double y0, double x1, double y1)
     {
-        var px = _edit.Layer.Image.Pixels;
+        var px = _edit.Target.Pixels;
         int w = _doc.Width;
         double dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy, len = Math.Sqrt(len2);
         int op = (int)Math.Round(Math.Clamp(_options.Opacity, 0, 1) * 255);
-        bool alphaLock = _edit.Layer.AlphaLocked;
+        bool alphaLock = _edit.AlphaLocked;
         for (int y = _area.Y; y < _area.Bottom; y++)
         {
             for (int x = _area.X; x < _area.Right; x++)

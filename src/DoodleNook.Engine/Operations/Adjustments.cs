@@ -14,6 +14,24 @@ public abstract record Adjustment
     /// <summary>Writes the adjusted pixels of <paramref name="area"/> from <paramref name="source"/> into <paramref name="target"/>.</summary>
     public abstract void Apply(RasterImage source, RasterImage target, PixelRect area);
 
+    /// <summary>The colour change of a per-pixel adjustment (straight RGB, 0–1), or null for filters that look at
+    /// neighbouring pixels (blur, sharpen). Adjustment layers use this.</summary>
+    public virtual (double R, double G, double B)? Colour(double r, double g, double b) => null;
+
+    /// <summary>True when <see cref="Colour"/> describes the adjustment (it can be an adjustment layer).</summary>
+    public bool MapsColours => Reach == 0 && Colour(0.5, 0.5, 0.5) is not null;
+
+    /// <summary>One premultiplied pixel adjusted (alpha unchanged), the same as <see cref="Apply"/> does per pixel.</summary>
+    public uint MapPixel(uint p)
+    {
+        byte a = Pixel.A(p);
+        if (a == 0) return 0;
+        var (r, g, b, _) = Pixel.ToStraight(p);
+        var c = Colour(r / 255.0, g / 255.0, b / 255.0);
+        if (c is not { } n) return p;
+        return Pixel.FromStraight(To8(n.R), To8(n.G), To8(n.B), a);
+    }
+
     protected static void PerPixel(RasterImage source, RasterImage target, PixelRect area, Func<double, double, double, (double R, double G, double B)> f)
     {
         int w = source.Width;
@@ -45,6 +63,13 @@ public sealed record BrightnessContrast(double Brightness, double Contrast) : Ad
         PerPixel(source, target, area, (r, g, bl) => (F(r), F(g), F(bl)));
         double F(double v) => (v - 0.5) * c + 0.5 + b;
     }
+
+    public override (double R, double G, double B)? Colour(double r, double g, double bl)
+    {
+        double b = Brightness / 100 * 0.5;
+        double c = Contrast >= 0 ? 1 + Contrast / 100 * 2 : 1 + Contrast / 100;
+        return ((r - 0.5) * c + 0.5 + b, (g - 0.5) * c + 0.5 + b, (bl - 0.5) * c + 0.5 + b);
+    }
 }
 
 /// <summary>Hue shift (−180 to 180°), saturation and lightness (−100 to 100).</summary>
@@ -63,6 +88,16 @@ public sealed record HueSaturation(double Hue, double Saturation, double Lightne
             l = light >= 0 ? l + (1 - l) * light : l * (1 + light);
             return FromHsl(h, s, l);
         });
+    }
+
+    public override (double R, double G, double B)? Colour(double r, double g, double b)
+    {
+        double sat = 1 + Saturation / 100, light = Lightness / 100;
+        var (h, s, l) = ToHsl(r, g, b);
+        h = (h + Hue / 360 + 1) % 1;
+        s = Math.Clamp(s * sat, 0, 1);
+        l = light >= 0 ? l + (1 - l) * light : l * (1 + light);
+        return FromHsl(h, s, l);
     }
 
     internal static (double H, double S, double L) ToHsl(double r, double g, double b)
@@ -88,6 +123,48 @@ public sealed record HueSaturation(double Hue, double Saturation, double Lightne
             if (t < 2.0 / 3) return p + (q - p) * (2.0 / 3 - t) * 6;
             return p;
         }
+    }
+}
+
+/// <summary>
+/// Levels: input black and white points (0–255) stretch the tones between them, gamma (0.1–10) brightens (above 1) or
+/// darkens the middle tones, and the output black and white points (0–255) compress the result.
+/// </summary>
+public sealed record Levels(double InBlack = 0, double InWhite = 255, double Gamma = 1, double OutBlack = 0, double OutWhite = 255) : Adjustment
+{
+    public override string Name => "Levels";
+
+    public override void Apply(RasterImage source, RasterImage target, PixelRect area) =>
+        PerPixel(source, target, area, (r, g, b) => (F(r), F(g), F(b)));
+
+    public override (double R, double G, double B)? Colour(double r, double g, double b) => (F(r), F(g), F(b));
+
+    private double F(double v)
+    {
+        double lo = InBlack / 255, hi = Math.Max(lo + 1.0 / 255, InWhite / 255);
+        double t = Math.Clamp((v - lo) / (hi - lo), 0, 1);
+        t = Math.Pow(t, 1 / Math.Clamp(Gamma, 0.1, 10));
+        return (OutBlack + t * (OutWhite - OutBlack)) / 255;
+    }
+}
+
+/// <summary>
+/// Colour balance: shifts towards red (or cyan), green (or magenta) and blue (or yellow), −100 to 100, strongest in the
+/// middle tones so blacks and whites stay clean.
+/// </summary>
+public sealed record ColourBalance(double CyanRed = 0, double MagentaGreen = 0, double YellowBlue = 0) : Adjustment
+{
+    public override string Name => "Colour balance";
+
+    public override void Apply(RasterImage source, RasterImage target, PixelRect area) =>
+        PerPixel(source, target, area, (r, g, b) => Colour(r, g, b)!.Value);
+
+    public override (double R, double G, double B)? Colour(double r, double g, double b)
+    {
+        double l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        double weight = 1 - Math.Abs(2 * l - 1); // 1 in the middle tones, 0 at black and white
+        double k = 0.3 * weight / 100;
+        return (Math.Clamp(r + CyanRed * k, 0, 1), Math.Clamp(g + MagentaGreen * k, 0, 1), Math.Clamp(b + YellowBlue * k, 0, 1));
     }
 }
 

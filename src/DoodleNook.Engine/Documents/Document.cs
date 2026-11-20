@@ -302,7 +302,9 @@ public sealed partial class Document
     public LayerEdit BeginEdit(Layer layer, string historyName)
     {
         if (layer.Locked) throw new InvalidOperationException($"Layer \"{layer.Name}\" is locked.");
-        return new LayerEdit(this, layer, historyName);
+        bool mask = EditsMask(layer);
+        if (!mask && !layer.IsPaintable) throw new InvalidOperationException($"\"{layer.Name}\" has no pixels to paint on.");
+        return new LayerEdit(this, layer, historyName, mask);
     }
 
     public void Commit(IHistoryAction action)
@@ -350,7 +352,7 @@ public sealed partial class Document
         if (area.IsEmpty) return false;
         var edit = BeginEdit(layer, Selection is null ? "Clear layer" : "Clear selection");
         edit.Capture(area);
-        var px = layer.Image.Pixels;
+        var px = edit.Target.Pixels;
         for (int y = area.Y; y < area.Bottom; y++)
             for (int x = area.X; x < area.Right; x++)
             {

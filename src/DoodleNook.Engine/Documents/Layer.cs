@@ -15,6 +15,9 @@ public enum LayerLabel
 }
 
 /// <summary>Everything about a layer except its pixels (used for undo and saving).</summary>
+/// <param name="ParentId">The group the layer belongs to (0: the picture itself).</param>
+/// <param name="Collapsed">For a group: its layers are folded away in the layers panel.</param>
+/// <param name="MaskEnabled">The layer's mask is used (switch it off to see the whole layer).</param>
 public sealed record LayerProperties(
     string Name,
     bool Visible = true,
@@ -23,7 +26,10 @@ public sealed record LayerProperties(
     bool Locked = false,
     bool AlphaLocked = false,
     bool ClipToBelow = false,
-    LayerLabel Label = LayerLabel.None);
+    LayerLabel Label = LayerLabel.None,
+    int ParentId = 0,
+    bool Collapsed = false,
+    bool MaskEnabled = true);
 
 /// <summary>
 /// One raster layer: premultiplied pixels the size of the document, plus its properties.
@@ -35,13 +41,50 @@ public sealed class Layer
 {
     private RasterImage? _blank;
 
-    internal Layer(int id, LayerProperties properties, RasterImage image)
+    internal Layer(int id, LayerProperties properties, RasterImage image, LayerKind kind = LayerKind.Raster)
     {
         Id = id;
         Properties = properties;
         Image = image;
+        Kind = kind;
         ContentBounds = image.ContentBounds();
     }
+
+    /// <summary>Raster (paint), group, text, shape or adjustment.</summary>
+    public LayerKind Kind { get; }
+
+    /// <summary>The editable text, shape or adjustment (null for raster layers and groups).</summary>
+    public LayerContent? Content { get; internal set; }
+
+    /// <summary>The rendered text box's size (before rotation), for handles and alignment.</summary>
+    public (double Width, double Height) ContentSize { get; internal set; }
+
+    /// <summary>The font used instead of a missing one (text layers), else null.</summary>
+    public string? SubstituteFont { get; internal set; }
+
+    /// <summary>
+    /// A layer mask: how much of the layer shows at each pixel, without erasing anything. Stored as a picture: white shows,
+    /// black hides (paint with black to hide, white or the eraser to reveal). Null: no mask.
+    /// </summary>
+    public RasterImage? Mask { get; internal set; }
+
+    public bool HasMask => Mask is not null;
+    public bool MaskEnabled => Properties.MaskEnabled;
+    public int ParentId => Properties.ParentId;
+    public bool IsGroup => Kind == LayerKind.Group;
+
+    /// <summary>True for layers you paint pixels on (raster layers).</summary>
+    public bool IsPaintable => Kind == LayerKind.Raster;
+
+    /// <summary>True for text and shape layers (moved, resized and turned as objects).</summary>
+    public bool IsObject => Kind is LayerKind.Text or LayerKind.Shape;
+
+    /// <summary>In an animation: true when the layer has a drawing per frame (raster layers); text, shapes, adjustments
+    /// and groups are the same on every frame.</summary>
+    public bool IsTrack => Cells is not null;
+
+    /// <summary>How much of the layer shows through its mask at a mask pixel (255 = all).</summary>
+    public static byte MaskValue(uint maskPixel) => (byte)Math.Min(255, Pixel.R(maskPixel) + (255 - Pixel.A(maskPixel)));
 
     /// <summary>Stable identifier within its document (survives reordering, saving and undo).</summary>
     public int Id { get; }
