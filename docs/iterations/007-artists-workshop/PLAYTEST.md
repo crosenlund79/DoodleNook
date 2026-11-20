@@ -25,7 +25,8 @@ The defaults are first guesses; your preferences decide. Nothing you write down 
 
 ### 2. Customize one brush
 
-- [ ] Right-click **Sketch pencil** › *Duplicate* (or open *Brush Laboratory…* at the bottom of the picker).
+- [ ] Right-click **Sketch pencil** › *Duplicate*. The copy is now your brush: open *Brush Laboratory…* at the bottom of
+      the picker (or right-click the copy › *Edit in the Brush Laboratory…*).
 - [ ] In the Laboratory, scribble in the light area on the left: it never touches your picture.
       *Example* draws a standard stroke; *Clear* wipes it.
 - [ ] **Texture**: choose another texture (try *Rough paper* or *Canvas weave*) and change its strength and scale.
@@ -36,7 +37,8 @@ The defaults are first guesses; your preferences decide. Nothing you write down 
 ### 3. Create a stamp
 
 - [ ] Draw a small object (a flower, a rock, a sprite) on its own layer.
-- [ ] Select it with the lasso or rectangle and choose *Edit › Save selection as stamp…*. Give it a name and a collection.
+- [ ] Select it with the lasso and choose *Edit › Save selection as stamp…* (or, with nothing selected, *Save layer as
+      stamp…*). Give it a name and a collection.
 - [ ] Press **S** (the Stamp tool): the stamp follows the pen as a preview. Click to place it a few times. Try
       **[** and **]** for size, the rotation and opacity sliders, and the two flip buttons. **Ctrl+Z** undoes one stamp.
 - [ ] Optional: right-click your stamp in the stamp picker › *Make a brush from this stamp*, and paint a trail of it.
@@ -55,7 +57,8 @@ The defaults are first guesses; your preferences decide. Nothing you write down 
 
 ### 5. Make a palette
 
-- [ ] Open a picture you like (or use your painting). *Window › Palettes… › From picture…*.
+- [ ] *Window › Palettes… › From picture…* takes colours from your painting; *Image file…* there takes them from any
+      picture (a photo you like) without opening it.
 - [ ] Move *How many* and watch the proposal change; nothing is saved until you click *Save as palette*.
 - [ ] *Use this palette*: the swatches in the Colour panel now show it. Paint with it.
 - [ ] Optional: in Pixel Art (**Alt+5**), choose the palette from the palette column's menu: its exact colours become

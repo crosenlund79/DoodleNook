@@ -25,9 +25,9 @@ The interface rules behind this mission are permanent: see [`CLAUDE.md`](../../.
 **What you saw.** In *File › Export animation…* with a 1920 × 1080, 21-frame animation, switching to or from
 *Animated GIF* made the window "Not Responding".
 
-**Root cause.** The dialog rebuilt its option area on every format switch, but reused the same number boxes
-(frame scale, columns, spacing). Going from Animated GIF or PNG sequence **back to Sprite sheet** re-inserted a
-number box that still belonged to the previous layout, and Avalonia threw *"The control already has a visual
+**Root cause.** The dialog rebuilt its option area on every format switch, but reused the same four number boxes
+(the sprite sheet's columns, spacing, padding and margin). Going from Animated GIF or PNG sequence **back to Sprite
+sheet** put those boxes into new rows while the old rows still held them, and Avalonia threw *"The control already has a visual
 parent"* from inside the click handler. Nothing caught it, so the process ended. On Windows that looks like a freeze:
 the window stops responding while Windows Error Reporting records the crash, and then it disappears. The size of the
 animation was not the cause, the order of clicks was: the error depends only on which layout was shown before.
@@ -42,10 +42,18 @@ animation was not the cause, the order of clicks was: the error depends only on 
 **Proof, not a one-off retry.**
 - Two regression tests drive the real dialog with a 1920 × 1080, 21-frame animation. One clicks through
   GIF ↔ Sprite sheet ↔ PNG sequence ten times in a mixed order, checking that every switch shows the right options,
-  stays fast and keeps the values. The other
-  exports the 1080p GIF and decodes it back: all 21 frames, with their timing; a failed export leaves no file.
-- The smoke test does the same in the real packaged app on Windows CI (section 10). Locally under Xvfb the slowest
-  switch took 87 ms, and the 1080p GIF (21 frames, 186 KB) took 1.5 s in the background.
+  stays fast and keeps the values. The other exports the 1080p GIF and decodes it back (all 21 frames, with their
+  timing) and checks that a failed export leaves no file.
+- The smoke test does the same in the real packaged `DoodleNook.exe` on Windows CI (section 10): eight switches
+  between the three formats, then a real 1080p GIF export.
+
+  | | slowest switch | 1080p GIF (21 frames, 186 KB) |
+  |---|---|---|
+  | Windows CI run #13 | 11 ms | 2.1 s |
+  | Windows CI run #14 | 20 ms | 1.3 s |
+  | Linux under Xvfb | 87 ms | 1.5 s |
+
+  The GIF is encoded in the background, and every frame is in it with its timing.
 
 ### A second, older crash found on the way
 
@@ -66,6 +74,21 @@ What you see, by the three access levels of the [interface philosophy](../../des
 | **1 · Visible** | The **Stamp** tool (S) in Painting and Pixel Art. The brush dock and brush picker now have a search box, categories and a *Brush Laboratory…* button. The paint bucket's options bar has a **Colour / Pattern** switch. Nothing else is added to any workspace by default. |
 | **2 · Contextual** | Stamp options (stamp, size, rotation, opacity, flips) only with the Stamp tool. Pattern options (pattern, scale, rotation, offset, opacity) only in the bucket's Pattern mode. Right-click a brush, stamp or pattern for favourites, editing, duplicating, *Make a brush from this stamp*, *Use as the brush texture*, rename, move, export and delete. The palette chooser sits on the colour panel's swatch row. |
 | **3 · Menus and optional** | *Window › Creative tools*: Brush Laboratory, Palettes, Reference board, Creative library. *Edit*: Fill with pattern, Save selection as stamp / pattern. *Window › Customize workspace*: the Stamp tool in Quick Sketch, Editing and Animation Studio; favourite brushes as one-click buttons (Quick Sketch, Painting, Animation Studio); the reference board. |
+
+**The UI decision checklist** for the permanently visible additions:
+
+- **Stamp tool button** (Painting and Pixel Art).
+  1. Frequent in decorating, game art and pixel work.
+  2. Relevant there and not elsewhere: optional through *Customize workspace* in Quick Sketch, Editing and Animation
+     Studio.
+  3. Also on the **S** key.
+  4. It is a tool, and tools live in the strip; its options are contextual.
+  5. One button in the existing tool column, so the drawing area is not reduced.
+  6. Comfortable at 150 %: the strip scrolls if it must ([screenshot](screenshots/workshop-kamvas13-150-painting.png)).
+- **Brush search box and *Brush Laboratory…* button.** Only inside the existing brush dock and brush picker, where
+  brushes are chosen anyway. The Lab is also in *Window* and in every brush's right-click menu. Nothing on the canvas.
+- **Colour / Pattern switch.** Visible only while the paint bucket is selected (contextual), in the options bar that
+  already exists.
 
 ## Brushes
 
@@ -119,7 +142,7 @@ On the right, a live stroke preview and **five sections**, each showing only the
 |---|---|
 | **Tip** | Round (hardness, squash, angle) or **Picture**: a built-in tip, any stamp, *From selection* or a *PNG…*; *Paint in the picture's own colours* (a stamp brush); *Turn with the stroke* |
 | **Stroke** | Size, opacity, automatic or manual spacing, smoothing, build-up (then flow and *keep spraying*), wet edges |
-| **Pressure** | Pressure → size (then smallest size), → opacity, → flow (when building up), the **response** curve with a small graph, and the pen feel |
+| **Pressure** | Pressure → size (then smallest size), → opacity, → flow (when building up), and the **response** curve with a small graph (on top of the Soft / Normal / Firm feel from the brush settings) |
 | **Texture** | Strength, paper grain or **any pattern**, scale, rotation, invert |
 | **Scatter** | Scatter, count, size / angle / opacity jitter. "Random, but the same stroke always gives the same marks." |
 
@@ -319,13 +342,15 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
 - **Stamp brushes.** These are colour tips: dabs are layered into a premultiplied colour buffer and composited once per
   update. The per-stroke coverage mask still gives one clean undo step.
 - **Resources.** `StrokeStyle` carries optional `BrushResources(Tip, Texture)`, which the app resolves from the
-  library (`CreativeLibrary.Resolve`). The engine never reads files while painting.
+  library (`CreativeLibrary.Resolve`, once when a stroke begins; pictures are loaded on first use and then kept in
+  memory). The stroke engine itself never touches files.
 - **Library** (`Library/`):
   - `CreativeLibrary`: storage, ids, favourites, import/export plumbing.
   - `BuiltInAssets` and `ArtKit`: the built-in brushes, tips, stamps, patterns and palettes, drawn by code.
   - `AssetPack` and `PaletteFiles`; `ReferenceBoard`.
 - **Operations.** `StampsAndPatterns` places stamps and fills patterns through the normal `LayerEdit`, so undo,
-  selections, locks and animation drawings work like every other tool. `ColorQuantizer` extracts palettes and makes
+  selections, locks and animation drawings work like every other tool. Large areas are painted a row per thread
+  (a test compares a large rotated, faded, soft-selected fill with a pixel-by-pixel reference). `ColorQuantizer` extracts palettes and makes
   harmonies.
 - **App.**
   - `BrushLab` and its `BrushPlayground`; `PaletteManager`; `AssetPicker` (stamps and patterns, tiled preview);
@@ -336,7 +361,73 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
 
 ## Measured performance
 
-<!-- PERFORMANCE -->
+Engine measurements from `WorkshopPerformanceTests`, taken on the **Windows CI runner** (Windows 10.0.26100,
+4 logical processors, Release build) in run #14, on the same code as the final commit. Engine only, without drawing to
+the screen. Full numbers are in `tests/DoodleNook.Engine.Tests/out/workshop-performance.json`, uploaded with every CI
+run's test results.
+
+The documents are painted with broad strokes on every layer, so compositing has real work everywhere. A **pen event**
+is two coalesced samples of a fast 2000 px curve with changing pressure, which is how a 200 Hz pen delivers it, so the
+budget is 5 ms per event.
+
+The measurement tests now run on their own: a non-parallel test collection, with CI running the two test projects one
+after the other. In run #13 they still shared the CPU with other tests, and the same brushes showed averages up to
+1.6 ms and peaks up to 68 ms. That is why the isolation was added.
+
+| Brush · ms per pen event (avg / max) | 1920 × 1080, 1 layer | 1920 × 1080, 6 layers | 2560 × 1440, 12 layers | 1920 × 1080 animation, 3 layers |
+|---|---|---|---|---|
+| Sketch pencil | 0.01 / 0.03 | 0.02 / 0.04 | 0.04 / 0.10 | 0.01 / 0.03 |
+| Ink pen | 0.01 / 0.05 | 0.02 / 0.04 | 0.04 / 0.08 | 0.01 / 0.03 |
+| Soft round | 0.07 / 0.14 | 0.13 / 1.77 | 0.24 / 2.65 | 0.07 / 0.14 |
+| Graphite pencil (new) | 0.01 / 0.04 | 0.03 / 0.05 | 0.05 / 0.10 | 0.02 / 1.14 |
+| Charcoal (new: picture tip + texture) | 0.20 / 5.80 | 0.12 / 5.24 | 0.13 / 0.21 | 0.05 / 0.08 |
+| Chalk | 0.04 / 0.08 | 0.07 / 0.12 | 0.12 / 0.24 | 0.04 / 0.08 |
+| Dry ink brush (new: bristle tip) | 0.19 / 0.28 | 0.08 / 0.12 | 0.16 / 3.33 | 0.06 / 0.12 |
+| Soft paint brush (new: canvas texture) | 0.06 / 0.09 | 0.09 / 0.14 | 0.15 / 0.26 | 0.06 / 0.09 |
+| Watercolour wash (new: wet edges) | 0.09 / 0.14 | 0.14 / 0.22 | 0.24 / 0.39 | 0.09 / 0.15 |
+| Spatter (new: scatter) | 0.04 / 0.15 | 0.04 / 0.20 | 0.11 / 1.37 | 0.02 / 0.09 |
+| Grass tufts (new: stamp brush) | 0.05 / 1.48 | 0.09 / 5.56 | 0.10 / 0.28 | 0.03 / 0.12 |
+| Leaves (new: stamp brush, scatter) | 0.07 / 0.15 | 0.05 / 0.14 | 0.12 / 1.46 | 0.03 / 0.07 |
+
+| ms | 1920 × 1080, 1 layer | 1920 × 1080, 6 layers | 2560 × 1440, 12 layers | 1920 × 1080 animation, 3 layers |
+|---|---|---|---|---|
+| Place a stamp (daisy at 50 %) | 0.84 | 0.52 | 0.32 | 0.14 |
+| Place a large stamp (grass tuft at 400 %) | 18 | 7.55 | 11 | 3.35 |
+| Undo a stamp | 1.34 | 5.06 | 9.70 | 0.61 |
+| Pattern bucket, whole empty layer | 141 | 47 | 80 | 41 |
+| … colour bucket, same layer (for comparison) | 30 | 24 | 44 | 24 |
+| Pattern fill of an 80 % selection, rotated and faded | 118 | 56 | 123 | 34 |
+| Undo a pattern fill | 5.46 | 30 | 86 | 3.52 |
+
+| Other | ms |
+|---|---|
+| Pixel art 64 × 64: exact stamp · pattern bucket | 0.06 · 0.03 |
+| Palette from a 1920 × 1080 painting: 8 colours · 32 colours | 44 · 67 |
+| One brush-picker preview tile (fastest – slowest of the 12 measured) · all 17 built-in previews | 0.19 – 1.35 · 11 |
+| Open the library and resolve a brush | 0.83 |
+| First use of every built-in stamp and pattern picture (largest: grass tuft) | 44 (20) |
+
+What this means in practice:
+
+- **Brushes.** Every new brush costs well under a millisecond per pen event on average, in every document, including
+  12 layers at 2560 × 1440 and an animation frame. The classic brushes are unchanged (0.01–0.24 ms). The slowest
+  single event of any 200-event stroke was 5.8 ms.
+- **Stamps.** A normal stamp takes under a millisecond. A grass tuft at 400 % (about 510 × 450 px) takes 3–18 ms.
+  Undo is a few milliseconds.
+- **Pattern fills.**
+  - A whole empty 1080p layer took 41–141 ms, against 24–44 ms for the colour bucket, which does less per pixel.
+  - This mission paints large stamps and pattern fills a row per thread. In this Linux container that took the 80 %
+    rotated selection fill from 115–490 ms down to 62–201 ms, with pixel-identical results.
+- **Palette extraction** from a 1080p painting takes 44–67 ms. It runs only when you ask for a proposal.
+- **Brush picker and library.**
+  - Brush-picker previews cost 0.2–1.4 ms each and are cached.
+  - Built-in stamp and pattern pictures are drawn on first use: 44 ms for all of them, 20 ms for the largest. Before
+    the painter learned to visit only each shape's bounding box it was about 0.6 s in this container; the pictures
+    are pixel-identical (hashes compared).
+  - Opening the library takes under a millisecond.
+
+The same test in this Linux container (Release, shared CPU) gave higher but similar figures: pen events 0.01–0.4 ms
+on average, and pattern fills 60–250 ms.
 
 ## Verification
 
@@ -385,8 +476,8 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
   - the reference board is shown but not exported;
   - the library is written to disk and reads back.
 
-  Section 10 repeats the export-dialog freeze scenario at 1080p × 21 frames. In run #13 on Windows the slowest format
-  switch took 11 ms, and the 1080p GIF had all 21 frames (2.1 s, 186 KB).
+  Section 10 repeats the export-dialog freeze scenario at 1080p × 21 frames (Windows figures in the freeze section
+  above). Runs #13 and #14 passed all 41 checks.
 - **Visual review:** every screenshot above was looked at, at 2560 × 1440, 1920 × 1080 and Kamvas 13 at 150 %.
   Fixes that came out of it:
   - the reference board panel had no background (a `Border` subclass doesn't pick up `Border.float` styles);
@@ -399,10 +490,11 @@ rasterisation differs). Two are from the real window under Xvfb. Full set in [`s
 
 - **Pen hardware:** the Huion Kamvas 13 has not been tested. Pressure response and the new brushes are unverified
   with a real pen.
-- **Pattern fill of a whole 1080p layer** takes a few hundred milliseconds (2–3 × the colour bucket). It's a single
-  click, but it isn't instant.
-- **Very large stamp brushes with many scattered copies** cost more per pen event than round brushes. The measured
-  built-in ones stay far below a millisecond on average.
+- **Pattern fill of a whole 1080p layer** took 41–141 ms on the CI runner, 1.7–4.7 × the colour bucket. It's a
+  single click, but on a slower PC with a large picture it may not feel instant.
+- **Very large stamp brushes with many scattered copies** cost more per pen event than round brushes. The built-in
+  ones stay far below a millisecond on average; a home-made 500 px stamp brush with eight copies per dab will be
+  heavier (not measured).
 - **Brush Laboratory** edits one brush at a time; there is no side-by-side comparison of two brushes.
 - **No nested dialogs:** renaming and deleting inside the Lab and the palette manager happen inline (two-click delete)
   rather than in a confirmation box.
