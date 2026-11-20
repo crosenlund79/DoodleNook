@@ -109,6 +109,18 @@ public sealed partial class Document
         return doc;
     }
 
+    /// <summary>Builds an animation read from a file (layers bottom to top, each with one cel or null per frame).</summary>
+    internal static Document CreateAnimated(int width, int height, ColorRgb? paper, bool paperVisible, IReadOnlyList<LayerProperties> layers,
+        IReadOnlyList<List<Cel?>> tracks, double fps, bool loop, bool pingPong, IReadOnlyList<int?> durations, int currentFrame, int activeIndex)
+    {
+        var doc = new Document(width, height, paper, paperVisible, layers.Select(p => (p, new RasterImage(width, height))), activeIndex);
+        doc._animation = new Animation(fps, durations.Count) { Loop = loop, PingPong = pingPong };
+        doc._animation.Durations = durations.Select(d => d is { } ms ? Math.Clamp(ms, 10, 10_000) : (int?)null).ToList();
+        for (int i = 0; i < doc._layers.Count; i++) doc._layers[i].Cells = tracks[i];
+        doc.ShowFrameInternal(Math.Clamp(currentFrame, 0, durations.Count - 1));
+        return doc;
+    }
+
     // ================================================================ navigation and display
 
     /// <summary>Shows another frame (not an undo step). The current drawing of every layer changes with it.</summary>

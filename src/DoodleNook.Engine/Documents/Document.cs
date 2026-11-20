@@ -109,6 +109,20 @@ public sealed partial class Document
         HistoryChanged?.Invoke();
     }
 
+    /// <summary>Marks the state captured in a save snapshot as saved (later changes keep the picture unsaved).</summary>
+    public void MarkSaved(long stateId)
+    {
+        _savedStateId = stateId;
+        HistoryChanged?.Invoke();
+    }
+
+    /// <summary>Marks the picture as having unsaved changes (e.g. work restored after a crash).</summary>
+    public void MarkUnsaved()
+    {
+        _savedStateId = -1;
+        HistoryChanged?.Invoke();
+    }
+
     public Layer? FindLayer(int id) => _layers.Find(l => l.Id == id);
 
     public int IndexOf(Layer layer) => _layers.IndexOf(layer);
