@@ -11,6 +11,9 @@ Reference → Sketch → Outline → Coloring.
 `DoodleNook.exe`. Awaiting your playtest ([PLAYTEST.md](PLAYTEST.md)). The pen hasn't been tested: every test used a
 mouse or simulated input.
 
+**Refined since:** the motion of the whole library was reviewed and made more natural (planted feet, steady
+walk speeds, a new Sneak and Death, hands on what they hold). See [NATURAL-MOTION.md](NATURAL-MOTION.md).
+
 ![A walk cycle inserted into an imported animation: its own locked 35 % layer under Sketch](inserted-into-a-started-animation.png)
 
 ## The library
@@ -52,16 +55,17 @@ It is reference material, not finished art.
 
 **How it is made (and how it grows):**
 
-- **One pose, every view.** Each cycle is a handful of poses: joint angles for a small 3-D mannequin, eased between
-  keyframes, or a walking gait for walk, run, sneak, push and pull. The same pose is drawn from the side, from above
-  or at three-quarter view, so each cycle exists in every view without being drawn three times. A standing pose is
-  grounded automatically: the lowest part of the body rests on the floor, so steps and crouches keep their feet down.
+- **One pose, every view.** Each cycle is a handful of poses for a small 3-D mannequin: a drawing per pose, or a step
+  cycle for walk, run, sneak, push and pull. Feet and hands are placed where they should be (a planted foot stays put
+  and rests flat on the ground; hands hold the crate, the shovel, the ladder), and the joint angles follow. The same
+  pose is drawn from the side, from above or at three-quarter view, so each cycle exists in every view without being
+  drawn three times.
 - **Crisp at any size.** It is drawn at the size you choose, with hard pixel edges in pixel art.
 - **Easy to extend.** Adding a cycle is one entry in `src/DoodleNook.Engine/References/ReferenceLibrary.cs`. Drop and
   Stand up are Pick up and Sit down played backwards.
 
-It's a small renderer of about 600 lines in the engine. There is no rigging, no skeleton editor and no assets to
-download.
+It's a small renderer of about 600 lines in the engine, and a small solver that places feet and hands. There is no
+rigging, no skeleton editor and no assets to download.
 
 ## Inserting into a scene
 

@@ -73,11 +73,16 @@ public sealed class ReferenceLibraryTests
     {
         static float Lowest(Pose p) => Mannequin.Build(p).Where(x => x.Paint is PartPaint.Body or PartPaint.Left or PartPaint.Right)
             .Min(x => Math.Min(x.A.Y - x.RadiusA, x.B.Y - x.RadiusB));
-        foreach (var id in new[] { "idle", "walk", "run", "sneak", "push", "sit-down", "death" })
+        foreach (var id in new[] { "idle", "walk", "sneak", "push", "pull", "sit-down", "death", "pick-up", "hurt", "attack-slash", "dig" })
         {
             var c = ReferenceLibrary.Find(id)!;
             for (int f = 0; f < c.Frames; f++) Assert.InRange(Lowest(c.Pose(f)), -0.001f, 0.001f);
         }
+        // A run leaves the ground for one low drawing per step, and is on it for the rest.
+        var run = ReferenceLibrary.Find("run")!;
+        var heights = Enumerable.Range(0, run.Frames).Select(f => Lowest(run.Pose(f))).ToList();
+        Assert.Equal(2, heights.Count(h => h > 0.01f));
+        Assert.All(heights, h => Assert.InRange(h, -0.001f, 0.12f));
         var jump = ReferenceLibrary.Find("jump")!;
         Assert.True(Lowest(jump.Pose(4)) > 0.2f, "the jump's top is well off the ground");
         // The relaxed standing figure is one body height tall: head top near 1.
@@ -339,5 +344,132 @@ public sealed class ReferenceLibraryTests
         var conformer = new PaletteConformer(palette.Colors);
         foreach (var cel in Cells(doc, layer).OfType<Cel>().Distinct())
             Assert.All(cel.Image.Pixels.Where(p => p != 0), p => Assert.True(conformer.ExactIndex(p) >= 0));
+    }
+
+    // ================================================================== natural motion (the refinement after Mission 014)
+
+    private static List<Part> Parts(ReferenceCycle c, int f) => Mannequin.Build(c.Pose(f));
+
+    /// <summary>A foot's heel and toe (centres) and whether each rests on the ground.</summary>
+    private static (System.Numerics.Vector3 Heel, bool HeelDown, System.Numerics.Vector3 Toe, bool ToeDown) Foot(ReferenceCycle c, int f, PartPaint side)
+    {
+        var foot = Parts(c, f).Where(p => p.Paint == side && p.Kind == PartKind.Capsule).ElementAt(2);
+        return (foot.A, foot.A.Y - foot.RadiusA < 0.004f, foot.B, foot.B.Y - foot.RadiusB < 0.004f);
+    }
+
+    /// <summary>How far the part of a foot that is on the ground in both drawings moved between them (null: it wasn't).</summary>
+    private static System.Numerics.Vector3? Slide(ReferenceCycle c, int a, int b, PartPaint side)
+    {
+        var x = Foot(c, a, side);
+        var y = Foot(c, b, side);
+        return x.HeelDown && y.HeelDown ? y.Heel - x.Heel : x.ToeDown && y.ToeDown ? y.Toe - x.Toe : null;
+    }
+
+    [Fact]
+    public void Planted_feet_stay_exactly_where_they_are_in_every_cycle_that_does_not_step()
+    {
+        foreach (var id in new[] { "idle", "attack-slash", "attack-thrust", "hurt", "cast", "shoot", "pick-up", "drop", "sit-down", "stand-up", "hammer", "dig", "land", "jump", "death" })
+        {
+            var c = ReferenceLibrary.Find(id)!;
+            int checkedSteps = 0;
+            for (int f = 0; f + 1 < c.Frames || c.Loop && f < c.Frames; f++)
+                foreach (var side in new[] { PartPaint.Right, PartPaint.Left })
+                    if (Slide(c, f, (f + 1) % c.Frames, side) is { } d)
+                    {
+                        checkedSteps++;
+                        // Under a pixel for a figure 170 pixels tall, even as a heel rises or settles.
+                        Assert.True(Math.Abs(d.Z) < 0.004f && Math.Abs(d.Y) < 0.004f, $"{id}: the {side} foot slides {d} between drawings {f} and {f + 1}");
+                    }
+            Assert.True(checkedSteps >= 2, $"{id} has planted feet to check");
+        }
+    }
+
+    [Fact]
+    public void Stepping_cycles_move_a_planted_foot_at_one_steady_speed_so_they_can_be_moved_along_without_skating()
+    {
+        foreach (var (id, backwards) in new[] { ("walk", false), ("run", false), ("sneak", false), ("push", false), ("pull", true) })
+        {
+            var c = ReferenceLibrary.Find(id)!;
+            var steps = new List<float>();
+            for (int f = 0; f < c.Frames; f++)
+                foreach (var side in new[] { PartPaint.Right, PartPaint.Left })
+                    if (Slide(c, f, (f + 1) % c.Frames, side) is { } d)
+                        steps.Add(d.Z);
+            Assert.True(steps.Count >= 4, $"{id}: feet on the ground between drawings");
+            Assert.All(steps, z => Assert.True(backwards ? z > 0 : z < 0, $"{id}: the planted foot moves {(backwards ? "forward" : "back")}"));
+            Assert.True(steps.Max() - steps.Min() < 0.004f, $"{id}: planted-foot speed varies {steps.Min():0.000}…{steps.Max():0.000}");
+        }
+    }
+
+    [Fact]
+    public void Death_collapses_onto_the_knees_and_ends_lying_on_the_ground_not_propped_up()
+    {
+        var death = ReferenceLibrary.Find("death")!;
+        Assert.False(death.Loop);
+        static float Bottom(Part p) => Math.Min(p.A.Y - p.RadiusA, p.B.Y - p.RadiusB);
+        float Pelvis(int f) => Parts(death, f).First(p => p.Paint == PartPaint.Body).A.Y;
+        // The pelvis falls faster and faster until the knees land (gravity), and stays down from there on.
+        double d1 = Pelvis(1) - Pelvis(2), d2 = Pelvis(2) - Pelvis(3);
+        Assert.True(d2 > d1 * 2, $"the drop speeds up ({d1:0.000} then {d2:0.000})");
+        // Kneeling: both shins on the ground (the leg capsules come first: right thigh, shin, foot, then the left's).
+        var kneeling = Parts(death, 3).Where(p => p.Kind == PartKind.Capsule && p.Paint is PartPaint.Right or PartPaint.Left).ToList();
+        Assert.True(Bottom(kneeling[1]) < 0.012f && Bottom(kneeling[4]) < 0.012f, "kneeling: both shins on the ground");
+        // At rest: head, chest, hips, legs and arms all on (or within a hair of) the ground.
+        var rest = Parts(death, death.Frames - 1).Skip(1).Where(p => p.Paint is PartPaint.Body or PartPaint.Left or PartPaint.Right).ToList();
+        Assert.All(rest, p => Assert.True(Bottom(p) < 0.07f, $"a part floats {Bottom(p):0.000} above the ground at rest"));
+        Assert.True(rest.Count(p => Bottom(p) < 0.004f) >= 3, "the body rests on the ground");
+        Assert.True(Pelvis(death.Frames - 1) < 0.1f, "lying down");
+    }
+
+    [Fact]
+    public void Hands_hold_what_they_hold_the_crate_face_and_the_ladder_rungs()
+    {
+        foreach (var id in new[] { "push", "pull" })
+        {
+            var c = ReferenceLibrary.Find(id)!;
+            for (int f = 0; f < c.Frames; f++)
+            {
+                var parts = Parts(c, f);
+                var crate = parts.First(p => p.Kind == PartKind.Box);
+                foreach (var side in new[] { PartPaint.Right, PartPaint.Left })
+                {
+                    var hand = parts.First(p => p.Kind == PartKind.Ball && p.Paint == side);
+                    float nearFace = crate.A.Z - crate.RadiusA;
+                    Assert.InRange(nearFace - (hand.A.Z + hand.RadiusA), -0.01f, 0.01f); // touching the crate's near face
+                    Assert.InRange(hand.A.Y, crate.A.Y, crate.A.Y + crate.RadiusA);       // on its upper half
+                }
+            }
+        }
+        var climb = ReferenceLibrary.Find("climb")!;
+        for (int f = 0; f < climb.Frames; f++)
+        {
+            var parts = Parts(climb, f);
+            var hands = parts.Where(p => p.Kind == PartKind.Ball && p.Paint is PartPaint.Right or PartPaint.Left).ToList();
+            Assert.Contains(hands, h => Math.Abs(h.A.Z - 0.19f) < 0.01f); // at least one hand on the ladder at all times
+            var feet = parts.Where(p => p.Kind == PartKind.Capsule && p.Paint is PartPaint.Right or PartPaint.Left).Where((_, i) => i % 5 == 2).ToList();
+            Assert.Contains(feet, foot => foot.B.Z > 0.15f); // and a foot reaching the rungs
+        }
+    }
+
+    [Fact]
+    public void The_pose_solver_puts_feet_and_hands_exactly_where_asked()
+    {
+        var pose = PoseSolver.Plant(new Pose { Lean = 10, Twist = 8 }, 0.48, new FootAt(0.12, 0, -10, 0.1), new FootAt(-0.1, 0.03, 20, -0.12));
+        pose = PoseSolver.Reach(pose, 0.48, new System.Numerics.Vector3(0.05f, 0.5f, 0.25f), new System.Numerics.Vector3(-0.15f, 0.7f, 0.1f));
+        var j = PoseSolver.At(pose, 0.48);
+        var (rz, ry) = PoseSolver.AnkleFor(new FootAt(0.12, 0, -10));
+        var (lz, ly) = PoseSolver.AnkleFor(new FootAt(-0.1, 0.03, 20));
+        Assert.Equal(rz, j.AnkleR.Z, 3);
+        Assert.Equal(ry, j.AnkleR.Y, 3);
+        Assert.Equal(0.1, j.AnkleR.X, 3);
+        Assert.Equal(lz, j.AnkleL.Z, 3);
+        Assert.Equal(ly, j.AnkleL.Y, 3);
+        Assert.Equal(-0.12, j.AnkleL.X, 3);
+        Assert.True(System.Numerics.Vector3.Distance(j.HandR, new(0.05f, 0.5f, 0.25f)) < 0.002f);
+        Assert.True(System.Numerics.Vector3.Distance(j.HandL, new(-0.15f, 0.7f, 0.1f)) < 0.002f);
+        // Grounded, the planted (flat) right foot is what touches the ground.
+        var parts = Mannequin.Build(pose);
+        var heel = parts.Where(p => p.Paint == PartPaint.Right && p.Kind == PartKind.Capsule).ElementAt(2);
+        Assert.InRange(heel.A.Y - heel.RadiusA, -0.001f, 0.001f);
     }
 }
