@@ -19,15 +19,23 @@ public sealed class ReferenceLibraryTests
     public void The_library_has_the_starter_cycles_with_practical_frame_counts()
     {
         var c = ReferenceLibrary.Cycles;
-        Assert.Equal(22, c.Count);
+        Assert.Equal(35, c.Count);
         Assert.Equal(c.Count, c.Select(x => x.Id).Distinct().Count());
         Assert.Equal(c.Count, c.Select(x => x.Name).Distinct().Count());
-        Assert.Equal(["Idle", "Walk", "Run", "Sneak", "Jump", "Fall", "Land"], c.Where(x => x.Category == ReferenceLibrary.Movement).Select(x => x.Name));
+        Assert.Equal([ReferenceLibrary.Movement, ReferenceLibrary.Combat, ReferenceLibrary.Interaction, ReferenceLibrary.Emotion, ReferenceLibrary.Transitions], ReferenceLibrary.Categories);
+        Assert.Equal(["Idle", "Walk", "Run", "Sneak", "Jump", "Fall", "Land", "Carry heavy", "Limp walk", "Stumble"], c.Where(x => x.Category == ReferenceLibrary.Movement).Select(x => x.Name));
         Assert.Equal(["Attack (slash)", "Attack (thrust)", "Hurt", "Death", "Cast", "Shoot"], c.Where(x => x.Category == ReferenceLibrary.Combat).Select(x => x.Name));
         Assert.Equal(["Pick up", "Drop", "Push", "Pull", "Climb", "Sit down", "Stand up", "Hammer", "Dig"], c.Where(x => x.Category == ReferenceLibrary.Interaction).Select(x => x.Name));
+        Assert.Equal(["Fear / startle", "Hesitation", "Sadness / crying", "Laughing", "Exhausted idle"], c.Where(x => x.Category == ReferenceLibrary.Emotion).Select(x => x.Name));
+        Assert.Equal(["Idle → walk", "Walk → run", "Run → stop", "Stand → crouch", "Turn 180°"], c.Where(x => x.Category == ReferenceLibrary.Transitions).Select(x => x.Name));
+        Assert.All(c, x => Assert.Contains(x.Category, ReferenceLibrary.Categories));
+        // Loops loop; actions and transitions play once.
+        Assert.All(["carry-heavy", "limp", "sad", "laugh", "exhausted", "pull", "push"], id => Assert.True(ReferenceLibrary.Find(id)!.Loop, id));
+        Assert.All(["stumble", "startle", "hesitate", "idle-to-walk", "walk-to-run", "run-to-stop", "stand-to-crouch", "turn-180"], id => Assert.False(ReferenceLibrary.Find(id)!.Loop, id));
         Assert.All(c, x =>
         {
-            Assert.InRange(x.Frames, 4, 8);
+            Assert.InRange(x.Frames, 4, 12);
+            Assert.True(x.Description.Length < 260, $"{x.Id}: one or two sentences");
             Assert.InRange(x.Fps, 8, 12);
             Assert.False(string.IsNullOrWhiteSpace(x.Description));
             Assert.Contains(ReferenceView.Side, x.Views);
@@ -73,7 +81,8 @@ public sealed class ReferenceLibraryTests
     {
         static float Lowest(Pose p) => Mannequin.Build(p).Where(x => x.Paint is PartPaint.Body or PartPaint.Left or PartPaint.Right)
             .Min(x => Math.Min(x.A.Y - x.RadiusA, x.B.Y - x.RadiusB));
-        foreach (var id in new[] { "idle", "walk", "sneak", "push", "pull", "sit-down", "death", "pick-up", "hurt", "attack-slash", "dig" })
+        foreach (var id in new[] { "idle", "walk", "sneak", "push", "pull", "sit-down", "death", "pick-up", "hurt", "attack-slash", "dig",
+                     "carry-heavy", "limp", "stumble", "startle", "hesitate", "sad", "laugh", "exhausted", "idle-to-walk", "run-to-stop", "stand-to-crouch", "turn-180" })
         {
             var c = ReferenceLibrary.Find(id)!;
             for (int f = 0; f < c.Frames; f++) Assert.InRange(Lowest(c.Pose(f)), -0.001f, 0.001f);
@@ -368,7 +377,8 @@ public sealed class ReferenceLibraryTests
     [Fact]
     public void Planted_feet_stay_exactly_where_they_are_in_every_cycle_that_does_not_step()
     {
-        foreach (var id in new[] { "idle", "attack-slash", "attack-thrust", "hurt", "cast", "shoot", "pick-up", "drop", "sit-down", "stand-up", "hammer", "dig", "land", "jump", "death" })
+        foreach (var id in new[] { "idle", "attack-slash", "attack-thrust", "hurt", "cast", "shoot", "pick-up", "drop", "sit-down", "stand-up", "hammer", "dig", "land", "jump", "death",
+                     "pull", "startle", "hesitate", "sad", "laugh", "exhausted", "stand-to-crouch" })
         {
             var c = ReferenceLibrary.Find(id)!;
             int checkedSteps = 0;
@@ -387,7 +397,7 @@ public sealed class ReferenceLibraryTests
     [Fact]
     public void Stepping_cycles_move_a_planted_foot_at_one_steady_speed_so_they_can_be_moved_along_without_skating()
     {
-        foreach (var (id, backwards) in new[] { ("walk", false), ("run", false), ("sneak", false), ("push", false), ("pull", true) })
+        foreach (var (id, backwards) in new[] { ("walk", false), ("run", false), ("sneak", false), ("push", false), ("carry-heavy", false), ("limp", false) })
         {
             var c = ReferenceLibrary.Find(id)!;
             var steps = new List<float>();
@@ -424,7 +434,7 @@ public sealed class ReferenceLibraryTests
     [Fact]
     public void Hands_hold_what_they_hold_the_crate_face_and_the_ladder_rungs()
     {
-        foreach (var id in new[] { "push", "pull" })
+        foreach (var id in new[] { "push" })
         {
             var c = ReferenceLibrary.Find(id)!;
             for (int f = 0; f < c.Frames; f++)
@@ -471,5 +481,133 @@ public sealed class ReferenceLibraryTests
         var parts = Mannequin.Build(pose);
         var heel = parts.Where(p => p.Paint == PartPaint.Right && p.Kind == PartKind.Capsule).ElementAt(2);
         Assert.InRange(heel.A.Y - heel.RadiusA, -0.001f, 0.001f);
+    }
+
+    // ================================================================== expansion pack 1
+
+    /// <summary>Joint positions of a drawing, for comparing drawings made different ways.</summary>
+    private static List<System.Numerics.Vector3> Shape(Pose p) => Mannequin.Build(p).SelectMany(x => new[] { x.A, x.B }).ToList();
+
+    private static void AssertSameDrawing(Pose expected, Pose actual, string what)
+    {
+        var a = Shape(expected);
+        var b = Shape(actual);
+        Assert.Equal(a.Count, b.Count);
+        for (int i = 0; i < a.Count; i++)
+            Assert.True(System.Numerics.Vector3.Distance(a[i], b[i]) < 2e-3f, $"{what}: point {i} is {a[i]} vs {b[i]}");
+    }
+
+    [Fact]
+    public void Transitions_start_and_end_exactly_on_the_drawings_of_the_cycles_they_join()
+    {
+        Pose P(string id, int f) => ReferenceLibrary.Find(id)!.Pose(f);
+        var idleToWalk = ReferenceLibrary.Find("idle-to-walk")!;
+        AssertSameDrawing(P("idle", 0), P("idle-to-walk", 0), "idle → walk starts on Idle");
+        AssertSameDrawing(P("walk", 7), P("idle-to-walk", idleToWalk.Frames - 1), "idle → walk ends just before Walk's first drawing");
+        var walkToRun = ReferenceLibrary.Find("walk-to-run")!;
+        AssertSameDrawing(P("walk", 0), P("walk-to-run", 0), "walk → run starts on Walk");
+        AssertSameDrawing(P("run", 7), P("walk-to-run", walkToRun.Frames - 1), "walk → run ends on Run's last drawing");
+        AssertSameDrawing(P("run", 0), P("run-to-stop", 0), "run → stop starts on Run");
+        AssertSameDrawing(P("walk", 0), P("stumble", 0), "the stumble starts mid-walk");
+    }
+
+    [Fact]
+    public void In_travelling_sequences_planted_feet_move_with_the_ground_never_forward_and_both_at_once()
+    {
+        foreach (var id in new[] { "idle-to-walk", "walk-to-run", "run-to-stop", "stumble" })
+        {
+            var c = ReferenceLibrary.Find(id)!;
+            for (int f = 0; f + 1 < c.Frames; f++)
+            {
+                var moves = new[] { PartPaint.Right, PartPaint.Left }.Select(side => Slide(c, f, f + 1, side)).OfType<System.Numerics.Vector3>().ToList();
+                // A caught toe may scrape forward a little in the stumble; otherwise a planted foot only goes back with the ground.
+                Assert.All(moves, d => Assert.True(d.Z < (id == "stumble" ? 0.09f : 0.002f), $"{id} {f}>{f + 1}: a planted foot moves forward {d.Z:0.000}"));
+                if (moves.Count == 2 && id != "stumble")
+                    Assert.True(Math.Abs(moves[0].Z - moves[1].Z) < 0.004f, $"{id} {f}>{f + 1}: both planted feet move with the same ground");
+            }
+        }
+        // The stop really stops: the ground slows to nothing.
+        var stop = ReferenceLibrary.Find("run-to-stop")!;
+        var last = Slide(stop, stop.Frames - 2, stop.Frames - 1, PartPaint.Left)!.Value;
+        var early = Slide(stop, 0, 1, PartPaint.Right)!.Value;
+        Assert.True(Math.Abs(last.Z) < Math.Abs(early.Z) / 5, "decelerates");
+    }
+
+    [Fact]
+    public void Turn_180_ends_facing_back_and_turns_head_first()
+    {
+        var turn = ReferenceLibrary.Find("turn-180")!;
+        Assert.Equal(180, turn.Pose(turn.Frames - 1).Turn, 6);
+        Assert.Equal(0, turn.Pose(0).Turn, 6);
+        // The face points back at the end (the nose behind the head's centre).
+        var end = Mannequin.Build(turn.Pose(turn.Frames - 1));
+        var head = end.First(p => p.Kind == PartKind.Ball && p.Paint == PartPaint.Body).A;
+        var nose = end.First(p => p.Paint == PartPaint.Face).A;
+        Assert.True(nose.Z < head.Z - 0.05f);
+        // The head leads: in the first drawings it is turned further than the hips.
+        var early = turn.Pose(1);
+        Assert.True(early.HeadYaw + early.Twist > 30 && early.Turn < 1);
+        // Both feet end on the ground, the body facing the other way.
+        Assert.InRange(Lowest(turn.Pose(turn.Frames - 1)), -0.001f, 0.001f);
+    }
+
+    private static float Lowest(Pose p) => Mannequin.Build(p).Where(x => x.Paint is PartPaint.Body or PartPaint.Left or PartPaint.Right)
+        .Min(x => Math.Min(x.A.Y - x.RadiusA, x.B.Y - x.RadiusB));
+
+    [Fact]
+    public void Pull_leans_back_against_the_rope_with_braced_feet()
+    {
+        var pull = ReferenceLibrary.Find("pull")!;
+        for (int f = 0; f < pull.Frames; f++)
+        {
+            var parts = Mannequin.Build(pull.Pose(f));
+            var pelvis = parts.First(p => p.Paint == PartPaint.Body).A;
+            var head = parts.First(p => p.Kind == PartKind.Ball && p.Paint == PartPaint.Body).A;
+            Assert.True(head.Z < pelvis.Z - 0.05f, "leaning back");
+            var rope = parts.Where(p => p.Paint == PartPaint.Wood).ToList();
+            Assert.NotEmpty(rope);
+            Assert.True(rope.Max(p => Math.Max(p.A.Z, p.B.Z)) > pelvis.Z + 0.6f, "the rope runs on ahead");
+            Assert.True(pull.Pose(f).ToeR < 0 || pull.Pose(f).LegR.Swing > 0, "front heel dug in");
+        }
+    }
+
+    [Fact]
+    public void Every_new_reference_goes_into_a_started_scene_without_touching_it_and_saves_and_reopens()
+    {
+        foreach (var id in new[] { "carry-heavy", "limp", "stumble", "pull", "startle", "hesitate", "sad", "laugh", "exhausted",
+                     "idle-to-walk", "walk-to-run", "run-to-stop", "stand-to-crouch", "turn-180" })
+        {
+            var cycle = ReferenceLibrary.Find(id)!;
+            var (doc, bg, character) = Scene();
+            var charBefore = Cells(doc, character);
+            var bgBefore = Cells(doc, bg);
+            int undo = doc.History.UndoCount;
+            var settings = new ReferenceCycleSettings(id, ReferenceView.Side, ReferenceFacing.Right, 120, 160, 210, 0, 1, cycle.Loop, true);
+            var layer = ReferenceInsert.Insert(doc, settings, below: character);
+            Assert.True(layer.Locked && layer.Visible, id);
+            Assert.Equal(id, layer.ReferenceCycle!.CycleId);
+            Assert.Same(character, doc.ActiveLayer);
+            Assert.Equal(bgBefore, Cells(doc, bg).Take(bgBefore.Count));
+            Assert.Equal(charBefore, Cells(doc, character).Take(charBefore.Count));
+            Assert.Equal(undo + 1, doc.History.UndoCount);
+            Assert.True(Cells(doc, layer).Count(x => x is not null) >= cycle.Frames, $"{id}: every drawing is there");
+            if (id is "turn-180" or "carry-heavy")
+            {
+                var path = Path.Combine(Path.GetTempPath(), $"dn-ref-{Guid.NewGuid():N}.dnk");
+                try
+                {
+                    DnkFile.Save(doc, path);
+                    var back = DnkFile.Load(path);
+                    var l = back.Layers[1];
+                    Assert.Equal(settings.Normalized(), l.ReferenceCycle);
+                    for (int f = 0; f < doc.FrameCount; f++)
+                        Assert.Equal(doc.CelAt(layer, f)?.Image.Pixels, back.CelAt(l, f)?.Image.Pixels);
+                }
+                finally
+                {
+                    File.Delete(path);
+                }
+            }
+        }
     }
 }

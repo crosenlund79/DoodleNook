@@ -15,6 +15,10 @@ public enum PropKind
     Crate,
     Stool,
     Ladder,
+    /// <summary>A heavy box carried in both hands (bigger than <see cref="Box"/>).</summary>
+    Load,
+    /// <summary>A rope held in both hands, running forward from the front hand.</summary>
+    Rope,
 }
 
 /// <summary>
@@ -49,6 +53,8 @@ public sealed record Pose
     public double HeadPitch { get; init; }
     public double HeadYaw { get; init; }
 
+    /// <summary>The whole body turned about the vertical (+ to its right), around the anchor: for turning on the spot.</summary>
+    public double Turn { get; init; }
     /// <summary>The whole body tipped forward (+) or back (−) around the feet (falling over).</summary>
     public double BodyPitch { get; init; }
     /// <summary>The whole body tipped to its right (+) or left (−).</summary>
@@ -87,6 +93,7 @@ public sealed record Pose
             Tilt = L(a.Tilt, b.Tilt),
             HeadPitch = L(a.HeadPitch, b.HeadPitch),
             HeadYaw = L(a.HeadYaw, b.HeadYaw),
+            Turn = L(a.Turn, b.Turn),
             BodyPitch = L(a.BodyPitch, b.BodyPitch),
             BodyRoll = L(a.BodyRoll, b.BodyRoll),
             Forward = L(a.Forward, b.Forward),
@@ -200,7 +207,7 @@ public static class Mannequin
     {
         var parts = new List<Part>();
         // The whole body, tipped around the feet.
-        var body = Frame.Identity.Rotate(X, pose.BodyPitch).Rotate(Z, -pose.BodyRoll);
+        var body = (pose.Turn == 0 ? Frame.Identity : Frame.Identity.Rotate(Y, pose.Turn)).Rotate(X, pose.BodyPitch).Rotate(Z, -pose.BodyRoll);
         var pelvis = body.Apply(new Vector3((float)pose.Sideways, PelvisHeight, (float)pose.Forward));
         var hips = body.Rotate(Y, -pose.Twist * 0.3);
         var chestFrame = body.Rotate(Y, pose.Twist).Rotate(X, pose.Lean).Rotate(Z, -pose.Tilt);
@@ -330,6 +337,22 @@ public static class Mannequin
             {
                 var at = pelvis with { Y = 0.12f } + hips.Apply(new Vector3(0, 0, -0.06f));
                 parts.Add(new Part(PartKind.Box, at, at, 0.12f, 0.12f, PartPaint.Wood));
+                break;
+            }
+            case PropKind.Load:
+            {
+                // Held between the hands, against the front of the body.
+                var at = (handR + handL) / 2 + hips.Apply(new Vector3(0, 0, 0.01f));
+                parts.Add(new Part(PartKind.Box, at, at, 0.12f, 0.12f, PartPaint.Wood));
+                break;
+            }
+            case PropKind.Rope:
+            {
+                // Through both hands, then straight on forward to whatever is being pulled, with a short tail behind.
+                var forward = hips.Apply(Z);
+                var (rear, front) = Vector3.Dot(handL - handR, forward) >= 0 ? (handR, handL) : (handL, handR);
+                parts.Add(new Part(PartKind.Capsule, rear - forward * 0.12f, front, 0.012f, 0.012f, PartPaint.Wood));
+                parts.Add(new Part(PartKind.Capsule, front, front + forward * 0.75f, 0.012f, 0.012f, PartPaint.Wood));
                 break;
             }
             case PropKind.Ladder:

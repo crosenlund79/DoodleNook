@@ -7,9 +7,11 @@ namespace DoodleNook.Engine.References;
 /// when the foot is flat, <see cref="Lift"/> the sole's height above the ground, and <see cref="Pitch"/> the foot's angle
 /// in degrees: positive raises the heel (the foot pivots on its ball, which stays where it was), negative raises the
 /// toes (the foot pivots on its heel). So a planted foot that rolls from heel to toe keeps its contact point still.
-/// <see cref="X"/>, when given, is the ankle's sideways position (to the body's right); otherwise the leg keeps its spread.
+/// <see cref="X"/>, when given, is the ankle's sideways position (to the body's right) and <see cref="Yaw"/> the way the
+/// foot points (degrees, + toes turned to the body's right); otherwise the leg keeps its spread. All in the body's own
+/// frame (see <see cref="Pose.Turn"/>).
 /// </summary>
-internal readonly record struct FootAt(double Z, double Lift = 0, double Pitch = 0, double? X = null);
+internal readonly record struct FootAt(double Z, double Lift = 0, double Pitch = 0, double? X = null, double Yaw = 0);
 
 /// <summary>
 /// Places limbs by where their ends should be rather than by joint angles, so a planted foot stays exactly where it was
@@ -28,6 +30,9 @@ internal static class PoseSolver
     private static readonly (Vector2 Heel, float HeelR, Vector2 Toe, float ToeR) FootShape = MeasureFoot();
 
     private static readonly double RestPitch = PitchOf(FootShape.Heel, FootShape.Toe);
+
+    /// <summary>How far in front of the ankle the ball of a flat foot is (a foot pivots there).</summary>
+    internal static double BallForward => FootShape.Toe.X;
 
     /// <summary>The pelvis standing in the relaxed pose (about 0.54 body heights).</summary>
     private static double StandingHeight => RawPelvis + StandingLift;
@@ -55,9 +60,25 @@ internal static class PoseSolver
             hr.A, hl.A, r[2].RadiusA, r[2].RadiusB);
     }
 
-    /// <summary>The pose's joints with its pelvis at <paramref name="height"/> (for an upright body).</summary>
-    internal static Joints At(Pose pose, double height) =>
-        Measure(Mannequin.Build(pose with { Airborne = true, Rise = height - RawPelvis - StandingLift }));
+    /// <summary>The pose's joints with its pelvis at <paramref name="height"/> (for an upright body), in the body's own
+    /// frame: a body turned with <see cref="Pose.Turn"/> is measured as if it faced forward.</summary>
+    internal static Joints At(Pose pose, double height)
+    {
+        var j = Measure(Mannequin.Build(pose with { Airborne = true, Rise = height - RawPelvis - StandingLift }));
+        if (pose.Turn == 0) return j;
+        var back = Quaternion.Conjugate(TurnOf(pose));
+        Vector3 U(Vector3 v) => Vector3.Transform(v, back);
+        return j with
+        {
+            Pelvis = U(j.Pelvis), Head = U(j.Head),
+            HipR = U(j.HipR), KneeR = U(j.KneeR), AnkleR = U(j.AnkleR), HeelR = U(j.HeelR), ToeR = U(j.ToeR),
+            HipL = U(j.HipL), KneeL = U(j.KneeL), AnkleL = U(j.AnkleL), HeelL = U(j.HeelL), ToeL = U(j.ToeL),
+            HandR = U(j.HandR), HandL = U(j.HandL),
+        };
+    }
+
+    /// <summary>The whole-body turn as a rotation (as the mannequin applies it).</summary>
+    private static Quaternion TurnOf(Pose pose) => Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(pose.Turn * Math.PI / 180));
 
     /// <summary>The pose lifted so its pelvis is <paramref name="height"/> above the ground (feet off the ground).</summary>
     public static Pose Fly(Pose pose, double height) => pose with { Airborne = true, Rise = height - RawPelvis - StandingLift };
@@ -72,10 +93,21 @@ internal static class PoseSolver
     /// <summary>How far the toes point down past the heel, in degrees (z forward, y up).</summary>
     private static double PitchOf(Vector2 heel, Vector2 toe) => Math.Atan2(-(toe.Y - heel.Y), toe.X - heel.X) * 180 / Math.PI;
 
+    /// <summary>The same for a foot pointing any way along the ground.</summary>
+    private static double PitchOf(Vector3 heel, Vector3 toe) =>
+        Math.Atan2(-(toe.Y - heel.Y), Math.Sqrt((toe.X - heel.X) * (toe.X - heel.X) + (toe.Z - heel.Z) * (toe.Z - heel.Z))) * 180 / Math.PI;
+
     // ------------------------------------------------------------------ feet
 
     /// <summary>The ankle position (forward, up) that puts a foot where <paramref name="f"/> says.</summary>
     internal static (double Z, double Y) AnkleFor(FootAt f)
+    {
+        var (z, y) = AnkleStraight(f);
+        return f.Yaw == 0 ? (z, y) : (f.Z + (z - f.Z) * Math.Cos(f.Yaw * Math.PI / 180), y);
+    }
+
+    /// <summary>The ankle of a foot pointing straight ahead: pitched about its ball (or heel), which stays put.</summary>
+    private static (double Z, double Y) AnkleStraight(FootAt f)
     {
         double b = f.Pitch * Math.PI / 180, c = Math.Cos(b), s = Math.Sin(b);
         // Turning the foot by its pitch about the ankle (toes down for a positive pitch).
@@ -86,6 +118,9 @@ internal static class PoseSolver
         double z = f.Pitch >= 0 ? f.Z + FootShape.Toe.X - toe.X : f.Z + FootShape.Heel.X - heel.X;
         return (z, f.Lift - bottom);
     }
+
+    /// <summary>How far a pitched foot's ankle moves along the foot (its ball or heel stays put).</summary>
+    private static double Along(FootAt f) => AnkleStraight(f).Z - f.Z;
 
     /// <summary>
     /// The pose with both legs placed: the pelvis <paramref name="height"/> above the ground (and at the pose's
@@ -103,14 +138,15 @@ internal static class PoseSolver
     private static Pose SolveLeg(Pose pose, double height, int side, FootAt foot)
     {
         var p = SolveLegInPlane(pose, height, side, foot);
-        if (foot.X is not { } x) return p;
+        if (foot.X is not { } x0) return p;
+        double x = foot.Yaw == 0 ? x0 : x0 + Along(foot) * Math.Sin(foot.Yaw * Math.PI / 180);
         // Sideways: the leg's spread and twist together keep the ankle at x and the foot pointing straight ahead, so a
         // planted foot neither slides nor turns as the knee bends (in a deep squat the knees go out over the toes).
         (double X, double Yaw) Error(Pose q)
         {
             var j = At(q, height);
             var (ankle, heel, toe) = side > 0 ? (j.AnkleR, j.HeelR, j.ToeR) : (j.AnkleL, j.HeelL, j.ToeL);
-            return (x - ankle.X, Math.Atan2(toe.X - heel.X, toe.Z - heel.Z) * 180 / Math.PI);
+            return (x - ankle.X, Math.Atan2(toe.X - heel.X, toe.Z - heel.Z) * 180 / Math.PI - foot.Yaw);
         }
         Pose Adjust(Pose q, double spread, double twist) => SolveLegInPlane(side > 0
             ? q with { LegR = q.LegR with { Spread = q.LegR.Spread + spread, Twist = q.LegR.Twist + twist } }
@@ -146,7 +182,8 @@ internal static class PoseSolver
             var ankle = side > 0 ? j.AnkleR : j.AnkleL;
             var heel = side > 0 ? j.HeelR : j.HeelL;
             var toes = side > 0 ? j.ToeR : j.ToeL;
-            double pitch = PitchOf(new Vector2(heel.Z, heel.Y), new Vector2(toes.Z, toes.Y));
+            // Straight-ahead feet measure their pitch in the side plane (as the library always has); turned feet along themselves.
+            double pitch = foot.Yaw == 0 ? PitchOf(new Vector2(heel.Z, heel.Y), new Vector2(toes.Z, toes.Y)) : PitchOf(heel, toes);
             return new Vector3((float)(ankle.Z - tz), (float)(ankle.Y - ty), (float)((pitch - targetPitch) / 100));
         }
 
@@ -185,8 +222,10 @@ internal static class PoseSolver
     /// arm's swing, spread, bend and twist are read back from that elbow and hand in the chest's frame, exactly as the
     /// mannequin builds an arm. A target out of reach gets the arm pointing straight at it.
     /// </summary>
-    private static Pose SolveArm(Pose pose, double height, int side, Vector3 target, Vector3? elbowHint)
+    private static Pose SolveArm(Pose pose, double height, int side, Vector3 targetInBody, Vector3? elbowHint)
     {
+        var turn = TurnOf(pose);
+        var target = pose.Turn == 0 ? targetInBody : Vector3.Transform(targetInBody, turn);
         var parts = Mannequin.Build(pose with { Airborne = true, Rise = height - RawPelvis - StandingLift });
         var body = parts.Where(q => q.Paint == PartPaint.Body).ToList();
         var paint = side > 0 ? PartPaint.Right : PartPaint.Left;
@@ -229,8 +268,9 @@ internal static class PoseSolver
             Twist = bend > 2 ? -phi * 180 / Math.PI * side : (side > 0 ? pose.ArmR : pose.ArmL).Twist,
         };
         var solved = side > 0 ? pose with { ArmR = limb } : pose with { ArmL = limb };
-        var miss = (side > 0 ? At(solved, height).HandR : At(solved, height).HandL) - hand;
-        return miss.Length() < 1e-3f ? solved : RefineArm(solved, height, side, hand);
+        var handInBody = pose.Turn == 0 ? hand : Vector3.Transform(hand, Quaternion.Conjugate(turn));
+        var miss = (side > 0 ? At(solved, height).HandR : At(solved, height).HandL) - handInBody;
+        return miss.Length() < 1e-3f ? solved : RefineArm(solved, height, side, handInBody);
     }
 
     /// <summary>Rotates a frame's three axes by <paramref name="radians"/> about <paramref name="axis"/> (right-handed).</summary>

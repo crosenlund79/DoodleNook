@@ -28,10 +28,10 @@ public sealed record ReferenceCycle(string Id, string Name, string Category, int
 /// a speed and a category. Every cycle is drawn by the same mannequin, so each one works in every view by itself.
 /// </para>
 /// </summary>
-public static class ReferenceLibrary
+public static partial class ReferenceLibrary
 {
-    public const string Movement = "Movement", Combat = "Combat", Interaction = "Interaction";
-    public static readonly IReadOnlyList<string> Categories = [Movement, Combat, Interaction];
+    public const string Movement = "Movement", Combat = "Combat", Interaction = "Interaction", Emotion = "Emotion", Transitions = "Transitions";
+    public static readonly IReadOnlyList<string> Categories = [Movement, Combat, Interaction, Emotion, Transitions];
 
     public static readonly IReadOnlyList<ReferenceCycle> Cycles = Build();
 
@@ -95,37 +95,60 @@ public static class ReferenceLibrary
         public PropKind Prop { get; init; }
         /// <summary>Hands placed on something (push, pull): the pose and pelvis height in, the pose out.</summary>
         public Func<Pose, double, Pose>? Hands { get; init; }
+
+        // An uneven gait (a limp): the left foot can land at another moment, stay down for another share of the cycle
+        // (its stance length follows, at the same ground speed) and lift and roll differently.
+        public double? LeftDuty { get; init; }
+        public double LeftAt { get; init; } = 0.5;
+        public double? LeftLift { get; init; }
+        public double? LeftStrike { get; init; }
+        public double? LeftToeOff { get; init; }
+        public double? LeftHeelOff { get; init; }
+        /// <summary>The right foot swings out to the side by this much mid-swing (a stiff leg swung around).</summary>
+        public double RightSwingOut { get; init; }
+        /// <summary>Changes the upper body for a moment of the cycle (t in 0–1).</summary>
+        public Func<double, Pose, Pose>? Shape { get; init; }
+        /// <summary>The pelvis height for a moment of the cycle, instead of the even bob.</summary>
+        public Func<double, double>? HeightAt { get; init; }
     }
 
-    private static Func<int, Pose> Steps(int frames, StepSpec g) => Cached(frames, frame =>
+    /// <summary>One moment (t in 0–1, any value) of a step cycle: the upper body, the pelvis height and both feet, before
+    /// they are placed. Transitions use it to arrive exactly at a cycle's drawing.</summary>
+    private static (Pose Upper, double Height, FootAt Right, FootAt Left) StepFrame(StepSpec g, double t)
     {
-        double t = (double)frame / frames;
-        if (g.Backwards) t = (1 - t) % 1;
         FootAt Foot(double q, int side)
         {
             q -= Math.Floor(q);
+            bool left = side < 0;
+            double duty = left ? g.LeftDuty ?? g.Duty : g.Duty;
+            double length = left && g.LeftDuty is { } ld ? g.Length * ld / g.Duty : g.Length;
+            double strike = left ? g.LeftStrike ?? g.Strike : g.Strike;
+            double toeOff = left ? g.LeftToeOff ?? g.ToeOff : g.ToeOff;
+            double heelOff = left ? g.LeftHeelOff ?? g.HeelOff : g.HeelOff;
+            double liftMax = left ? g.LeftLift ?? g.Lift : g.Lift;
             double x = side * g.Width;
-            if (q < g.Duty)
+            if (q < duty)
             {
-                double s = q / g.Duty;
-                double pitch = s < g.Flat ? g.Strike * (1 - Smooth(s / g.Flat))
-                    : s > g.HeelOff ? g.ToeOff * Math.Pow((s - g.HeelOff) / (1 - g.HeelOff), 1.6)
+                double s = q / duty;
+                double pitch = s < g.Flat ? strike * (1 - Smooth(s / g.Flat))
+                    : s > heelOff ? toeOff * Math.Pow((s - heelOff) / (1 - heelOff), 1.6)
                     : 0;
-                return new FootAt(g.Center + g.Length / 2 - g.Length * s, 0, pitch, x);
+                return new FootAt(g.Center + length / 2 - length * s, 0, pitch, x);
             }
-            double u = (q - g.Duty) / (1 - g.Duty);
+            double u = (q - duty) / (1 - duty);
             double v = Math.Clamp((u - g.TravelDelay) / (1 - g.TravelDelay), 0, 1);
             double travel = v * v * v * (v * (v * 6 - 15) + 10); // eased out of the back and into the front
             double peak = Math.Log(0.5) / Math.Log(g.LiftAt);
-            double lift = g.Lift * Math.Sin(Math.PI * Math.Pow(u, peak));
-            double swingPitch = u < 0.5 ? Lerp(g.ToeOff, g.Reach, Smooth(u / 0.5)) : Lerp(g.Reach, g.Strike, Smooth((u - 0.5) / 0.5));
-            return new FootAt(g.Center - g.Length / 2 + g.Length * travel, lift, swingPitch, x);
+            double lift = liftMax * Math.Sin(Math.PI * Math.Pow(u, peak));
+            double swingPitch = u < 0.5 ? Lerp(toeOff, g.Reach, Smooth(u / 0.5)) : Lerp(g.Reach, strike, Smooth((u - 0.5) / 0.5));
+            if (side > 0 && g.RightSwingOut != 0) x += g.RightSwingOut * Math.Sin(Math.PI * u);
+            return new FootAt(g.Center - length / 2 + length * travel, lift, swingPitch, x);
         }
         var right = Foot(t, 1);
-        var left = Foot(t + 0.5, -1);
+        var left = Foot(t - g.LeftAt, -1);
         double step = (t - g.LowAt * 0.5) / 0.5;
         double rise = 0.5 * (1 - Math.Cos(2 * Math.PI * step)); // 0 at the low point, 1 half a step later
-        double height = g.Height + g.Bob * rise;
+        double height = g.HeightAt?.Invoke(t) ?? g.Height + g.Bob * rise;
         double side = Math.Cos(2 * Math.PI * (t - g.Duty / 2));   // +1 over the right foot, −1 over the left
         double arm = Math.Cos(2 * Math.PI * (t - g.ArmLag));      // +1: right leg forward, left arm forward
         Limb Arm(double phase) => new(g.ArmForward + g.ArmSwing * phase, g.ArmSpread, g.ArmBend + g.ArmBendSwing * (phase + 1) / 2, g.ArmTwist);
@@ -143,9 +166,23 @@ public static class ReferenceLibrary
             LegL = new Limb(0, 3, 0),
             Prop = g.Prop,
         };
-        var pose = PoseSolver.Plant(upper, height, right, left);
-        if (g.Hands is { } hands) pose = hands(pose, height);
-        return right.Lift > 1e-4 && left.Lift > 1e-4 ? PoseSolver.Fly(pose, height) : pose;
+        if (g.Shape is { } shape) upper = shape(t, upper);
+        return (upper, height, right, left);
+    }
+
+    /// <summary>Plants a step-cycle moment: feet placed, hands on what they hold, airborne when both feet are up.</summary>
+    private static Pose StepPose(StepSpec g, (Pose Upper, double Height, FootAt Right, FootAt Left) m)
+    {
+        var pose = PoseSolver.Plant(m.Upper, m.Height, m.Right, m.Left);
+        if (g.Hands is { } hands) pose = hands(pose, m.Height);
+        return m.Right.Lift > 1e-4 && m.Left.Lift > 1e-4 ? PoseSolver.Fly(pose, m.Height) : pose;
+    }
+
+    private static Func<int, Pose> Steps(int frames, StepSpec g) => Cached(frames, frame =>
+    {
+        double t = (double)frame / frames;
+        if (g.Backwards) t = (1 - t) % 1;
+        return StepPose(g, StepFrame(g, t));
     });
 
     /// <summary>Both hands on the near face of the crate the body pushes or pulls, <paramref name="y"/> above the ground.
@@ -224,6 +261,21 @@ public static class ReferenceLibrary
                 HeadYaw = 80, ArmR = new(172, 34, 70, 90), ArmL = new(9, 12, 0) }, knees, 0.25),
         ];
     }
+
+    /// <summary>The walk and the run, by name, so transitions can arrive exactly at their drawings.</summary>
+    private static StepSpec WalkSpec => new()
+    {
+        Length = 0.36, Duty = 0.6, Height = 0.505, Bob = 0.03, LowAt = 0.12, Center = 0, Width = 0.06,
+        Lift = 0.06, Strike = -18, ToeOff = 35, Lean = 3, Twist = 7, ArmSwing = 20, ArmBend = 14, ArmBendSwing = 14,
+    };
+
+    private static StepSpec RunSpec => new()
+    {
+        Length = 0.32, Duty = 0.32, Height = 0.485, Bob = 0.045, LowAt = 0.22, Center = 0, Width = 0.04,
+        Lift = 0.26, LiftAt = 0.45, TravelDelay = 0.3, Strike = -8, Flat = 0.15, HeelOff = 0.35, ToeOff = 45, Reach = 20,
+        Lean = 10, LeanBob = 2, Twist = 12, Sway = 0.006, Tilt = 1, ArmSwing = 35, ArmForward = 10, ArmBend = 80,
+        ArmBendSwing = 10, HeadPitch = -6,
+    };
 
     // ================================================================== keyed drawings (feet planted)
 
@@ -478,19 +530,9 @@ public static class ReferenceLibrary
             new("idle", "Idle", Movement, 6, 8, true, "Standing and breathing, weight on one leg: a gentle loop for a character waiting.",
                 Drawings(IdlePoses)),
             new("walk", "Walk", Movement, 8, 10, true, "A relaxed walk in place: contact, down, passing and up for each leg.",
-                Steps(8, new StepSpec
-                {
-                    Length = 0.36, Duty = 0.6, Height = 0.505, Bob = 0.03, LowAt = 0.12, Center = 0, Width = 0.06,
-                    Lift = 0.06, Strike = -18, ToeOff = 35, Lean = 3, Twist = 7, ArmSwing = 20, ArmBend = 14, ArmBendSwing = 14,
-                })),
+                Steps(8, WalkSpec)),
             new("run", "Run", Movement, 8, 12, true, "A running loop in place: long strides, high knees, bent arms pumping.",
-                Steps(8, new StepSpec
-                {
-                    Length = 0.32, Duty = 0.32, Height = 0.485, Bob = 0.045, LowAt = 0.22, Center = 0, Width = 0.04,
-                    Lift = 0.26, LiftAt = 0.45, TravelDelay = 0.3, Strike = -8, Flat = 0.15, HeelOff = 0.35, ToeOff = 45, Reach = 20,
-                    Lean = 10, LeanBob = 2, Twist = 12, Sway = 0.006, Tilt = 1, ArmSwing = 35, ArmForward = 10, ArmBend = 80,
-                    ArmBendSwing = 10, HeadPitch = -6,
-                })),
+                Steps(8, RunSpec)),
             new("sneak", "Sneak", Movement, 8, 8, true, "Crouched, careful steps: weight low, each foot lifted and set down softly, toes first.",
                 Steps(8, new StepSpec
                 {
@@ -540,14 +582,8 @@ public static class ReferenceLibrary
                     ArmSwing = 0, ArmForward = 70, ArmBend = 20, ArmBendSwing = 0, HeadPitch = -28, Prop = PropKind.Crate,
                     Hands = OnCrate(0.3),
                 })),
-            new("pull", "Pull", Interaction, 8, 8, true, "Grip a crate and drag it, stepping backwards with the weight sitting back.",
-                Steps(8, new StepSpec
-                {
-                    Length = 0.26, Duty = 0.68, Height = 0.37, Bob = 0.012, LowAt = 0.12, Center = 0.12, Width = 0.1,
-                    Lift = 0.045, Strike = -6, Flat = 0.15, HeelOff = 0.55, ToeOff = 20, Lean = 12, Twist = 3, Sway = 0.012, Tilt = 1,
-                    ArmSwing = 0, ArmForward = 60, ArmBend = 10, ArmBendSwing = 0, HeadPitch = 4, Backwards = true, Prop = PropKind.Crate,
-                    Hands = OnCrate(0.32),
-                })),
+            new("pull", "Pull", Interaction, 8, 8, true, "Haul a rope hand over hand, leaning back against it with the front heel dug in: the pull comes from the legs and the body's weight.",
+                Drawings(PullPoses)),
             new("climb", "Climb", Interaction, 6, 8, true, "Climb a ladder: hands grip the rungs and feet stand on them, hand and opposite foot together.",
                 Drawings(ClimbPoses), [ReferenceView.Side, ReferenceView.ThreeQuarter]),
             new("sit-down", "Sit down", Interaction, 6, 8, false, "Lower onto a stool and settle.",
@@ -559,6 +595,7 @@ public static class ReferenceLibrary
             new("dig", "Dig", Interaction, 6, 8, true, "Dig with a shovel: push in, lever up, toss to the side, back again.",
                 Drawings(DigPoses)),
         };
+        AddExpansionPack1(cycles);
         // Reversed cycles play their source backwards.
         for (int i = 0; i < cycles.Count; i++)
             if (cycles[i].ReverseOf is not null)

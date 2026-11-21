@@ -13,12 +13,15 @@ mouse or simulated input.
 
 **Refined since:** the motion of the whole library was reviewed and made more natural (planted feet, steady
 walk speeds, a new Sneak and Death, hands on what they hold). See [NATURAL-MOTION.md](NATURAL-MOTION.md).
+**Expanded since:** 13 new references and a rebuilt Pull (carrying, limping, stumbling, emotions, transitions), 35 in
+all. See [EXPANSION-PACK-1.md](EXPANSION-PACK-1.md).
 
 ![A walk cycle inserted into an imported animation: its own locked 35 % layer under Sketch](inserted-into-a-started-animation.png)
 
 ## The library
 
-22 cycles in three categories, each in every view where it makes sense:
+22 cycles in three categories at first (Expansion Pack 1 later added 13 more in Movement, Emotion and Transitions), each
+in every view where it makes sense:
 
 | Category | Cycles (drawings) |
 |---|---|

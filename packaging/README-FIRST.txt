@@ -58,9 +58,14 @@ The Gentle Guide (new)
 
 Animation Reference Library
 ---------------------------
-* Animation › Insert reference cycle…: 22 ready-made motion guides for game animation (idle, walk, run, sneak, jump,
-  fall, land, two attacks, hurt, death, cast, shoot, pick up, drop, push, pull, climb, sit down, stand up, hammer, dig)
-  as a simple mannequin in side, top-down or three-quarter view, facing the way you need.
+* Animation › Insert reference cycle…: 35 ready-made motion guides for game animation as a simple mannequin in side,
+  top-down or three-quarter view, facing the way you need:
+  - Movement: idle, walk, run, sneak, jump, fall, land, carry heavy, limp walk, stumble.
+  - Combat: two attacks, hurt, death, cast, shoot.
+  - Interaction: pick up, drop, push, pull (a rope), climb, sit down, stand up, hammer, dig.
+  - Emotion: fear / startle, hesitation, sadness / crying, laughing, exhausted idle.
+  - Transitions: idle → walk, walk → run, run → stop, stand → crouch, turn 180°. Each starts or ends on the drawing of
+    the cycle it joins, so they chain at the same spot.
 * Drag in the preview to place the feet; choose the height, where it starts and how long each drawing lasts.
 * It is added as its own faint (35 %), locked layer just under the layer you draw on. Nothing already in the
   animation changes; if the animation is too short, frames are added at the end (other layers hold there).

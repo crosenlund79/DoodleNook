@@ -9,7 +9,7 @@ step is done, while you draw a bouncing ball, add frames, use onion skin, play, 
 [playtest guide](docs/iterations/014-the-gentle-guide/PLAYTEST.md); the [Quick Start guide](docs/QUICK-START.md)
 (also Help › Quick Start Guide) has a new section, "Learn by doing".
 Earlier milestones: [Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)
-(22 reference cycles for game animation as locked reference layers),
+(now 35 reference cycles for game animation, with Expansion Pack 1: carrying, limping, emotions, transitions),
 [Mission 012 "The Artist's Companion"](docs/iterations/012-artists-companion/README.md) (animation
 import for reconstruction, layer opacity, pasting from other programs, credited palettes, the Quick Start guide),
 [Mission 011 "Under the Hood"](docs/iterations/011-under-the-hood/README.md) (measured speed-ups
