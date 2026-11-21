@@ -28,12 +28,36 @@ public static class PngCodec
             {
                 Array.Copy(rgba, y * stride, cur, 0, stride);
                 // Pick the filter with the smallest sum of absolute values (a standard heuristic). Mission 011: one loop per
-                // filter instead of a switch per byte; the same bytes and the same choice as before.
+                // filter instead of a switch per byte; the same bytes and the same choice as before. The loops stay in this
+                // method so the runtime optimises them while the first image is still being encoded.
                 int best = 0;
                 long bestScore = long.MaxValue;
+                int head = Math.Min(4, stride);
                 for (int f = 0; f < 5; f++)
                 {
-                    long score = FilterRow(f, cur, prev, candidates[f]);
+                    var o = candidates[f];
+                    long score = 0;
+                    switch (f)
+                    {
+                        case 0:
+                            for (int i = 0; i < stride; i++) { byte v = cur[i]; o[i] = v; score += v < 128 ? v : 256 - v; }
+                            break;
+                        case 1:
+                            for (int i = 0; i < head; i++) { byte v = cur[i]; o[i] = v; score += v < 128 ? v : 256 - v; }
+                            for (int i = 4; i < stride; i++) { byte v = (byte)(cur[i] - cur[i - 4]); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            break;
+                        case 2:
+                            for (int i = 0; i < stride; i++) { byte v = (byte)(cur[i] - prev[i]); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            break;
+                        case 3:
+                            for (int i = 0; i < head; i++) { byte v = (byte)(cur[i] - (prev[i] >> 1)); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            for (int i = 4; i < stride; i++) { byte v = (byte)(cur[i] - ((cur[i - 4] + prev[i]) >> 1)); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            break;
+                        default:
+                            for (int i = 0; i < head; i++) { byte v = (byte)(cur[i] - Paeth(0, prev[i], 0)); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            for (int i = 4; i < stride; i++) { byte v = (byte)(cur[i] - Paeth(cur[i - 4], prev[i], prev[i - 4])); o[i] = v; score += v < 128 ? v : 256 - v; }
+                            break;
+                    }
                     if (score < bestScore) { bestScore = score; best = f; }
                 }
                 z.WriteByte((byte)best);
@@ -102,7 +126,29 @@ public static class PngCodec
         {
             int filter = raw[(long)y * (stride + 1)];
             Array.Copy(raw, (long)y * (stride + 1) + 1, cur, 0, stride);
-            Unfilter(filter, cur, prev, bpp);
+            // Undo the row's filter in place (one loop per filter; the first pixel has no left neighbour and counts as 0).
+            int head = Math.Min(bpp, stride);
+            switch (filter)
+            {
+                case 0:
+                    break;
+                case 1:
+                    for (int i = bpp; i < stride; i++) cur[i] += cur[i - bpp];
+                    break;
+                case 2:
+                    for (int i = 0; i < stride; i++) cur[i] += prev[i];
+                    break;
+                case 3:
+                    for (int i = 0; i < head; i++) cur[i] += (byte)(prev[i] >> 1);
+                    for (int i = bpp; i < stride; i++) cur[i] += (byte)((cur[i - bpp] + prev[i]) >> 1);
+                    break;
+                case 4:
+                    for (int i = 0; i < head; i++) cur[i] += (byte)Paeth(0, prev[i], 0);
+                    for (int i = bpp; i < stride; i++) cur[i] += (byte)Paeth(cur[i - bpp], prev[i], prev[i - bpp]);
+                    break;
+                default:
+                    throw new InvalidDataException("The PNG uses an unknown row filter.");
+            }
             if (bpp == 4) Buffer.BlockCopy(cur, 0, rgba, y * w * 4, stride);
             else for (int x = 0; x < w; x++)
             {
@@ -115,70 +161,6 @@ public static class PngCodec
             (prev, cur) = (cur, prev);
         }
         return RasterImage.FromStraightRgba(w, h, rgba);
-    }
-
-    /// <summary>Filters one row with PNG filter <paramref name="f"/> into <paramref name="o"/>; returns the sum of absolute values.</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
-    private static long FilterRow(int f, byte[] cur, byte[] prev, byte[] o)
-    {
-        const int bpp = 4;
-        int n = cur.Length;
-        long score = 0;
-        switch (f)
-        {
-            case 0:
-                for (int i = 0; i < n; i++) score += Abs(o[i] = cur[i]);
-                break;
-            case 1:
-                for (int i = 0; i < n; i++) score += Abs(o[i] = (byte)(cur[i] - (i >= bpp ? cur[i - bpp] : 0)));
-                break;
-            case 2:
-                for (int i = 0; i < n; i++) score += Abs(o[i] = (byte)(cur[i] - prev[i]));
-                break;
-            case 3:
-                for (int i = 0; i < n; i++) score += Abs(o[i] = (byte)(cur[i] - (((i >= bpp ? cur[i - bpp] : 0) + prev[i]) >> 1)));
-                break;
-            default:
-                for (int i = 0; i < n; i++)
-                {
-                    int a = i >= bpp ? cur[i - bpp] : 0, c = i >= bpp ? prev[i - bpp] : 0;
-                    score += Abs(o[i] = (byte)(cur[i] - Paeth(a, prev[i], c)));
-                }
-                break;
-        }
-        return score;
-    }
-
-    private static int Abs(byte v) => v < 128 ? v : 256 - v;
-
-    /// <summary>Undoes PNG filter <paramref name="filter"/> on one row, in place.</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
-    private static void Unfilter(int filter, byte[] cur, byte[] prev, int bpp)
-    {
-        int n = cur.Length;
-        switch (filter)
-        {
-            case 0:
-                break;
-            case 1:
-                for (int i = bpp; i < n; i++) cur[i] += cur[i - bpp];
-                break;
-            case 2:
-                for (int i = 0; i < n; i++) cur[i] += prev[i];
-                break;
-            case 3:
-                for (int i = 0; i < n; i++) cur[i] += (byte)(((i >= bpp ? cur[i - bpp] : 0) + prev[i]) >> 1);
-                break;
-            case 4:
-                for (int i = 0; i < n; i++)
-                {
-                    int a = i >= bpp ? cur[i - bpp] : 0, c = i >= bpp ? prev[i - bpp] : 0;
-                    cur[i] += (byte)Paeth(a, prev[i], c);
-                }
-                break;
-            default:
-                throw new InvalidDataException("The PNG uses an unknown row filter.");
-        }
     }
 
     private static int Paeth(int a, int b, int c)

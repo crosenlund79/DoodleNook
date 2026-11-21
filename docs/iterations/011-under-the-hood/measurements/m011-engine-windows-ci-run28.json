@@ -1,0 +1,563 @@
+{
+  "measuredAt": "2026-11-21T01:13:15.0165045+00:00",
+  "os": "Microsoft Windows NT 10.0.26100.0",
+  "runtime": "10.0.15",
+  "cpu": "4 logical processors",
+  "serverGc": false,
+  "configuration": "Release",
+  "note": "Engine only (no screen drawing). Pen event = 2 coalesced samples of a fast curve across the picture (200 events). Times in milliseconds; cold = first run in the process, warm = median of the following runs.",
+  "results": {
+    "stroke \u00B7 1920x1080, 1 layer \u00B7 6 px pencil (grain)": {
+      "perEvent": {
+        "avg": 0.02,
+        "p50": 0.018,
+        "p95": 0.034,
+        "p99": 0.084,
+        "max": 0.11,
+        "unit": "ms"
+      },
+      "beginMs": 0.02,
+      "endMs": 0.18,
+      "undoMs": 1.47,
+      "allocatedKBPerEvent": 9.75,
+      "undoStepKB": 608
+    },
+    "stroke \u00B7 1920x1080, 1 layer \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.032,
+        "p50": 0.028,
+        "p95": 0.06,
+        "p99": 0.119,
+        "max": 0.196,
+        "unit": "ms"
+      },
+      "beginMs": 0.02,
+      "endMs": 0.28,
+      "undoMs": 1.09,
+      "allocatedKBPerEvent": 12.31,
+      "undoStepKB": 656
+    },
+    "stroke \u00B7 1920x1080, 1 layer \u00B7 120 px hard": {
+      "perEvent": {
+        "avg": 0.154,
+        "p50": 0.119,
+        "p95": 0.39,
+        "p99": 0.696,
+        "max": 1.138,
+        "unit": "ms"
+      },
+      "beginMs": 0.04,
+      "endMs": 0.61,
+      "undoMs": 2.81,
+      "allocatedKBPerEvent": 21.82,
+      "undoStepKB": 1088
+    },
+    "stroke \u00B7 1920x1080, 1 layer \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 0.689,
+        "p50": 0.331,
+        "p95": 2.332,
+        "p99": 4.274,
+        "max": 7.184,
+        "unit": "ms"
+      },
+      "beginMs": 0.45,
+      "endMs": 1.26,
+      "undoMs": 3.86,
+      "allocatedKBPerEvent": 38.41,
+      "undoStepKB": 1537
+    },
+    "recomposite everything \u00B7 1920x1080, 1 layer": {
+      "coldMs": 8.7,
+      "warmMedianMs": 6.1,
+      "warmMinMs": 5.9
+    },
+    "flatten \u00B7 1920x1080, 1 layer": {
+      "coldMs": 9.5,
+      "warmMedianMs": 9,
+      "warmMinMs": 8.9
+    },
+    "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 6 px pencil (grain)": {
+      "perEvent": {
+        "avg": 0.028,
+        "p50": 0.028,
+        "p95": 0.045,
+        "p99": 0.055,
+        "max": 0.063,
+        "unit": "ms"
+      },
+      "beginMs": 0.02,
+      "endMs": 0.2,
+      "undoMs": 7.4,
+      "allocatedKBPerEvent": 9.75,
+      "undoStepKB": 448
+    },
+    "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.047,
+        "p50": 0.048,
+        "p95": 0.073,
+        "p99": 0.082,
+        "max": 0.105,
+        "unit": "ms"
+      },
+      "beginMs": 0.02,
+      "endMs": 0.31,
+      "undoMs": 7.58,
+      "allocatedKBPerEvent": 12.31,
+      "undoStepKB": 480
+    },
+    "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 120 px hard": {
+      "perEvent": {
+        "avg": 0.442,
+        "p50": 0.425,
+        "p95": 0.739,
+        "p99": 0.81,
+        "max": 0.867,
+        "unit": "ms"
+      },
+      "beginMs": 0.12,
+      "endMs": 1.77,
+      "undoMs": 13.07,
+      "allocatedKBPerEvent": 21.82,
+      "undoStepKB": 960
+    },
+    "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 1.124,
+        "p50": 0.743,
+        "p95": 3.406,
+        "p99": 4.573,
+        "max": 5.775,
+        "unit": "ms"
+      },
+      "beginMs": 0.84,
+      "endMs": 1.67,
+      "undoMs": 21.49,
+      "allocatedKBPerEvent": 38.46,
+      "undoStepKB": 1905
+    },
+    "recomposite everything \u00B7 1920x1080, 3 layers (top active)": {
+      "coldMs": 41.6,
+      "warmMedianMs": 40,
+      "warmMinMs": 39
+    },
+    "flatten \u00B7 1920x1080, 3 layers (top active)": {
+      "coldMs": 40.5,
+      "warmMedianMs": 39.9,
+      "warmMinMs": 39.8
+    },
+    "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.128,
+        "p50": 0.12,
+        "p95": 0.191,
+        "p99": 0.206,
+        "max": 0.225,
+        "unit": "ms"
+      },
+      "beginMs": 0.04,
+      "endMs": 0.46,
+      "undoMs": 32.69,
+      "allocatedKBPerEvent": 16.21,
+      "undoStepKB": 576
+    },
+    "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 120 px hard": {
+      "perEvent": {
+        "avg": 1.114,
+        "p50": 1.131,
+        "p95": 1.772,
+        "p99": 2.546,
+        "max": 2.672,
+        "unit": "ms"
+      },
+      "beginMs": 0.3,
+      "endMs": 1.15,
+      "undoMs": 53.6,
+      "allocatedKBPerEvent": 29.2,
+      "undoStepKB": 1025
+    },
+    "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 2.771,
+        "p50": 2.298,
+        "p95": 6.87,
+        "p99": 7.626,
+        "max": 8.418,
+        "unit": "ms"
+      },
+      "beginMs": 1.4,
+      "endMs": 2.67,
+      "undoMs": 87.04,
+      "allocatedKBPerEvent": 50.99,
+      "undoStepKB": 1810
+    },
+    "recomposite everything \u00B7 2560x1440, 12 layers (middle active)": {
+      "coldMs": 246.2,
+      "warmMedianMs": 247,
+      "warmMinMs": 245.9
+    },
+    "flatten \u00B7 2560x1440, 12 layers (middle active)": {
+      "coldMs": 252.7,
+      "warmMedianMs": 249.8,
+      "warmMinMs": 247.8
+    },
+    "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.118,
+        "p50": 0.114,
+        "p95": 0.178,
+        "p99": 0.197,
+        "max": 0.252,
+        "unit": "ms"
+      },
+      "beginMs": 0.04,
+      "endMs": 0.39,
+      "undoMs": 32.18,
+      "allocatedKBPerEvent": 16.21,
+      "undoStepKB": 449
+    },
+    "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 120 px hard": {
+      "perEvent": {
+        "avg": 1.014,
+        "p50": 1.007,
+        "p95": 1.558,
+        "p99": 3.078,
+        "max": 3.482,
+        "unit": "ms"
+      },
+      "beginMs": 0.3,
+      "endMs": 1.16,
+      "undoMs": 54.95,
+      "allocatedKBPerEvent": 29.2,
+      "undoStepKB": 865
+    },
+    "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 1.215,
+        "p50": 1.017,
+        "p95": 3.318,
+        "p99": 5.09,
+        "max": 5.62,
+        "unit": "ms"
+      },
+      "beginMs": 1.42,
+      "endMs": 2.69,
+      "undoMs": 87.76,
+      "allocatedKBPerEvent": 50.99,
+      "undoStepKB": 1506
+    },
+    "recomposite everything \u00B7 2560x1440, 12 layers (top active)": {
+      "coldMs": 249.1,
+      "warmMedianMs": 246.2,
+      "warmMinMs": 245.5
+    },
+    "flatten \u00B7 2560x1440, 12 layers (top active)": {
+      "coldMs": 252.6,
+      "warmMedianMs": 247.1,
+      "warmMinMs": 247
+    },
+    "stroke \u00B7 1920x1080, 3 layers \u00B7 Charcoal (charcoal)": {
+      "perEvent": {
+        "avg": 0.11,
+        "p50": 0.107,
+        "p95": 0.157,
+        "p99": 0.165,
+        "max": 0.176,
+        "unit": "ms"
+      },
+      "beginMs": 0.05,
+      "endMs": 0.4,
+      "undoMs": 7.68,
+      "allocatedKBPerEvent": 13.11,
+      "undoStepKB": 480
+    },
+    "stroke \u00B7 1920x1080, 3 layers \u00B7 Leaves (leaves)": {
+      "perEvent": {
+        "avg": 0.07,
+        "p50": 0.076,
+        "p95": 0.132,
+        "p99": 0.158,
+        "max": 0.186,
+        "unit": "ms"
+      },
+      "beginMs": 0.07,
+      "endMs": 0.65,
+      "undoMs": 10.15,
+      "allocatedKBPerEvent": 35.74,
+      "undoStepKB": 592
+    },
+    "stroke \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080 \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.055,
+        "p50": 0.052,
+        "p95": 0.088,
+        "p99": 0.104,
+        "max": 0.117,
+        "unit": "ms"
+      },
+      "beginMs": 0.07,
+      "endMs": 0.43,
+      "undoMs": 8.94,
+      "allocatedKBPerEvent": 12.38,
+      "undoStepKB": 576
+    },
+    "stroke \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080 \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 1.101,
+        "p50": 0.785,
+        "p95": 3.298,
+        "p99": 3.81,
+        "max": 4.036,
+        "unit": "ms"
+      },
+      "beginMs": 0.89,
+      "endMs": 1.87,
+      "undoMs": 25.57,
+      "allocatedKBPerEvent": 38.46,
+      "undoStepKB": 1489
+    },
+    "recomposite everything \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080": {
+      "coldMs": 56.2,
+      "warmMedianMs": 55.9,
+      "warmMinMs": 55.8
+    },
+    "stroke \u00B7 palette-locked 1920x1080, 3 layers \u00B7 24 px ink": {
+      "perEvent": {
+        "avg": 0.033,
+        "p50": 0.032,
+        "p95": 0.049,
+        "p99": 0.056,
+        "max": 0.084,
+        "unit": "ms"
+      },
+      "beginMs": 0.02,
+      "endMs": 0.25,
+      "undoMs": 3.21,
+      "allocatedKBPerEvent": 12.37,
+      "undoStepKB": 480
+    },
+    "stroke \u00B7 palette-locked 1920x1080, 3 layers \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 0.823,
+        "p50": 0.454,
+        "p95": 3.1,
+        "p99": 4.25,
+        "max": 4.709,
+        "unit": "ms"
+      },
+      "beginMs": 0.67,
+      "endMs": 1.41,
+      "undoMs": 8.54,
+      "allocatedKBPerEvent": 38.49,
+      "undoStepKB": 1889
+    },
+    "palette remap \u00B7 1920x1080, 3 layers \u2192 Nook 32": {
+      "analyseMs": 143.7,
+      "applyAndLockMs": 111,
+      "sources": 24
+    },
+    "pixel art 64x64 \u00B7 pixel pencil event": {
+      "avg": 0.006,
+      "p50": 0.002,
+      "p95": 0.028,
+      "p99": 0.077,
+      "max": 0.95,
+      "unit": "ms"
+    },
+    "pixel art 64x64 \u00B7 undo \u002B redo": 0.01,
+    "pixel art 64x64 \u00B7 PNG encode": {
+      "coldMs": 0.7,
+      "warmMedianMs": 0.7,
+      "warmMinMs": 0.7
+    },
+    "pixel art 256x256 \u00B7 pixel pencil event": {
+      "avg": 0.007,
+      "p50": 0.004,
+      "p95": 0.008,
+      "p99": 0.069,
+      "max": 0.314,
+      "unit": "ms"
+    },
+    "pixel art 256x256 \u00B7 undo \u002B redo": 0.13,
+    "pixel art 256x256 \u00B7 PNG encode": {
+      "coldMs": 3.6,
+      "warmMedianMs": 3.5,
+      "warmMinMs": 3.5
+    },
+    "animation 1920x1080 \u00D7 21 frames": {
+      "buildMs": 430,
+      "frameChangeFirstVisit": {
+        "avg": 6.226,
+        "p50": 6.15,
+        "p95": 6.558,
+        "p99": 6.701,
+        "max": 6.701,
+        "unit": "ms"
+      },
+      "frameChangeCached": {
+        "avg": 0.418,
+        "p50": 0.415,
+        "p95": 0.458,
+        "p99": 0.494,
+        "max": 0.494,
+        "unit": "ms"
+      },
+      "frameCacheMB": 166.1,
+      "onionSkin2plus2": {
+        "coldMs": 8.3,
+        "warmMedianMs": 8.2,
+        "warmMinMs": 7.7
+      },
+      "strokeOnFrame": {
+        "perEvent": {
+          "avg": 0.024,
+          "p50": 0.023,
+          "p95": 0.038,
+          "p99": 0.042,
+          "max": 0.047,
+          "unit": "ms"
+        },
+        "beginMs": 0.01,
+        "endMs": 0.26,
+        "undoMs": 1.51,
+        "allocatedKBPerEvent": 12.31,
+        "undoStepKB": 17
+      },
+      "renderAllFramesForExport": {
+        "coldMs": 33.3,
+        "warmMedianMs": 26.8,
+        "warmMinMs": 25.7
+      },
+      "gifEncodeMs": 1620,
+      "gifBytes": 256925
+    },
+    "animation 1920x1080 \u00D7 48 frames on twos": {
+      "frames": 48,
+      "drawings": 25,
+      "buildMs": 614,
+      "managedHeapGrowthMB": 395.8,
+      "frameChangeFirstVisit": {
+        "avg": 3.493,
+        "p50": 6.236,
+        "p95": 7.132,
+        "p99": 7.23,
+        "max": 7.23,
+        "unit": "ms"
+      },
+      "frameCacheMB": 379.7,
+      "saveSnapshotOnUiThread": {
+        "coldMs": 5,
+        "warmMedianMs": 4.2,
+        "warmMinMs": 4.1
+      },
+      "dnkWriteMs": 262,
+      "dnkReadMs": 78,
+      "dnkMB": 1.6
+    },
+    "files \u00B7 2560x1440, 12 layers": {
+      "saveSnapshotOnUiThread": {
+        "coldMs": 24.1,
+        "warmMedianMs": 24.9,
+        "warmMinMs": 23.1
+      },
+      "saveToDisk": {
+        "coldMs": 1522.6,
+        "warmMedianMs": 1515.6,
+        "warmMinMs": 1508.9
+      },
+      "load": {
+        "coldMs": 475.6,
+        "warmMedianMs": 459.7,
+        "warmMinMs": 458.6
+      },
+      "dnkMB": 7.8,
+      "pngEncodeFlattened": {
+        "coldMs": 639.5,
+        "warmMedianMs": 645.1,
+        "warmMinMs": 640.2
+      },
+      "pngDecode": {
+        "coldMs": 40,
+        "warmMedianMs": 40.5,
+        "warmMinMs": 40.4
+      },
+      "pngMB": 2.2
+    },
+    "undo \u00B7 30 strokes of 120 px, 2560x1440, 12 layers": {
+      "historyMB": 195.4,
+      "steps": 60,
+      "undoAllMs": 4673,
+      "redoAllMs": 4869
+    },
+    "undo memory \u00B7 60 ink strokes on a new layer, 1920x1080": {
+      "historyMB": 24.1,
+      "perStrokeKB": 411,
+      "managedHeapGrowthMB": 24.9
+    },
+    "liquify \u00B7 5 sessions on 2560x1440, cancelled": {
+      "fieldMB": 4.4,
+      "heapGrowthAfterCancelMB": 2.6
+    },
+    "long session \u00B7 400 strokes, 1920x1080": {
+      "wholeStroke": {
+        "avg": 47.249,
+        "p50": 28.914,
+        "p95": 133.598,
+        "p99": 211.604,
+        "max": 243.135,
+        "unit": "ms"
+      },
+      "checkpoints": [
+        {
+          "strokes": 0,
+          "heapMB": 46.4,
+          "historyMB": 15.8
+        },
+        {
+          "strokes": 100,
+          "heapMB": 312.5,
+          "historyMB": 292.5
+        },
+        {
+          "strokes": 200,
+          "heapMB": 578,
+          "historyMB": 572.5
+        },
+        {
+          "strokes": 300,
+          "heapMB": 602.4,
+          "historyMB": 589
+        },
+        {
+          "strokes": 400,
+          "heapMB": 600.9,
+          "historyMB": 587.5
+        }
+      ],
+      "historySteps": 200
+    },
+    "library \u00B7 200 brushes, 100 stamps, 60 patterns": {
+      "addAllMs": 663,
+      "load": {
+        "coldMs": 7.6,
+        "warmMedianMs": 4.2,
+        "warmMinMs": 3.6
+      },
+      "brushes": 217,
+      "findBrushMs": 0.005,
+      "listBrushesMs": 0.0009
+    },
+    "process": {
+      "managedHeapAtStartMB": 31.8,
+      "managedHeapAtEndMB": 7.1,
+      "workingSetMB": 896,
+      "peakWorkingSetMB": 1997,
+      "gcCounts": [
+        803,
+        462,
+        112
+      ]
+    }
+  }
+}

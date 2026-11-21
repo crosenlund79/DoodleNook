@@ -38,7 +38,12 @@ jobs:
       - name: Run automated tests
         # -m:1 runs the engine and app test projects one after the other, so the engine's performance measurements
         # (written to tests/DoodleNook.Engine.Tests/out/) don't share the CPU with the app tests.
-        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
+        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName!~UnderTheHoodBenchmarks&FullyQualifiedName!~UnderTheHoodAppBenchmarks&FullyQualifiedName!~HeadToHeadBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
+
+      - name: Run the Mission 011 benchmarks
+        # In a process of their own, after the tests: they use a lot of memory (several large pictures and animations),
+        # which would otherwise disturb the older performance measurements. Results: tests/*/out/*.json.
+        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName~UnderTheHoodBenchmarks|FullyQualifiedName~UnderTheHoodAppBenchmarks|FullyQualifiedName~HeadToHeadBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
 
       - name: Publish self-contained Windows app
         run: >
@@ -107,5 +112,6 @@ jobs:
             TestResults/
             smoke-test/
             tests/DoodleNook.App.Tests/out/screenshots/
+            tests/DoodleNook.App.Tests/out/*.json
             tests/DoodleNook.Engine.Tests/out/
           if-no-files-found: ignore

@@ -222,10 +222,9 @@ public class UnderTheHoodBenchmarks
     {
         var results = new Dictionary<string, object>();
         double startHeap = HeapMB();
-        // Warm up the JIT for strokes and compositing.
-        var warmup = Layered(400, 300, 2, 1);
-        foreach (var (_, b) in Brushes) Stroke(warmup, b);
-        warmup = null;
+        // Warm up the JIT for strokes and compositing: about three seconds of strokes, so the measured code is fully
+        // optimised (a shorter warm-up left the first measurements half-compiled and twice as slow as they really are).
+        WarmUp();
         // Each part runs in its own method, so its documents are released before the next part measures memory.
         LayeredStrokes(results);
         TipBrushes(results);
@@ -247,6 +246,21 @@ public class UnderTheHoodBenchmarks
             gcCounts = new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) },
         };
         Save(results);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void WarmUp()
+    {
+        var small = Layered(400, 300, 2, 1);
+        var big = Layered(1920, 1080, 3, 2);
+        var clock = Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < 3000)
+            foreach (var (_, b) in Brushes)
+            {
+                StrokeOnce(small, b, null, null);
+                StrokeOnce(big, b, null, big.Layers[0]);
+                StrokeOnce(big, b, null, null);
+            }
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-11-21T00:34:52.4960752+00:00",
+  "measuredAt": "2026-11-21T01:56:19.6156181+00:00",
   "os": "Unix 6.18.44.726",
   "runtime": "10.0.15",
   "cpu": "4 logical processors",
@@ -9,491 +9,491 @@
   "results": {
     "stroke \u00B7 1920x1080, 1 layer \u00B7 6 px pencil (grain)": {
       "perEvent": {
-        "avg": 0.116,
-        "p50": 0.111,
-        "p95": 0.191,
-        "p99": 0.266,
-        "max": 0.3,
+        "avg": 0.02,
+        "p50": 0.018,
+        "p95": 0.033,
+        "p99": 0.049,
+        "max": 0.079,
         "unit": "ms"
       },
-      "beginMs": 0.1,
-      "endMs": 1.04,
-      "undoMs": 8.41,
+      "beginMs": 0.02,
+      "endMs": 0.37,
+      "undoMs": 5.5,
       "allocatedKBPerEvent": 9.75,
       "undoStepKB": 960
     },
     "stroke \u00B7 1920x1080, 1 layer \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.145,
-        "p50": 0.141,
-        "p95": 0.219,
-        "p99": 0.276,
-        "max": 0.289,
+        "avg": 0.029,
+        "p50": 0.024,
+        "p95": 0.052,
+        "p99": 0.065,
+        "max": 0.298,
         "unit": "ms"
       },
-      "beginMs": 0.09,
-      "endMs": 1.15,
-      "undoMs": 7.97,
+      "beginMs": 0.02,
+      "endMs": 0.62,
+      "undoMs": 7.55,
       "allocatedKBPerEvent": 12.31,
       "undoStepKB": 1056
     },
     "stroke \u00B7 1920x1080, 1 layer \u00B7 120 px hard": {
       "perEvent": {
-        "avg": 0.279,
-        "p50": 0.27,
-        "p95": 0.409,
-        "p99": 0.52,
-        "max": 0.618,
+        "avg": 0.158,
+        "p50": 0.156,
+        "p95": 0.262,
+        "p99": 0.4,
+        "max": 0.651,
         "unit": "ms"
       },
-      "beginMs": 0.19,
-      "endMs": 3.41,
-      "undoMs": 11.29,
+      "beginMs": 0.04,
+      "endMs": 1.69,
+      "undoMs": 8.04,
       "allocatedKBPerEvent": 21.82,
       "undoStepKB": 1824
     },
     "stroke \u00B7 1920x1080, 1 layer \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 0.829,
-        "p50": 0.593,
-        "p95": 2.165,
-        "p99": 2.935,
-        "max": 8.747,
+        "avg": 0.671,
+        "p50": 0.423,
+        "p95": 1.977,
+        "p99": 2.115,
+        "max": 2.413,
         "unit": "ms"
       },
-      "beginMs": 0.86,
-      "endMs": 3.99,
-      "undoMs": 13.72,
+      "beginMs": 0.29,
+      "endMs": 3.07,
+      "undoMs": 9.76,
       "allocatedKBPerEvent": 38.41,
       "undoStepKB": 3104
     },
     "recomposite everything \u00B7 1920x1080, 1 layer": {
-      "coldMs": 11.5,
-      "warmMedianMs": 11.2,
-      "warmMinMs": 11
+      "coldMs": 10.2,
+      "warmMedianMs": 9.5,
+      "warmMinMs": 8.4
     },
     "flatten \u00B7 1920x1080, 1 layer": {
-      "coldMs": 13.8,
-      "warmMedianMs": 13,
-      "warmMinMs": 12.8
+      "coldMs": 12.1,
+      "warmMedianMs": 12.9,
+      "warmMinMs": 12.4
     },
     "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 6 px pencil (grain)": {
       "perEvent": {
-        "avg": 0.035,
-        "p50": 0.029,
-        "p95": 0.073,
-        "p99": 0.124,
-        "max": 0.134,
+        "avg": 0.028,
+        "p50": 0.027,
+        "p95": 0.046,
+        "p99": 0.073,
+        "max": 0.095,
         "unit": "ms"
       },
-      "beginMs": 0.09,
-      "endMs": 1.01,
-      "undoMs": 31.38,
+      "beginMs": 0.03,
+      "endMs": 0.45,
+      "undoMs": 29.42,
       "allocatedKBPerEvent": 9.75,
       "undoStepKB": 960
     },
     "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.059,
-        "p50": 0.056,
-        "p95": 0.11,
-        "p99": 0.135,
-        "max": 0.157,
+        "avg": 0.052,
+        "p50": 0.051,
+        "p95": 0.086,
+        "p99": 0.118,
+        "max": 0.167,
         "unit": "ms"
       },
-      "beginMs": 0.11,
-      "endMs": 1.28,
-      "undoMs": 34.03,
+      "beginMs": 0.04,
+      "endMs": 0.71,
+      "undoMs": 30.26,
       "allocatedKBPerEvent": 12.31,
       "undoStepKB": 1056
     },
     "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 120 px hard": {
       "perEvent": {
-        "avg": 0.574,
-        "p50": 0.591,
-        "p95": 0.958,
-        "p99": 1.093,
-        "max": 1.216,
+        "avg": 0.493,
+        "p50": 0.467,
+        "p95": 0.804,
+        "p99": 0.986,
+        "max": 2.809,
         "unit": "ms"
       },
-      "beginMs": 0.3,
-      "endMs": 2.45,
-      "undoMs": 59.18,
+      "beginMs": 0.16,
+      "endMs": 1.82,
+      "undoMs": 36.4,
       "allocatedKBPerEvent": 21.82,
       "undoStepKB": 1824
     },
     "stroke \u00B7 1920x1080, 3 layers (top active) \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 1.505,
-        "p50": 1.085,
-        "p95": 4.756,
-        "p99": 4.958,
-        "max": 5.056,
+        "avg": 1.482,
+        "p50": 0.87,
+        "p95": 4.864,
+        "p99": 5.02,
+        "max": 6.588,
         "unit": "ms"
       },
-      "beginMs": 1.22,
-      "endMs": 4.11,
-      "undoMs": 42.09,
+      "beginMs": 0.64,
+      "endMs": 3.26,
+      "undoMs": 40.53,
       "allocatedKBPerEvent": 38.41,
       "undoStepKB": 3104
     },
     "recomposite everything \u00B7 1920x1080, 3 layers (top active)": {
-      "coldMs": 49.3,
-      "warmMedianMs": 49.2,
-      "warmMinMs": 48.2
+      "coldMs": 49.1,
+      "warmMedianMs": 48.2,
+      "warmMinMs": 47.7
     },
     "flatten \u00B7 1920x1080, 3 layers (top active)": {
-      "coldMs": 54.9,
-      "warmMedianMs": 48.9,
-      "warmMinMs": 48.4
+      "coldMs": 50,
+      "warmMedianMs": 51.5,
+      "warmMinMs": 50.3
     },
     "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.147,
-        "p50": 0.143,
-        "p95": 0.226,
-        "p99": 0.263,
-        "max": 0.279,
+        "avg": 0.145,
+        "p50": 0.139,
+        "p95": 0.227,
+        "p99": 0.249,
+        "max": 0.253,
         "unit": "ms"
       },
-      "beginMs": 0.08,
-      "endMs": 1.25,
-      "undoMs": 210.5,
+      "beginMs": 0.1,
+      "endMs": 0.9,
+      "undoMs": 196.76,
       "allocatedKBPerEvent": 16.21,
       "undoStepKB": 1408
     },
     "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 120 px hard": {
       "perEvent": {
-        "avg": 1.236,
-        "p50": 1.323,
-        "p95": 1.954,
-        "p99": 2.06,
-        "max": 3.232,
+        "avg": 1.28,
+        "p50": 1.446,
+        "p95": 2.004,
+        "p99": 2.18,
+        "max": 2.66,
         "unit": "ms"
       },
-      "beginMs": 0.43,
-      "endMs": 2.05,
-      "undoMs": 223.42,
+      "beginMs": 0.35,
+      "endMs": 2.04,
+      "undoMs": 214.02,
       "allocatedKBPerEvent": 29.19,
       "undoStepKB": 2464
     },
     "stroke \u00B7 2560x1440, 12 layers (middle active) \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 4.476,
-        "p50": 3.396,
-        "p95": 10.675,
-        "p99": 10.922,
-        "max": 11.204,
+        "avg": 4.845,
+        "p50": 3.885,
+        "p95": 11.516,
+        "p99": 11.939,
+        "max": 13.742,
         "unit": "ms"
       },
-      "beginMs": 1.7,
-      "endMs": 4.37,
-      "undoMs": 237.45,
+      "beginMs": 1.84,
+      "endMs": 4.57,
+      "undoMs": 235.89,
       "allocatedKBPerEvent": 50.92,
       "undoStepKB": 4192
     },
     "recomposite everything \u00B7 2560x1440, 12 layers (middle active)": {
-      "coldMs": 328.3,
-      "warmMedianMs": 329.2,
-      "warmMinMs": 319.3
+      "coldMs": 325,
+      "warmMedianMs": 308.9,
+      "warmMinMs": 306.9
     },
     "flatten \u00B7 2560x1440, 12 layers (middle active)": {
-      "coldMs": 345.2,
-      "warmMedianMs": 329.2,
-      "warmMinMs": 328.2
+      "coldMs": 315.1,
+      "warmMedianMs": 318.3,
+      "warmMinMs": 316.1
     },
     "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.154,
-        "p50": 0.149,
-        "p95": 0.229,
-        "p99": 0.279,
-        "max": 0.608,
+        "avg": 0.166,
+        "p50": 0.161,
+        "p95": 0.292,
+        "p99": 0.326,
+        "max": 0.354,
         "unit": "ms"
       },
-      "beginMs": 0.11,
-      "endMs": 1,
-      "undoMs": 205.86,
+      "beginMs": 0.09,
+      "endMs": 0.89,
+      "undoMs": 209.76,
       "allocatedKBPerEvent": 16.21,
       "undoStepKB": 1408
     },
     "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 120 px hard": {
       "perEvent": {
-        "avg": 1.177,
-        "p50": 1.215,
-        "p95": 1.845,
-        "p99": 2.049,
-        "max": 6.127,
+        "avg": 1.242,
+        "p50": 1.265,
+        "p95": 2.073,
+        "p99": 3.698,
+        "max": 3.875,
         "unit": "ms"
       },
       "beginMs": 0.38,
-      "endMs": 2.3,
-      "undoMs": 217.23,
+      "endMs": 2.07,
+      "undoMs": 235.23,
       "allocatedKBPerEvent": 29.19,
       "undoStepKB": 2464
     },
     "stroke \u00B7 2560x1440, 12 layers (top active) \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 4.638,
-        "p50": 3.485,
-        "p95": 10.708,
-        "p99": 11.32,
-        "max": 15.457,
+        "avg": 4.49,
+        "p50": 3.513,
+        "p95": 10.654,
+        "p99": 11.982,
+        "max": 14.968,
         "unit": "ms"
       },
-      "beginMs": 1.85,
-      "endMs": 4.18,
-      "undoMs": 250.53,
+      "beginMs": 1.79,
+      "endMs": 4.42,
+      "undoMs": 230.42,
       "allocatedKBPerEvent": 50.92,
       "undoStepKB": 4160
     },
     "recomposite everything \u00B7 2560x1440, 12 layers (top active)": {
-      "coldMs": 312,
-      "warmMedianMs": 320.3,
-      "warmMinMs": 314.9
+      "coldMs": 314.2,
+      "warmMedianMs": 313.5,
+      "warmMinMs": 311.9
     },
     "flatten \u00B7 2560x1440, 12 layers (top active)": {
-      "coldMs": 328.4,
-      "warmMedianMs": 345.9,
-      "warmMinMs": 340.2
+      "coldMs": 320.2,
+      "warmMedianMs": 356.6,
+      "warmMinMs": 340.8
     },
     "stroke \u00B7 1920x1080, 3 layers \u00B7 Charcoal (charcoal)": {
       "perEvent": {
-        "avg": 0.5,
-        "p50": 0.393,
-        "p95": 0.604,
-        "p99": 7.552,
-        "max": 9.51,
+        "avg": 0.323,
+        "p50": 0.32,
+        "p95": 0.481,
+        "p99": 0.542,
+        "max": 0.698,
         "unit": "ms"
       },
-      "beginMs": 1.88,
-      "endMs": 1.14,
-      "undoMs": 38.88,
+      "beginMs": 0.1,
+      "endMs": 0.91,
+      "undoMs": 41.72,
       "allocatedKBPerEvent": 13.11,
       "undoStepKB": 1040
     },
     "stroke \u00B7 1920x1080, 3 layers \u00B7 Leaves (leaves)": {
       "perEvent": {
-        "avg": 0.214,
-        "p50": 0.174,
-        "p95": 0.315,
-        "p99": 0.707,
-        "max": 9.209,
+        "avg": 0.145,
+        "p50": 0.102,
+        "p95": 0.186,
+        "p99": 0.208,
+        "max": 10.156,
         "unit": "ms"
       },
-      "beginMs": 1.03,
-      "endMs": 1.78,
-      "undoMs": 36.48,
+      "beginMs": 0.12,
+      "endMs": 1.34,
+      "undoMs": 35.17,
       "allocatedKBPerEvent": 35.74,
       "undoStepKB": 1264
     },
     "stroke \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080 \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.11,
-        "p50": 0.107,
-        "p95": 0.167,
-        "p99": 0.219,
-        "max": 0.244,
+        "avg": 0.127,
+        "p50": 0.084,
+        "p95": 0.148,
+        "p99": 0.296,
+        "max": 6.596,
         "unit": "ms"
       },
       "beginMs": 0.1,
-      "endMs": 0.79,
-      "undoMs": 59.73,
-      "allocatedKBPerEvent": 12.38,
+      "endMs": 0.77,
+      "undoMs": 47.32,
+      "allocatedKBPerEvent": 12.31,
       "undoStepKB": 1056
     },
     "stroke \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080 \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 2.025,
-        "p50": 1.185,
-        "p95": 5.936,
-        "p99": 8.796,
-        "max": 15.693,
+        "avg": 1.863,
+        "p50": 1.112,
+        "p95": 5.794,
+        "p99": 6.199,
+        "max": 6.451,
         "unit": "ms"
       },
-      "beginMs": 1.81,
-      "endMs": 2.9,
-      "undoMs": 60.38,
-      "allocatedKBPerEvent": 39.37,
+      "beginMs": 1.17,
+      "endMs": 3.08,
+      "undoMs": 60.53,
+      "allocatedKBPerEvent": 38.41,
       "undoStepKB": 3088
     },
     "recomposite everything \u00B7 masks\u002Bgroup\u002Badjustment 1920x1080": {
-      "coldMs": 77.4,
-      "warmMedianMs": 79.4,
-      "warmMinMs": 74.3
+      "coldMs": 75.9,
+      "warmMedianMs": 77.2,
+      "warmMinMs": 74
     },
     "stroke \u00B7 palette-locked 1920x1080, 3 layers \u00B7 24 px ink": {
       "perEvent": {
-        "avg": 0.055,
-        "p50": 0.047,
-        "p95": 0.117,
-        "p99": 0.151,
-        "max": 0.163,
+        "avg": 0.04,
+        "p50": 0.038,
+        "p95": 0.068,
+        "p99": 0.076,
+        "max": 0.085,
         "unit": "ms"
       },
-      "beginMs": 0.09,
-      "endMs": 0.65,
-      "undoMs": 17.83,
+      "beginMs": 0.03,
+      "endMs": 0.55,
+      "undoMs": 16.84,
       "allocatedKBPerEvent": 12.37,
       "undoStepKB": 1056
     },
     "stroke \u00B7 palette-locked 1920x1080, 3 layers \u00B7 300 px soft": {
       "perEvent": {
-        "avg": 1.253,
-        "p50": 0.669,
-        "p95": 4.585,
-        "p99": 5.862,
-        "max": 6.988,
+        "avg": 1.357,
+        "p50": 0.708,
+        "p95": 5.029,
+        "p99": 6.508,
+        "max": 7.383,
         "unit": "ms"
       },
-      "beginMs": 2.3,
-      "endMs": 3.29,
-      "undoMs": 28.4,
+      "beginMs": 2.29,
+      "endMs": 2.56,
+      "undoMs": 26.62,
       "allocatedKBPerEvent": 38.44,
       "undoStepKB": 3072
     },
     "palette remap \u00B7 1920x1080, 3 layers \u2192 Nook 32": {
-      "analyseMs": 238.8,
-      "applyAndLockMs": 91.1,
+      "analyseMs": 211.7,
+      "applyAndLockMs": 126.7,
       "sources": 24
     },
     "pixel art 64x64 \u00B7 pixel pencil event": {
-      "avg": 0.007,
-      "p50": 0.002,
-      "p95": 0.026,
-      "p99": 0.096,
-      "max": 0.436,
+      "avg": 0.01,
+      "p50": 0.004,
+      "p95": 0.04,
+      "p99": 0.146,
+      "max": 0.604,
       "unit": "ms"
     },
-    "pixel art 64x64 \u00B7 undo \u002B redo": 0.04,
+    "pixel art 64x64 \u00B7 undo \u002B redo": 0.05,
     "pixel art 64x64 \u00B7 PNG encode": {
-      "coldMs": 14.4,
-      "warmMedianMs": 0.7,
-      "warmMinMs": 0.7
+      "coldMs": 1.1,
+      "warmMedianMs": 0.8,
+      "warmMinMs": 0.8
     },
     "pixel art 256x256 \u00B7 pixel pencil event": {
-      "avg": 0.007,
-      "p50": 0.004,
-      "p95": 0.011,
-      "p99": 0.077,
-      "max": 0.396,
+      "avg": 0.008,
+      "p50": 0.006,
+      "p95": 0.013,
+      "p99": 0.075,
+      "max": 0.366,
       "unit": "ms"
     },
-    "pixel art 256x256 \u00B7 undo \u002B redo": 0.34,
+    "pixel art 256x256 \u00B7 undo \u002B redo": 0.45,
     "pixel art 256x256 \u00B7 PNG encode": {
-      "coldMs": 5.6,
-      "warmMedianMs": 5.4,
-      "warmMinMs": 5.4
+      "coldMs": 7.7,
+      "warmMedianMs": 4.6,
+      "warmMinMs": 4.5
     },
     "animation 1920x1080 \u00D7 21 frames": {
-      "buildMs": 649,
+      "buildMs": 726,
       "frameChangeFirstVisit": {
-        "avg": 12.155,
-        "p50": 11.882,
-        "p95": 13.518,
-        "p99": 13.961,
-        "max": 13.961,
+        "avg": 13.09,
+        "p50": 11.747,
+        "p95": 18.431,
+        "p99": 23.92,
+        "max": 23.92,
         "unit": "ms"
       },
       "frameChangeCached": {
-        "avg": 1.006,
-        "p50": 0.996,
-        "p95": 1.11,
-        "p99": 1.17,
-        "max": 1.17,
+        "avg": 0.871,
+        "p50": 0.866,
+        "p95": 0.921,
+        "p99": 0.964,
+        "max": 0.964,
         "unit": "ms"
       },
       "frameCacheMB": 166.1,
       "onionSkin2plus2": {
-        "coldMs": 22.6,
-        "warmMedianMs": 10.5,
+        "coldMs": 15.2,
+        "warmMedianMs": 11.4,
         "warmMinMs": 10.3
       },
       "strokeOnFrame": {
         "perEvent": {
-          "avg": 0.03,
+          "avg": 0.029,
           "p50": 0.028,
-          "p95": 0.05,
-          "p99": 0.063,
-          "max": 0.074,
+          "p95": 0.046,
+          "p99": 0.066,
+          "max": 0.075,
           "unit": "ms"
         },
         "beginMs": 0.03,
-        "endMs": 0.63,
-        "undoMs": 8.43,
+        "endMs": 0.59,
+        "undoMs": 7.41,
         "allocatedKBPerEvent": 12.31,
         "undoStepKB": 1056
       },
       "renderAllFramesForExport": {
-        "coldMs": 114.1,
-        "warmMedianMs": 123.3,
-        "warmMinMs": 116.8
+        "coldMs": 84.4,
+        "warmMedianMs": 50,
+        "warmMinMs": 46.9
       },
-      "gifEncodeMs": 2204,
+      "gifEncodeMs": 2037,
       "gifBytes": 256925
     },
     "animation 1920x1080 \u00D7 48 frames on twos": {
       "frames": 48,
       "drawings": 25,
-      "buildMs": 1001,
+      "buildMs": 972,
       "managedHeapGrowthMB": 412.9,
       "frameChangeFirstVisit": {
-        "avg": 7.12,
-        "p50": 10.796,
-        "p95": 15.48,
-        "p99": 17.035,
-        "max": 17.035,
+        "avg": 6.243,
+        "p50": 9.783,
+        "p95": 13.647,
+        "p99": 14.151,
+        "max": 14.151,
         "unit": "ms"
       },
       "frameCacheMB": 379.7,
       "saveSnapshotOnUiThread": {
-        "coldMs": 18.6,
-        "warmMedianMs": 10.2,
-        "warmMinMs": 9.1
+        "coldMs": 8.5,
+        "warmMedianMs": 9.4,
+        "warmMinMs": 8
       },
-      "dnkWriteMs": 335,
-      "dnkReadMs": 144,
+      "dnkWriteMs": 235,
+      "dnkReadMs": 151,
       "dnkMB": 1.6
     },
     "files \u00B7 2560x1440, 12 layers": {
       "saveSnapshotOnUiThread": {
-        "coldMs": 441.1,
-        "warmMedianMs": 449.7,
-        "warmMinMs": 447
+        "coldMs": 417.5,
+        "warmMedianMs": 425,
+        "warmMinMs": 416.1
       },
       "saveToDisk": {
-        "coldMs": 2065.3,
-        "warmMedianMs": 2022,
-        "warmMinMs": 1749
+        "coldMs": 1672.9,
+        "warmMedianMs": 1711.8,
+        "warmMinMs": 1587
       },
       "load": {
-        "coldMs": 694.2,
-        "warmMedianMs": 684.9,
-        "warmMinMs": 682
+        "coldMs": 829.8,
+        "warmMedianMs": 792.3,
+        "warmMinMs": 704.9
       },
       "dnkMB": 7.8,
       "pngEncodeFlattened": {
-        "coldMs": 825.9,
-        "warmMedianMs": 872.5,
-        "warmMinMs": 807.5
+        "coldMs": 794.2,
+        "warmMedianMs": 757.8,
+        "warmMinMs": 744.7
       },
       "pngDecode": {
-        "coldMs": 83.1,
-        "warmMedianMs": 81.5,
-        "warmMinMs": 79.5
+        "coldMs": 73.5,
+        "warmMedianMs": 78.5,
+        "warmMinMs": 74.8
       },
       "pngMB": 2.2
     },
     "undo \u00B7 30 strokes of 120 px, 2560x1440, 12 layers": {
       "historyMB": 309.9,
       "steps": 60,
-      "undoAllMs": 11510,
-      "redoAllMs": 12015
+      "undoAllMs": 11053,
+      "redoAllMs": 11701
     },
     "undo memory \u00B7 60 ink strokes on a new layer, 1920x1080": {
       "historyMB": 30.9,
       "perStrokeKB": 526,
-      "managedHeapGrowthMB": 31.7
+      "managedHeapGrowthMB": 31.6
     },
     "liquify \u00B7 5 sessions on 2560x1440, cancelled": {
       "fieldMB": 4.4,
@@ -501,11 +501,11 @@
     },
     "long session \u00B7 400 strokes, 1920x1080": {
       "wholeStroke": {
-        "avg": 71.425,
-        "p50": 42.614,
-        "p95": 197.655,
-        "p99": 272.101,
-        "max": 484.611,
+        "avg": 71.508,
+        "p50": 44.804,
+        "p95": 198.093,
+        "p99": 284.76,
+        "max": 363.306,
         "unit": "ms"
       },
       "checkpoints": [
@@ -538,25 +538,25 @@
       "historySteps": 200
     },
     "library \u00B7 200 brushes, 100 stamps, 60 patterns": {
-      "addAllMs": 659,
+      "addAllMs": 436,
       "load": {
-        "coldMs": 5.6,
+        "coldMs": 5.8,
         "warmMedianMs": 1.5,
-        "warmMinMs": 1.5
+        "warmMinMs": 1.4
       },
       "brushes": 217,
-      "findBrushMs": 0.0046,
-      "listBrushesMs": 0.0014
+      "findBrushMs": 0.0044,
+      "listBrushesMs": 0.0011
     },
     "process": {
-      "managedHeapAtStartMB": 0.3,
+      "managedHeapAtStartMB": 1.1,
       "managedHeapAtEndMB": 1.8,
-      "workingSetMB": 1038,
-      "peakWorkingSetMB": 2318,
+      "workingSetMB": 1099,
+      "peakWorkingSetMB": 3888,
       "gcCounts": [
-        100,
-        94,
-        64
+        127,
+        115,
+        75
       ]
     }
   }
