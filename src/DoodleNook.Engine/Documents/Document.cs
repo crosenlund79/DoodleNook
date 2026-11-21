@@ -151,15 +151,22 @@ public sealed partial class Document
     }
 
     /// <summary>Adds a layer holding the given pixels (e.g. a paste or a placed image).</summary>
-    public Layer AddLayer(RasterImage image, string name, int? index = null)
+    public Layer AddLayer(RasterImage image, string name, int? index = null) =>
+        AddLayer(image, new LayerProperties(name, ParentId: index is null ? _active.ParentId : 0), index);
+
+    /// <summary>Adds a layer holding the given pixels with the given name, opacity and other properties, as one undo
+    /// step (e.g. a pasted reference at 35 %). Without an <paramref name="index"/> it goes just above the active layer
+    /// in the same group; with one, in the group <paramref name="properties"/> names. In an animation the pixels become
+    /// the current frame's drawing.</summary>
+    public Layer AddLayer(RasterImage image, LayerProperties properties, int? index = null)
     {
         if (image.Width != Width || image.Height != Height) throw new ArgumentException("Layer size differs from the document.");
         ConformToPalette(image, image.Bounds);
-        var layer = NewLayer(new LayerProperties(name, ParentId: index is null ? _active.ParentId : 0), image);
+        var layer = NewLayer(properties with { ParentId = index is null ? _active.ParentId : properties.ParentId }, image);
         PrepareNewLayerTrack(layer, hasPixels: true);
         int at = Math.Clamp(index ?? ActiveIndex + 1, 0, _layers.Count);
         InsertLayerInternal(layer, at, makeActive: true);
-        Commit(new AddLayerAction(name, layer, at));
+        Commit(new AddLayerAction(properties.Name, layer, at));
         return layer;
     }
 

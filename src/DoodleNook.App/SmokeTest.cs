@@ -36,10 +36,10 @@ internal static class SmokeTest
         report["checks"] = checks;
         var watchdog = new Timer(_ =>
         {
-            report["error"] = "timed out after 120 s";
+            report["error"] = "timed out after 180 s";
             Write(directory, report);
             Environment.Exit(2);
-        }, null, TimeSpan.FromSeconds(120), Timeout.InfiniteTimeSpan);
+        }, null, TimeSpan.FromSeconds(180), Timeout.InfiniteTimeSpan);
 
         window.Opened += async (_, _) =>
         {
@@ -615,9 +615,100 @@ internal static class SmokeTest
             udoc.MarkSaved();
         }
 
+        // 17. Mission 012 — The Artist's Companion: import an animation for reconstruction, layer opacity on every frame,
+        // pictures pasted from the Windows clipboard (PNG, a bitmap, a copied file), Paste as reference, the bundled
+        // palettes and the built-in Quick Start guide.
+        {
+            static RasterImage Box(int w, int h, int x0, int y0, int bw, int bh, uint colour)
+            {
+                var img = new RasterImage(w, h);
+                for (int y = y0; y < y0 + bh; y++)
+                    for (int x = x0; x < x0 + bw; x++)
+                        img[x, y] = colour;
+                return img;
+            }
+            var walk = Enumerable.Range(0, 4).Select(f => new ExportFrame(Box(64, 48, 8 + f * 10, 12, 14, 20, Pixel.Opaque(new ColorRgb(200, (byte)(60 + f * 40), 80))), 125, f)).ToList();
+            var gifPath = Path.Combine(dir, "smoke-walk.gif");
+            using (var fs = File.Create(gifPath))
+                GifEncoder.Write(walk, fs, new GifOptions(AlphaThreshold: 1));
+            var import = window.ImportAnimationFromAsync([gifPath]);
+            for (int i = 0; i < 200 && !window.Dialogs.IsOpen; i++) await Task.Delay(20);
+            window.Dialogs.Close("import");
+            bool imported = await import;
+            var adoc = session.Document;
+            Check("a GIF imports as four layers with the reference at 35 % and locked", imported && adoc.FrameCount == 4
+                && adoc.Layers.Select(l => l.Name).SequenceEqual(["Reference", "Sketch", "Outline", "Coloring"])
+                && Math.Abs(adoc.Layers[0].Opacity - 0.35) < 1e-9 && adoc.Layers[0].Locked && adoc.ActiveLayer.Name == "Sketch",
+                $"{adoc.FrameCount} frames, {string.Join("/", adoc.Layers.Select(l => l.Name))}");
+            session.SetLayerProperty(adoc.Layers[0], p => p with { Opacity = 1 });
+            var opaque = AnimationExport.RenderFrames(adoc, includePaper: false)[2].Image[20 + 8, 20];
+            session.SetLayerProperty(adoc.Layers[0], p => p with { Opacity = 0.35 });
+            var faint = AnimationExport.RenderFrames(adoc, includePaper: false)[2].Image[20 + 8, 20];
+            Check("layer opacity applies on every frame of an export", Pixel.A(opaque) == 255 && Pixel.A(faint) is > 80 and < 100, $"{Pixel.A(opaque)} → {Pixel.A(faint)}");
+
+            if (OperatingSystem.IsWindows())
+            {
+                var pic = new RasterImage(10, 6);
+                for (int y = 0; y < 6; y++)
+                    for (int x = 0; x < 10; x++)
+                        pic[x, y] = x < 5 ? Pixel.Opaque(new ColorRgb(20, 140, 220)) : Pixel.FromStraight(240, 90, 40, 128);
+                window.SystemClipboard = ClipboardPictures.ForWindow(window);
+                int layers = adoc.Layers.Count;
+                bool put = Platform.WindowsClipboard.Put(("PNG", 0, PngCodec.Encode(pic)));
+                bool pasted = put && await window.PasteAsync(asReference: false);
+                session.CommitTransform();
+                var layer = adoc.ActiveLayer;
+                int px = (adoc.Width - 10) / 2, py = (adoc.Height - 6) / 2;
+                Check("a PNG copied in another program pastes with its transparency (Windows clipboard)", pasted && adoc.Layers.Count == layers + 1
+                    && layer.Image[px + 1, py + 1] == pic[1, 1] && layer.Image[px + 7, py + 1] == pic[7, 1], put ? window.LastToast : "the clipboard couldn't be set");
+
+                // A 32-bit bitmap with all alpha bytes zero (as Paint copies): opaque.
+                var dib = new byte[40 + 4 * 4];
+                BitConverter.GetBytes(40).CopyTo(dib, 0);
+                BitConverter.GetBytes(2).CopyTo(dib, 4);
+                BitConverter.GetBytes(2).CopyTo(dib, 8);
+                BitConverter.GetBytes((short)1).CopyTo(dib, 12);
+                BitConverter.GetBytes((short)32).CopyTo(dib, 14);
+                for (int i = 0; i < 4; i++) new byte[] { 40, 120, 200, 0 }.CopyTo(dib, 40 + i * 4);
+                put = Platform.WindowsClipboard.Put((null, Platform.WindowsClipboard.CfDib, dib));
+                pasted = put && await window.PasteAsync(asReference: false);
+                session.CommitTransform();
+                Check("a bitmap with empty alpha pastes opaque (Windows clipboard)", pasted
+                    && adoc.ActiveLayer.Image[(adoc.Width - 2) / 2, (adoc.Height - 2) / 2] == Pixel.Opaque(new ColorRgb(200, 120, 40)), window.LastToast);
+
+                // A picture file copied in Explorer, pasted as a reference: 35 %, locked once placed, this frame only.
+                var file = Path.Combine(dir, "smoke-reference.png");
+                File.WriteAllBytes(file, PngCodec.Encode(pic));
+                var names = System.Text.Encoding.Unicode.GetBytes(file + "\0\0");
+                var drop = new byte[20 + names.Length];
+                BitConverter.GetBytes(20).CopyTo(drop, 0);
+                BitConverter.GetBytes(1).CopyTo(drop, 16);
+                names.CopyTo(drop, 20);
+                session.GoToFrame(1);
+                put = Platform.WindowsClipboard.Put((null, Platform.WindowsClipboard.CfHdrop, drop));
+                pasted = put && await window.PasteAsync(asReference: true);
+                var reference = adoc.ActiveLayer;
+                bool positioning = session.ActiveTransform is not null && !reference.Locked;
+                session.CommitTransform();
+                Check("Paste as reference: a copied file at 35 %, locked once placed, on this frame only (Windows clipboard)", pasted && positioning
+                    && reference.Locked && Math.Abs(reference.Opacity - 0.35) < 1e-9 && adoc.CelAt(reference, 1) is not null && adoc.CelAt(reference, 0) is null,
+                    window.LastToast);
+                await Shot("smoke-M-companion.png");
+            }
+            else report["windowsClipboard"] = "not checked (not Windows)";
+
+            Check("ten palettes by other artists are bundled with their credit", session.Library.Palettes.Count(p => p.Credit is not null) == 10
+                && session.Library.Palettes.Any(p => p.Name == "PICO-8 palette" && p.Colors.Count == 16));
+            var guide = QuickStartGuide.Markdown();
+            var pictures = guide is null ? [] : QuickStartGuide.Parse(guide).Where(b => b.Kind == "image").ToList();
+            Check("the Quick Start guide and its pictures are built in", pictures.Count >= 5 && pictures.All(b => QuickStartGuide.Resource(b.Text) is { Length: > 1000 }),
+                $"{pictures.Count} pictures");
+            adoc.MarkSaved();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M011", window.Title);
+            && MainWindow.Milestone == "M012", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

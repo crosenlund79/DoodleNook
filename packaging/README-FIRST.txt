@@ -1,5 +1,5 @@
-DoodleNook — Mission 011 "Under the Hood"
-=========================================
+DoodleNook — Mission 012 "The Artist's Companion"
+=================================================
 
 Start
 -----
@@ -46,8 +46,22 @@ The Artist's Workshop
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 
-Under the Hood (new)
---------------------
+The Artist's Companion (new)
+----------------------------
+* Help › Quick Start Guide: eight short illustrated sections, built in (no internet needed).
+* File › Import animation… (also in the Animation menu): a GIF, an animated PNG or numbered PNG pictures (choose one;
+  the rest of its sequence comes along) become an animation with four layers: Reference (the frames, 35 % and locked),
+  Sketch, Outline and Coloring. Timing is kept. Click frames to leave them out. Your files are only read.
+* Layer opacity in Animation Studio: click a layer's percentage in the timeline for a slider and a box. It applies to
+  that layer on every frame, in playback, onion skin, exports and sprite sheets.
+* Ctrl+V pastes pictures copied in other programs (a browser, Paint, a screenshot, a picture file copied in
+  Explorer), transparency included, on a new layer ready to move. Edit › Paste as reference does the same at 35 %
+  and locks the layer once it is placed (Enter).
+* Ten palettes by other pixel artists in Window › Palettes… (collection "Lospec"), each with its creator and terms.
+  Credits are in PALETTE-ATTRIBUTION.md next to DoodleNook.exe.
+
+Under the Hood
+--------------
 Nothing new to learn: DoodleNook is quicker and steadier. Undo and redo on big pictures with many layers are several
 times faster, big brushes over many layers keep up better, saving holds the window for a fraction of the time, and
 long sessions no longer slow down as tools are changed. Help › Diagnostics… shows the picture's size, memory and

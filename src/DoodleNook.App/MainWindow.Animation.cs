@@ -80,6 +80,7 @@ public partial class MainWindow
                 Checked: AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation)),
             MenuEntry.Separator,
             new("new", "New animation…", null, () => _ = NewAnimationAsync()),
+            new("open", "Import animation…", null, () => _ = ImportAnimationAsync()),
             new("export", "Export animation…", null, () => _ = ExportAnimationAsync()),
         ];
     }

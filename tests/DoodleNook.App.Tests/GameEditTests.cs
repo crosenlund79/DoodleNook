@@ -544,6 +544,22 @@ public sealed class GameEditTests : IDisposable
         Assert.Equal(Forest().Colors, GameProject.Open(_assets).Find("environment/trees/tree.png")!.CustomPalette!.Colors);
     }
 
+    [Fact]
+    public void A_bundled_Lospec_palette_works_as_the_project_palette_and_as_an_images_own_palette()
+    {
+        var pico = Engine.Library.CuratedPalettes.All.Single(x => x.Name == "PICO-8 palette");
+        var cave = Engine.Library.CuratedPalettes.All.Single(x => x.Name == "Cave4");
+        var p = GameProject.Open(_assets);
+        p.SetBackupOriginals(false);
+        p.SetProjectPalette(new Palette(pico.Name, pico.Colors) { LibraryId = pico.Id }, lockAll: true);
+        p.SetPaletteChoice(p.Find("environment/trees/tree.png")!, GamePaletteChoice.Custom, new Palette(cave.Name, cave.Colors) { LibraryId = cave.Id });
+
+        var again = GameProject.Open(_assets);
+        Assert.Equal(pico.Colors, again.LockPaletteFor(again.Find("characters/player.png")!)!.Colors);
+        Assert.Equal(cave.Colors, again.LockPaletteFor(again.Find("environment/trees/tree.png")!)!.Colors);
+        Assert.Equal("PICO-8 palette", again.ProjectPalette!.Name);
+    }
+
     [AvaloniaFact]
     public async Task Opening_locks_to_the_project_palette_and_other_colours_get_the_remap_preview_before_anything_changes()
     {
@@ -671,11 +687,11 @@ public sealed class GameEditTests : IDisposable
     public void The_window_title_shows_the_milestone()
     {
         var w = Open(1280, 800, WorkspaceKind.Painting);
-        Assert.Equal("M011", MainWindow.Milestone);
-        Assert.Equal("DoodleNook — M011", w.Title);
+        Assert.Equal("M012", MainWindow.Milestone);
+        Assert.Equal("DoodleNook — M012", w.Title);
         w.Session.AddLayer();
         Pump();
-        Assert.StartsWith("DoodleNook — M011 — Untitled", w.Title);
+        Assert.StartsWith("DoodleNook — M012 — Untitled", w.Title);
         w.Close();
     }
 }

@@ -27,6 +27,8 @@ public sealed class PaletteManager : Grid
     private readonly TextBox _name = new() { Width = 180, Name = "PaletteName" };
     private readonly TextBox _collection = new() { Width = 130 };
     private readonly TextBlock _info = new() { Classes = { "dim" }, FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxWidth = 330 };
+    private readonly TextBlock _creditText = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxWidth = 318, Name = "PaletteCredit" };
+    private readonly Border _credit;
     private readonly StackPanel _extract = new() { Spacing = 6, IsVisible = false };
     private readonly WrapPanel _extracted = new() { ItemWidth = 26, ItemHeight = 26, MaxWidth = 330 };
     private readonly StackPanel _editButtons;
@@ -58,6 +60,17 @@ public sealed class PaletteManager : Grid
         var right = new StackPanel { Spacing = 8 };
         right.Children.Add(UiKit.Row(6, _name, _collection));
         right.Children.Add(_swatches);
+        // Palettes by other artists: who made it, the terms it is shared under and where it is published.
+        _credit = new Border
+        {
+            Child = _creditText,
+            Background = new SolidColorBrush(DnColors.Ui2),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 6),
+            MaxWidth = 330,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        right.Children.Add(_credit);
         _editButtons = UiKit.Row(4,
             Small("plus", "Colour", "Add the current foreground colour", () => EditColors(c => { if (!c.Contains(_app.Session.Foreground)) c.Add(_app.Session.Foreground); })),
             Small("trash", "Remove", "Remove the selected colour", () => EditColors(c => { if (_selected >= 0 && _selected < c.Count) c.RemoveAt(_selected); _selected = -1; })),
@@ -309,13 +322,15 @@ public sealed class PaletteManager : Grid
     public void Refresh()
     {
         _list.Children.Clear();
+        Button? chosen = null;
         foreach (var group in Lib.Palettes.GroupBy(p => p.Collection))
         {
             _list.Children.Add(new TextBlock { Text = group.Key, Classes = { "dim" }, FontSize = 11, Margin = new Thickness(4, 4, 0, 0) });
             foreach (var p in group)
             {
                 var row = new StackPanel { Spacing = 2 };
-                row.Children.Add(new TextBlock { Text = p.Name, FontSize = 12 });
+                row.Children.Add(UiKit.Row(6, new TextBlock { Text = p.Name, FontSize = 12 },
+                    new TextBlock { Text = p.Colors.Count.ToString(System.Globalization.CultureInfo.InvariantCulture), FontSize = 11, Classes = { "dim", "num" } }));
                 var strip = new StackPanel { Orientation = Orientation.Horizontal };
                 foreach (var c in p.Colors.Take(12)) strip.Children.Add(new Border { Width = 12, Height = 8, Background = UiKit.Brush(c) });
                 row.Children.Add(strip);
@@ -327,9 +342,12 @@ public sealed class PaletteManager : Grid
                 b.Height = 40;
                 b.Classes.Set("on", id == PaletteId);
                 b.Name = "Palette_" + p.Name.Replace(' ', '_');
+                if (id == PaletteId) chosen = b;
                 _list.Children.Add(b);
             }
         }
+        // The chosen palette is always in view in the list (e.g. one in the Lospec collection further down).
+        if (chosen is not null) Avalonia.Threading.Dispatcher.UIThread.Post(() => chosen.BringIntoView(), Avalonia.Threading.DispatcherPriority.Background);
         var cur = Current;
         _name.Text = cur.Name;
         _collection.Text = cur.Collection;
@@ -357,6 +375,12 @@ public sealed class PaletteManager : Grid
                 Refresh();
             };
             _swatches.Children.Add(sw);
+        }
+        _credit.IsVisible = cur.Credit is not null;
+        if (cur.Credit is { } credit)
+        {
+            _creditText.Text = $"By {credit.Creator} · {credit.Mood}\n{credit.Licence}\nSource: {credit.Source}";
+            ToolTip.SetTip(_creditText, $"Where the creator says so: {credit.Evidence}");
         }
         if (!_confirmDelete)
             _info.Text = cur.BuiltIn

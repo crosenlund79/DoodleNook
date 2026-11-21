@@ -74,6 +74,9 @@ public static class OnionSkin
             area = cel.ContentBounds.Intersect(doc.Bounds);
         }
         double fade = s.Opacity * (s.Falloff ? Math.Pow(0.6, distance) : 1);
+        // Mission 012: the active layer's own drawings fade with the layer's opacity, like the layer itself (whole frames
+        // are composed with every layer's opacity already).
+        if (!s.AllLayers) fade *= Math.Clamp(doc.ActiveLayer.Opacity, 0, 1);
         int w = doc.Width;
         var src = source.Pixels;
         var dst = overlay.Pixels;

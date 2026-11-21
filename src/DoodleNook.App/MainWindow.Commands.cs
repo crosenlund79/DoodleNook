@@ -176,17 +176,6 @@ public partial class MainWindow
             ShowToast(hadSelection ? "Selection cleared — Ctrl+Z brings it back" : $"Layer “{Session.Document.ActiveLayer.Name}” cleared — Ctrl+Z brings it back");
     }
 
-    public void Copy(bool cut)
-    {
-        if (Session.Copy(cut)) ShowToast(cut ? "Cut" : "Copied");
-    }
-
-    public void Paste()
-    {
-        if (Session.Paste()) ShowToast("Pasted as a new layer · press V or Ctrl+T to move it");
-        else ShowToast("Nothing to paste yet — copy something first");
-    }
-
     // ================================================================== image
 
     public void RotateImage(int quarterTurns)
@@ -542,16 +531,21 @@ public partial class MainWindow
     public void PlaceImage(RasterImage image, string name)
     {
         var doc = Session.Document;
-        if (image.Width > doc.Width || image.Height > doc.Height)
-        {
-            double s = Math.Min((double)doc.Width / image.Width, (double)doc.Height / image.Height);
-            image = Resampler.Resize(image, Math.Max(1, (int)(image.Width * s)), Math.Max(1, (int)(image.Height * s)),
-                Session.PixelMode ? Interpolation.Nearest : Interpolation.Bicubic);
-        }
+        image = FitToCanvas(image);
         Session.PlaceImage(image, name);
         if (Session.BeginTransform("Place image"))
             ShowToast(doc.PaletteLocked
                 ? $"Placed “{name}” with its colours matched to “{doc.Palette.Name}” (transparency kept) · Enter to finish"
                 : $"Placed “{name}” on a new layer · drag the handles, Enter to finish");
+    }
+
+    /// <summary>A picture larger than the canvas, scaled down to fit it (pixel art keeps hard pixels); others as they are.</summary>
+    private RasterImage FitToCanvas(RasterImage image)
+    {
+        var doc = Session.Document;
+        if (image.Width <= doc.Width && image.Height <= doc.Height) return image;
+        double s = Math.Min((double)doc.Width / image.Width, (double)doc.Height / image.Height);
+        return Resampler.Resize(image, Math.Max(1, (int)(image.Width * s)), Math.Max(1, (int)(image.Height * s)),
+            Session.PixelMode ? Interpolation.Nearest : Interpolation.Bicubic);
     }
 }

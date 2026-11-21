@@ -18,6 +18,12 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- Help › Quick Start Guide: the guide and its screenshots from docs/, built in (Mission 012). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\QUICK-START.md" LogicalName="Guide/QUICK-START.md" />
+    <EmbeddedResource Include="..\..\docs\screenshots\quick-start\*.png" LogicalName="Guide/screenshots/quick-start/%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />

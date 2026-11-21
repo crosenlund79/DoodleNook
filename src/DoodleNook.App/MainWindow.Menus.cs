@@ -41,6 +41,7 @@ public partial class MainWindow
         new("new", "New picture…", "Ctrl+N", () => _ = NewAsync()),
         new("film", "New animation…", null, () => _ = NewAnimationAsync()),
         new("open", "Open…", "Ctrl+O", () => _ = OpenAsync()),
+        new("film", "Import animation…", null, () => _ = ImportAnimationAsync()),
         MenuEntry.Separator,
         new("save", "Save", "Ctrl+S", () => _ = SaveAsync()),
         new("saveas", "Save as…", "Ctrl+Shift+S", () => _ = SaveAsAsync()),
@@ -70,7 +71,8 @@ public partial class MainWindow
             MenuEntry.Separator,
             new(null, "Cut", "Ctrl+X", () => Copy(cut: true)),
             new("copy", "Copy", "Ctrl+C", () => Copy(cut: false)),
-            new("paste", "Paste as new layer", "Ctrl+V", Paste, s.Clipboard is not null),
+            new("paste", "Paste as new layer", "Ctrl+V", Paste),
+            new("place", "Paste as reference", null, PasteAsReference),
             MenuEntry.Separator,
             new("fill", sel ? "Fill selection with foreground" : "Fill layer with foreground", "Alt+Backspace", () => s.FillSelection()),
             new("fill", sel ? "Fill selection with background" : "Fill layer with background", "Ctrl+Backspace", () => s.FillSelection(background: true)),
@@ -263,6 +265,7 @@ public partial class MainWindow
 
     private IEnumerable<MenuEntry> HelpMenu() =>
     [
+        new("info", "Quick Start Guide", null, () => _ = DoodleNook.App.Dialogs.QuickStartGuide.ShowAsync(this)),
         new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()),
         MenuEntry.Separator,
         MenuEntry.Heading("Sample animations"),
@@ -306,6 +309,7 @@ public partial class MainWindow
         list.Add(MenuEntry.Separator);
         list.Add(new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics));
         list.Add(new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()));
+        list.Add(new("info", "Quick Start Guide", null, () => _ = DoodleNook.App.Dialogs.QuickStartGuide.ShowAsync(this)));
         list.Add(new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()));
         list.Add(new("settings", "Preferences…", null, () => _ = PreferencesAsync()));
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
@@ -353,7 +357,24 @@ public partial class MainWindow
     internal Task ShowShortcutsAsync()
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowSpacing = 3, ColumnSpacing = 16 };
-        (string Keys, string What)[] rows =
+        var rows = ShortcutRows;
+        for (int i = 0; i < rows.Length; i++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var k = new TextBlock { Text = rows[i].Keys, FontWeight = FontWeight.SemiBold, FontSize = 12 };
+            if (rows[i].What.Length == 0) k.Margin = new Thickness(0, 8, 0, 0); // a heading row
+            var w = new TextBlock { Text = rows[i].What, Classes = { "dim" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+            Grid.SetRow(k, i);
+            Grid.SetRow(w, i);
+            Grid.SetColumn(w, 1);
+            grid.Children.Add(k);
+            grid.Children.Add(w);
+        }
+        return _dialogs.ShowAsync("Keyboard shortcuts", new ScrollViewer { Content = grid, MaxHeight = 520 }, [("ok", "Close", true)], "ok", "ok", 560);
+    }
+
+    /// <summary>Help › Keyboard shortcuts (F1). The Quick Start guide's shortcuts are checked against this list.</summary>
+    internal static readonly (string Keys, string What)[] ShortcutRows =
         [
             ("Alt+1 … Alt+6", "Pure Sketch · Quick Sketch · Painting · Editing · Pixel Art · Animation Studio"),
             ("B / E / I / H", "Brush (pixel pencil) / Eraser / Eyedropper / Hand"),
@@ -374,7 +395,7 @@ public partial class MainWindow
             ("Ctrl+Z / Ctrl+Shift+Z", "Undo / Redo (also Ctrl+Y)"),
             ("Ctrl+T · Enter / Esc", "Free transform (Perspective, Warp in its bar) · apply / cancel"),
             ("Ctrl+A / D / Shift+I", "Select all / Deselect / Invert"),
-            ("Ctrl+C / X / V", "Copy / Cut / Paste as new layer"),
+            ("Ctrl+C / X / V", "Copy / Cut / Paste as new layer (also pictures copied in other programs)"),
             ("Delete · Alt/Ctrl+Backspace", "Clear · fill with foreground / background"),
             ("Ctrl+Shift+N / J / E", "New layer / Duplicate / Merge down"),
             ("Ctrl+[ / Ctrl+]", "Move layer down / up"),
@@ -393,20 +414,6 @@ public partial class MainWindow
             ("N / Shift+N", "New blank frame / duplicate frame"),
             ("O", "Onion skin on or off"),
         ];
-        for (int i = 0; i < rows.Length; i++)
-        {
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var k = new TextBlock { Text = rows[i].Keys, FontWeight = FontWeight.SemiBold, FontSize = 12 };
-            if (rows[i].What.Length == 0) k.Margin = new Thickness(0, 8, 0, 0); // a heading row
-            var w = new TextBlock { Text = rows[i].What, Classes = { "dim" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
-            Grid.SetRow(k, i);
-            Grid.SetRow(w, i);
-            Grid.SetColumn(w, 1);
-            grid.Children.Add(k);
-            grid.Children.Add(w);
-        }
-        return _dialogs.ShowAsync("Keyboard shortcuts", new ScrollViewer { Content = grid, MaxHeight = 520 }, [("ok", "Close", true)], "ok", "ok", 560);
-    }
 
     /// <summary>Help › Diagnostics…: version, picture, memory, recent timings and caches, with Copy diagnostics (Mission 011).
     /// Its numbers refresh every second while it is open; when it closes, it stops.</summary>
@@ -424,8 +431,9 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 011 “Under the Hood”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, and Game Edit Mode for replacing a game's graphics.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 012 “The Artist's Companion”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, and animation import for drawing over existing animations.\n\n" +
+                        "Bundled palettes by other artists are credited in the Palettes window and in PALETTE-ATTRIBUTION.md.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),
         [("ok", "Close", true)], "ok", "ok");

@@ -24,8 +24,13 @@ public sealed record StampAsset(string Id, string Name, string Collection, bool 
 /// <summary>A repeating tile for pattern fills and brush textures.</summary>
 public sealed record PatternAsset(string Id, string Name, string Collection, bool BuiltIn = false);
 
-/// <summary>A named colour collection.</summary>
-public sealed record PaletteAsset(string Id, string Name, string Collection, IReadOnlyList<ColorRgb> Colors, bool BuiltIn = false);
+/// <summary>A named colour collection. Palettes by other artists carry their <see cref="Credit"/>.</summary>
+public sealed record PaletteAsset(string Id, string Name, string Collection, IReadOnlyList<ColorRgb> Colors, bool BuiltIn = false,
+    PaletteCredit? Credit = null);
+
+/// <summary>Who made a palette, where it is published, the terms it is shared under (and where the creator says so),
+/// and its mood in a few words.</summary>
+public sealed record PaletteCredit(string Creator, string Source, string Licence, string Evidence, string Mood);
 
 /// <summary>
 /// DoodleNook's own starter brushes, tips, stamps, patterns and palettes. All are drawn by code (no copied artwork),
@@ -363,6 +368,7 @@ public static class BuiltInAssets
         new(Prefix + "dusk", "Dusk", "Nature", Hex("#1B1622", "#4A3B52", "#6C5BA8", "#B7525F", "#E88A9A", "#E89A4A", "#F2C14E", "#F6DDBF"), true),
         new(Prefix + "seaside", "Seaside", "Nature", Hex("#22383F", "#3F6A82", "#5F8FA8", "#8FB8CC", "#C7E1E8", "#F6DDBF", "#E8B98A", "#FFFFFF"), true),
         new(Prefix + "cosyui", "Cosy UI", "Interface", Hex("#211C1A", "#2B2522", "#3A322E", "#A99D91", "#F3ECE4", "#E9A94D", "#7AA66A", "#C96F4A"), true),
+        .. CuratedPalettes.All,
     ];
 
     private static ColorRgb[] Hex(params string[] hex) => hex.Select(ColorRgb.Parse).ToArray();

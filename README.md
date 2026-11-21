@@ -2,12 +2,14 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 011 "Under the Hood"** — faster, more responsive and more reliable without changing how
-DoodleNook feels: quicker undo, painting, saving and compositing on large layered pictures, no slow-down in long sessions,
-and a small Help › Diagnostics window. Read [docs/iterations/011-under-the-hood](docs/iterations/011-under-the-hood/README.md),
-the measurements in [PERFORMANCE.md](docs/iterations/011-under-the-hood/PERFORMANCE.md), and try it with the
-[playtest guide](docs/iterations/011-under-the-hood/PLAYTEST.md).
-Earlier milestones: [Mission 010 "The Finishing Touches"](docs/iterations/010-finishing-touches/README.md) (Liquify,
+**Current milestone: Mission 012 "The Artist's Companion"**: import a GIF, animated PNG or PNG sequence to draw over it
+on four ready layers, layer opacity in Animation Studio, Ctrl+V of pictures from other programs and Edit › Paste as
+reference, ten credited palettes by other pixel artists, and an illustrated [Quick Start guide](docs/QUICK-START.md)
+(also Help › Quick Start Guide). Read [docs/iterations/012-artists-companion](docs/iterations/012-artists-companion/README.md),
+the palette credits in [PALETTE-ATTRIBUTION.md](docs/PALETTE-ATTRIBUTION.md), and try it with the
+[playtest guide](docs/iterations/012-artists-companion/PLAYTEST.md).
+Earlier milestones: [Mission 011 "Under the Hood"](docs/iterations/011-under-the-hood/README.md) (measured speed-ups
+and Help › Diagnostics), [Mission 010 "The Finishing Touches"](docs/iterations/010-finishing-touches/README.md) (Liquify,
 Smudge, Clone and Repair, Perspective and Warp, the quick palette's brush sizing and choice),
 [Mission 009 "Game Edit Mode"](docs/iterations/009-game-edit-mode/README.md) (a game's graphics
 folder in a catalog with progress, Ctrl+S saving the `.dnk` and the game's PNG),
@@ -23,7 +25,7 @@ pen-drawing foundation).
 **Less is more — but capable when needed. Ease of use first.** The interface rules are in [`CLAUDE.md`](CLAUDE.md) and
 [docs/design/INTERFACE-PHILOSOPHY.md](docs/design/INTERFACE-PHILOSOPHY.md).
 
-- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F011-under-the-hood) → newest green run → artifact **DoodleNook-win-x64**.
+- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F012-artists-companion) → newest green run → artifact **DoodleNook-win-x64**.
 - Earlier research and the approved design prototype: [docs/](docs/README.md).
 - Sound identity sketches: [sound-experiments/](sound-experiments/README.md).
 

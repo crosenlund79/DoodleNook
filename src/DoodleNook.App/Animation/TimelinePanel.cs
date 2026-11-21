@@ -297,6 +297,15 @@ public sealed class TimelinePanel : Border
         }
     }
 
+    /// <summary>Makes the timeline tall enough to show <paramref name="rows"/> layer rows without scrolling (never shorter
+    /// than it is, and within the usual limit). After importing an animation, all four layers are in view.</summary>
+    public void ShowRows(int rows)
+    {
+        if (_app.AnimationState.TimelineCollapsed) return;
+        double needed = BarHeight + 1 + _scroll.Height + TimelineGrid.RulerHeight + rows * TimelineGrid.MinRow;
+        if (needed > _app.AnimationState.TimelineHeight) SetTimelineHeight(needed);
+    }
+
     public void SetTimelineHeight(double height)
     {
         _app.AnimationState.TimelineHeight = Math.Clamp(height, MinTimelineHeight, MaxHeightNow);

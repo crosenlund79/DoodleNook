@@ -229,7 +229,7 @@ public sealed class ColourPanel : StackPanel
             foreach (var p in group)
             {
                 var id = p.Id;
-                yield return new(null, p.Name, null, () => _session.SetActivePalette(id), Checked: _session.ActivePaletteId == id);
+                yield return new(null, $"{p.Name} · {p.Colors.Count}", null, () => _session.SetActivePalette(id), Checked: _session.ActivePaletteId == id);
             }
         }
         if (_app is not null)

@@ -14,15 +14,18 @@ using DoodleNook.Engine.Imaging;
 namespace DoodleNook.App.Animation;
 
 /// <summary>
-/// The timeline's grid: a ruler of frame numbers with the playhead, one row per layer (top layer first) with its name and
-/// eye, and one cell per frame. A drawing held over several frames is drawn as one block; empty cells are faint dots.
+/// The timeline's grid: a ruler of frame numbers with the playhead, one row per layer (top layer first) with its name,
+/// eye, opacity (click it for a slider; Mission 012) and a lock mark when locked, and one cell per frame. A drawing held over several frames is drawn as one block; empty cells are faint dots.
 /// Click a cell to go to that frame and layer; drag the ruler to scrub; drag a block's right edge to hold it longer or
 /// shorter; drag a drawing onto another frame to move it; right-click for cel and frame commands. Wheel scrolls,
 /// Ctrl+wheel zooms, Shift+wheel scrolls layers.
 /// </summary>
 public sealed class TimelineGrid : Control
 {
-    public const double HeaderWidth = 128;
+    public const double HeaderWidth = 150;
+
+    /// <summary>The opacity figure at the right of a layer's header (click: a slider); the lock mark sits just left of it.</summary>
+    private const double OpacityZone = 42, LockZone = 20;
     public const double RulerHeight = 22;
     public const double MinRow = 30;
     private const double HandleGrab = 9;
@@ -184,6 +187,11 @@ public sealed class TimelineGrid : Control
 
     internal double CellWidthNow => CellWidth;
 
+    /// <summary>Where a layer's opacity figure is (and, just left of it, the lock mark): for tests and screenshots.</summary>
+    internal Point OpacityPoint(Layer layer) => new(HeaderWidth - OpacityZone / 2, RowY(Rows.ToList().IndexOf(layer)) + RowHeight / 2);
+
+    internal Point LockPoint(Layer layer) => new(HeaderWidth - OpacityZone - LockZone / 2, RowY(Rows.ToList().IndexOf(layer)) + RowHeight / 2);
+
     private Layer? LayerAtRow(int row) => row >= 0 && row < Doc.Layers.Count ? Doc.Layers[Doc.Layers.Count - 1 - row] : null;
 
     // ------------------------------------------------------------------ drawing
@@ -271,8 +279,20 @@ public sealed class TimelineGrid : Control
                     using (ctx.PushTransform(Matrix.CreateScale(16 / 24.0, 16 / 24.0) * Matrix.CreateTranslation(8, y + (rh - 16) / 2)))
                         ctx.DrawGeometry(null, new Pen(new SolidColorBrush(layer.Visible ? DnColors.Text2 : Color.FromArgb(110, 169, 157, 145)), 1.8), eye);
                 }
+                // Opacity, always shown (accented below 100 %), and a lock mark only on locked layers.
+                double op = Math.Clamp(layer.Opacity, 0, 1);
+                var pct = Text($"{op * 100:0}%", 11.5, new SolidColorBrush(op < 0.995 ? DnColors.Accent : Color.FromArgb(150, 169, 157, 145)));
+                ctx.DrawText(pct, new Point(HeaderWidth - 8 - pct.Width, y + (rh - pct.Height) / 2));
+                double nameRight = HeaderWidth - OpacityZone - 4;
+                if (layer.Locked && Icons.Get("lock") is { } lockIcon)
+                {
+                    double lx = HeaderWidth - OpacityZone - LockZone + 2;
+                    using (ctx.PushTransform(Matrix.CreateScale(14 / 24.0, 14 / 24.0) * Matrix.CreateTranslation(lx, y + (rh - 14) / 2)))
+                        ctx.DrawGeometry(null, new Pen(new SolidColorBrush(DnColors.Text2), 1.8), lockIcon);
+                    nameRight -= LockZone;
+                }
                 var name = Text(layer.Name, 12.5, new SolidColorBrush(active ? DnColors.Text : DnColors.Text2), active ? FontWeight.SemiBold : FontWeight.Normal);
-                name.MaxTextWidth = HeaderWidth - 40;
+                name.MaxTextWidth = Math.Max(20, nameRight - 32);
                 name.MaxLineCount = 1;
                 name.Trimming = TextTrimming.CharacterEllipsis;
                 ctx.DrawText(name, new Point(32, y + (rh - name.Height) / 2));
@@ -461,9 +481,13 @@ public sealed class TimelineGrid : Control
             }
             var layer = LayerAtRow(RowAt(p.Y));
             if (layer is null) return;
+            // The eye and the lock mark change that layer only; elsewhere a click makes it the layer you draw on.
             if (p.X < 28 && !right) _app.Session.SetLayerProperty(layer, l => l with { Visible = !l.Visible });
+            else if (!right && layer.Locked && p.X >= HeaderWidth - OpacityZone - LockZone && p.X < HeaderWidth - OpacityZone)
+                _app.Session.SetLayerProperty(layer, l => l with { Locked = false }, "Unlock layer");
             else Doc.SetActiveLayer(layer);
             if (right) ShowMenu(_app.LayerTrackMenu(), p);
+            else if (p.X >= HeaderWidth - OpacityZone) ShowOpacity(layer, p);
             return;
         }
 
@@ -546,6 +570,14 @@ public sealed class TimelineGrid : Control
         else ScrollX -= (Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y) ? e.Delta.X : e.Delta.Y) * CellWidth * 2;
         Refresh();
         e.Handled = true;
+    }
+
+    /// <summary>The layer's opacity: a slider (one undo step per drag) and a box for an exact percentage. It applies to the
+    /// layer on every frame, like visibility.</summary>
+    private void ShowOpacity(Layer layer, Point at)
+    {
+        var flyout = UiKit.PopFlyout(new LayerOpacityPanel(_app.Session, layer), PlacementMode.Pointer);
+        Dispatcher.UIThread.Post(() => flyout.ShowAt(this, showAtPointer: true));
     }
 
     private void ShowMenu(IEnumerable<MenuEntry> entries, Point at)

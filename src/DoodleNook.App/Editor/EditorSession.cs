@@ -1,4 +1,5 @@
 using DoodleNook.Engine.Documents;
+using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Library;
 using DoodleNook.Engine.Imaging;
 using DoodleNook.Engine.Operations;
@@ -1090,9 +1091,52 @@ public sealed partial class EditorSession
     public void PlaceImage(RasterImage image, string name)
     {
         CommitTransform();
+        Document.AddLayer(Centred(image), name);
+    }
+
+    private RasterImage Centred(RasterImage image)
+    {
+        if (image.Width == Document.Width && image.Height == Document.Height) return image.Clone();
         var img = new RasterImage(Document.Width, Document.Height);
         img.Paste(image, (Document.Width - image.Width) / 2, (Document.Height - image.Height) / 2);
-        Document.AddLayer(img, name);
+        return img;
+    }
+
+    // ================================================================ pasted references (Mission 012)
+
+    private Layer? _lockWhenPlaced, _drawOnAfterPlacing;
+
+    /// <summary>The pasted reference still being positioned (it locks when its transform finishes).</summary>
+    public Layer? PlacingReference => _lockWhenPlaced;
+
+    /// <summary>
+    /// Edit › Paste as reference: the picture on a new layer just below the one you draw on, at 35 % and visible, with
+    /// transform handles so it can be moved and scaled into place. When the transform finishes (Enter, another tool,
+    /// any other command) the layer locks, so drawing can't land on it by accident, and the layer you were drawing on is
+    /// active again. In an animation the picture is the current frame's drawing only; other layers (an imported
+    /// Reference included) are untouched.
+    /// </summary>
+    public Layer PlaceReference(RasterImage image, string name = "Pasted reference")
+    {
+        EndStroke();
+        CommitTransform();
+        var drawOn = Document.ActiveLayer;
+        int? below = drawOn.IsGroup ? null : Document.ActiveIndex;
+        var layer = Document.AddLayer(Centred(image), new LayerProperties(name, Opacity: AnimationImport.ReferenceOpacity, ParentId: drawOn.ParentId), below);
+        _lockWhenPlaced = layer;
+        _drawOnAfterPlacing = drawOn;
+        if (!BeginTransform("Position reference")) LockPlacedReference();
+        return layer;
+    }
+
+    private void LockPlacedReference()
+    {
+        if (_lockWhenPlaced is not { } layer) return;
+        var back = _drawOnAfterPlacing;
+        _lockWhenPlaced = _drawOnAfterPlacing = null;
+        if (!Document.Layers.Contains(layer)) return;
+        if (!layer.Locked) Document.SetLayerProperties(layer, layer.Properties with { Locked = true }, "Lock reference");
+        if (back is not null && Document.Layers.Contains(back) && ReferenceEquals(Document.ActiveLayer, layer)) Document.SetActiveLayer(back);
     }
 
     public bool ClearSelectionOrLayer()
@@ -1136,9 +1180,14 @@ public sealed partial class EditorSession
     public bool CommitTransform()
     {
         if (ActiveLiquify is not null) return ApplyLiquify(); // finishing pending work applies Liquify, like a transform
-        if (ActiveTransform is not { } t) return false;
+        if (ActiveTransform is not { } t)
+        {
+            LockPlacedReference();
+            return false;
+        }
         t.Commit();
         _transform = null;
+        LockPlacedReference();
         Changed();
         return true;
     }
@@ -1163,6 +1212,7 @@ public sealed partial class EditorSession
         if (ActiveTransform is not { } t) return false;
         t.Cancel();
         _transform = null;
+        LockPlacedReference();
         Changed();
         return true;
     }

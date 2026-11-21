@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion" ]
   workflow_dispatch:
 
 permissions:
@@ -79,6 +79,8 @@ jobs:
         run: |
           Copy-Item packaging/README-FIRST.txt publish/DoodleNook/
           Copy-Item THIRD-PARTY-NOTICES.txt publish/DoodleNook/
+          # Credits and terms of the palettes by other artists that DoodleNook bundles (Mission 012).
+          Copy-Item docs/PALETTE-ATTRIBUTION.md publish/DoodleNook/
           # The engine tests draw the samples (two animations, an asset pack, a palette and a reference board) and save
           # them as ordinary DoodleNook files.
           New-Item -ItemType Directory -Force publish/DoodleNook/Samples | Out-Null
@@ -91,7 +93,7 @@ jobs:
         shell: pwsh
         run: |
           $dir = "publish/DoodleNook"
-          $required = "DoodleNook.exe", "libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "README-FIRST.txt", "THIRD-PARTY-NOTICES.txt",
+          $required = "DoodleNook.exe", "libSkiaSharp.dll", "libHarfBuzzSharp.dll", "av_libglesv2.dll", "README-FIRST.txt", "THIRD-PARTY-NOTICES.txt", "PALETTE-ATTRIBUTION.md",
                       "Samples/Bouncing ball.dnk", "Samples/Pixel slime.dnk", "Samples/Woodland starter pack.dnkpack",
                       "Samples/Autumn walk.gpl", "Samples/Sample references.dnkboard"
           foreach ($f in $required) {
@@ -112,10 +114,10 @@ jobs:
           Expand-Archive DoodleNook-win-x64.zip -DestinationPath zip-check
           $out = Join-Path $PWD "smoke-test"
           $p = Start-Process -FilePath "zip-check/DoodleNook.exe" -ArgumentList "--smoke-test", "`"$out`"" -PassThru
-          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish its smoke test within 3 minutes" }
+          if (-not $p.WaitForExit(240000)) { $p.Kill(); throw "The app did not finish its smoke test within 4 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board, plus Palette Lock and Remap to Palette (alpha kept exactly)."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board, plus Palette Lock and Remap to Palette (alpha kept exactly), and imported a GIF as a four-layer animation, pasted pictures from the Windows clipboard (PNG, a bitmap and a copied file, also as a reference) and found the bundled palettes and the built-in Quick Start guide."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7
