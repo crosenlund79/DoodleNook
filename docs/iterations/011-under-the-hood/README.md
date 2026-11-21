@@ -24,7 +24,14 @@ Measured on the same machine, before (M010) and after (M011); details, method an
 | Game Edit with 300 PNGs: longest pause while thumbnails load | 1,021 ms | 95 ms |
 | Listeners reacting to every change after 180 tool changes | 55 (growing) | 24 (steady) |
 
-Thin strokes are a few hundredths of a millisecond per pen event in both versions (4–13% quicker head to head).
+These are from the Linux test machine. On Windows, M010 and M011 were measured one after the other on the same CI
+runner:
+
+- Ctrl+Z on 12 layers: 189–228 → 33–86 ms.
+- The window held while saving: 326 → 26 ms; the whole save −40%; opening −31%.
+- The big soft brush on the top layer: 4.3 → 1.3 ms per event.
+
+Thin strokes are a few hundredths of a millisecond per pen event in both versions (4–15% quicker head to head).
 Every picture DoodleNook draws is identical to Mission 010, pixel for pixel.
 
 ## What changed
@@ -163,4 +170,16 @@ artifact **DoodleNook-win-x64** of the newest green run of
 The Mission 011 benchmarks run in their own CI step after the tests; their JSON is in the run's **test-results**
 artifact.
 
-<!-- CI-RESULTS -->
+### Windows CI results
+
+Run [#30](https://github.com/crosenlund79/DoodleNook/actions/runs/44856498170) (commit 64b9cf1) and every run on this
+branch passed the same steps:
+
+- **Automated tests:** engine 284 and app 177, plus the three benchmark tests in their own step. On Linux:
+  engine 286/286 and app 178/178.
+- **The same-runner comparison with Mission 010**, published self-contained, the package verified, and the portable ZIP.
+- **The packaged app's smoke test: 67/67.** It includes section 16: painting over five layers equals the full composite,
+  undo restores it exactly, tool changes add no listeners, and Diagnostics reports without folders. The version reads
+  0.11.0, the title "DoodleNook — M011", the canvas averages 1.4–1.6 ms per frame from the GPU texture, and undo of a thin
+  stroke on six layers takes about 1 ms.
+- **Artifact:** **DoodleNook-win-x64**. The final commit's run and its artifact link are in the delivery report.

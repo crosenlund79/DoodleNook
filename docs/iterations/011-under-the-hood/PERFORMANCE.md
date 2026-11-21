@@ -11,7 +11,7 @@ comparison is like for like. The raw JSON of every run is in [measurements/](mea
 | Machine | Cloud Linux VM, 4 logical processors (Intel Xeon @ 2.10 GHz), 15 GB RAM, no GPU |
 | OS / runtime | Linux 6.18, .NET SDK 10.0.404 (runtime 10.0.15), Release build, workstation GC |
 | UI | Avalonia 12.1.6 on its headless platform, with Skia drawing in memory (software, no GPU) |
-| Secondary data | Windows CI (Windows Server 2025, 4 logical processors, Release): the same engine benchmark on M011 ([measurements/m011-engine-windows-ci-run28.json](measurements/m011-engine-windows-ci-run28.json)) and the packaged app's smoke test |
+| Windows | GitHub Actions `windows-latest` (4 logical processors, Release): M010 and M011 built and measured one after the other on the same runner (section 6, "Windows"), plus the packaged app's smoke test |
 
 The VM is shared, so single runs vary by up to about ±20%. Each engine figure is the mean of two paired rounds
 (M010, M011, M010, M011). Within a round, each stroke is drawn three times and the median run is reported. The engine
@@ -98,6 +98,14 @@ The moments the owner would notice, from the tables below:
 | Listeners after 180 tool changes (state / library) | 55 / 63, growing | 24 / 2, steady | — |
 | One size change (slider or quick palette drag) after a session | 3.4 ms | 1.9 ms | −46% |
 | Thin strokes, per pen event (head to head) | 0.020–0.055 ms | 0.019–0.048 ms | −4 to −13% |
+
+These are from the Linux VM. **On Windows, measured on the same CI runner**, the same moments are:
+
+- Ctrl+Z on 12 layers: −61 to −83% (189–228 → 33–86 ms).
+- The window held while saving: 326 → 26 ms; the whole save: −40%; opening: −31%.
+- The big soft brush on the top layer: 4.3 → 1.3 ms per event.
+- Recompositing: −14 to −23%.
+- Thin strokes: −6 to −15% (head to head).
 
 ## 6. Results in detail
 
@@ -345,18 +353,122 @@ The `PerformanceTests` from Mission 005 onwards, run alone in a fresh process, t
 | 2560 × 1440, 12 layers · .dnk open | 739.0 ms | 552.0 ms | -25% |
 | 2560 × 1440, 12 layers · undo history | 252 MB | 161 MB | -36% |
 
-### Windows CI (secondary)
+### Windows: M010 and M011 on the same CI runner
 
-- **Smoke test.** The packaged M011 app on Windows CI reports a 1.74 ms average canvas frame (GPU texture), undo of a
-  thin stroke on six layers in 1.5 ms, and 67/67 checks.
-- **Engine benchmark on Windows.** M011's results are in
-  [measurements/m011-engine-windows-ci-run28.json](measurements/m011-engine-windows-ci-run28.json).
-- **No like-for-like Windows comparison yet.** CI run #28 measured the older `PerformanceTests` *slower* than M010's run
-  #27 in several rows (e.g. a 12-layer recomposite 176 → 262 ms). That run's runner was also slower on untouched work
-  (Brush Laboratory and Mission 010 measurements took a median 1.24× and 1.32× longer). In that run, the heavy Mission
-  011 benchmarks (2+ GB) also ran in the same process just before those tests. The same tests run alone and paired here
-  are 8–60% faster in M011 (the table above).
-- **Fix for future runs.** The Mission 011 benchmarks now run in a separate CI step after the tests.
+The owner's platform. CI run [#30](https://github.com/crosenlund79/DoodleNook/actions/runs/44856498170) (commit
+64b9cf1) built Mission 010's engine (702aa2f) next to this branch's on one `windows-latest` runner (4 logical
+processors). It then ran the same benchmark files for M010 and then M011: the earlier performance tests, the Mission
+011 benchmark and the head-to-head benchmark. That is one paired run, so single rows carry the usual ±10–20% noise.
+Files: [measurements/windows-ci-run30/](measurements/windows-ci-run30/).
+
+**The earlier missions' performance tests**
+
+| Picture · measurement | M010 | M011 | Change |
+|---|---|---|---|
+| 1920 × 1080, 1 layer · 6 px pencil (per pen event) | 0.020 ms | 0.019 ms | -5% |
+| 1920 × 1080, 1 layer · 24 px ink (per pen event) | 0.024 ms | 0.022 ms | -8% |
+| 1920 × 1080, 1 layer · 120 px hard (per pen event) | 0.158 ms | 0.124 ms | -22% |
+| 1920 × 1080, 1 layer · 300 px soft (per pen event) | 0.550 ms | 0.478 ms | -13% |
+| 1920 × 1080, 1 layer · full recomposite | 9.10 ms | 7.00 ms | -23% |
+| 1920 × 1080, 1 layer · undo last stroke | 12.0 ms | 3.17 ms | -74% |
+| 1920 × 1080, 1 layer · redo last stroke | 8.07 ms | 3.87 ms | -52% |
+| 1920 × 1080, 1 layer · .dnk save | 286 ms | 235 ms | -18% |
+| 1920 × 1080, 1 layer · .dnk open | 53.0 ms | 36.0 ms | -32% |
+| 1920 × 1080, 1 layer · undo history | 11 MB | 5 MB | -54% |
+| 1920 × 1080, 6 layers · 6 px pencil (per pen event) | 0.044 ms | 0.031 ms | -30% |
+| 1920 × 1080, 6 layers · 24 px ink (per pen event) | 0.061 ms | 0.066 ms | +8% |
+| 1920 × 1080, 6 layers · 120 px hard (per pen event) | 0.533 ms | 0.484 ms | -9% |
+| 1920 × 1080, 6 layers · 300 px soft (per pen event) | 1.733 ms | 0.897 ms | -48% |
+| 1920 × 1080, 6 layers · full recomposite | 75.5 ms | 61.9 ms | -18% |
+| 1920 × 1080, 6 layers · undo last stroke | 61.3 ms | 27.8 ms | -55% |
+| 1920 × 1080, 6 layers · redo last stroke | 63.4 ms | 28.9 ms | -54% |
+| 1920 × 1080, 6 layers · .dnk save | 623 ms | 416 ms | -33% |
+| 1920 × 1080, 6 layers · .dnk open | 205 ms | 153 ms | -25% |
+| 1920 × 1080, 6 layers · undo history | 72 MB | 45 MB | -38% |
+| 2560 × 1440, 12 layers · 6 px pencil (per pen event) | 0.077 ms | 0.065 ms | -16% |
+| 2560 × 1440, 12 layers · 24 px ink (per pen event) | 0.149 ms | 0.124 ms | -17% |
+| 2560 × 1440, 12 layers · 120 px hard (per pen event) | 1.355 ms | 1.091 ms | -19% |
+| 2560 × 1440, 12 layers · 300 px soft (per pen event) | 4.715 ms | 2.661 ms | -44% |
+| 2560 × 1440, 12 layers · full recomposite | 305 ms | 261 ms | -14% |
+| 2560 × 1440, 12 layers · undo last stroke | 232 ms | 85.5 ms | -63% |
+| 2560 × 1440, 12 layers · redo last stroke | 231 ms | 90.7 ms | -61% |
+| 2560 × 1440, 12 layers · .dnk save | 2,153 ms | 1,233 ms | -43% |
+| 2560 × 1440, 12 layers · .dnk open | 771 ms | 554 ms | -28% |
+| 2560 × 1440, 12 layers · undo history | 252 MB | 161 MB | -36% |
+
+**The Mission 011 benchmark (selected rows)**
+
+| Workload | M010 | M011 | Change |
+|---|---|---|---|
+| Pen event · 1920x1080, 1 layer · 6 px pencil (grain) | 0.019 ms | 0.018 ms | -5% |
+| Pen event · 1920x1080, 1 layer · 24 px ink | 0.024 ms | 0.022 ms | -8% |
+| Pen event · 1920x1080, 1 layer · 120 px hard | 0.151 ms | 0.124 ms | -18% |
+| Pen event · 1920x1080, 1 layer · 300 px soft | 0.600 ms | 0.534 ms | -11% |
+| Pen event · 1920x1080, 3 layers (top active) · 6 px pencil (grain) | 0.028 ms | 0.026 ms | -7% |
+| Pen event · 1920x1080, 3 layers (top active) · 24 px ink | 0.051 ms | 0.044 ms | -14% |
+| Pen event · 1920x1080, 3 layers (top active) · 120 px hard | 0.473 ms | 0.422 ms | -11% |
+| Pen event · 1920x1080, 3 layers (top active) · 300 px soft | 1.454 ms | 1.036 ms | -29% |
+| Pen event · 2560x1440, 12 layers (middle active) · 24 px ink | 0.145 ms | 0.128 ms | -12% |
+| Pen event · 2560x1440, 12 layers (middle active) · 120 px hard | 1.290 ms | 1.100 ms | -15% |
+| Pen event · 2560x1440, 12 layers (middle active) · 300 px soft | 4.593 ms | 2.744 ms | -40% |
+| Pen event · 2560x1440, 12 layers (top active) · 24 px ink | 0.139 ms | 0.121 ms | -13% |
+| Pen event · 2560x1440, 12 layers (top active) · 120 px hard | 1.163 ms | 1.002 ms | -14% |
+| Pen event · 2560x1440, 12 layers (top active) · 300 px soft | 4.310 ms | 1.305 ms | -70% |
+| Pen event · 1920x1080, 3 layers · Charcoal (charcoal) | 0.354 ms | 0.337 ms | -5% |
+| Pen event · 1920x1080, 3 layers · Leaves (leaves) | 0.094 ms | 0.095 ms | +1% |
+| Pen event · masks+group+adjustment 1920x1080 · 24 px ink | 0.106 ms | 0.105 ms | -1% |
+| Pen event · masks+group+adjustment 1920x1080 · 300 px soft | 1.734 ms | 1.180 ms | -32% |
+| Pen event · palette-locked 1920x1080, 3 layers · 24 px ink | 0.038 ms | 0.035 ms | -8% |
+| Pen event · palette-locked 1920x1080, 3 layers · 300 px soft | 1.197 ms | 0.892 ms | -25% |
+| Undo · 2560x1440, 12 layers (middle active) · 24 px ink | 195 ms | 32.9 ms | -83% |
+| Undo · 2560x1440, 12 layers (middle active) · 120 px hard | 202 ms | 53.8 ms | -73% |
+| Undo · 2560x1440, 12 layers (middle active) · 300 px soft | 228 ms | 85.3 ms | -63% |
+| Undo · 2560x1440, 12 layers (top active) · 24 px ink | 189 ms | 32.6 ms | -83% |
+| Undo · 2560x1440, 12 layers (top active) · 120 px hard | 208 ms | 54.2 ms | -74% |
+| Undo · 2560x1440, 12 layers (top active) · 300 px soft | 221 ms | 85.6 ms | -61% |
+| recomposite everything · 1920x1080, 1 layer (warm) | 8.30 ms | 6.40 ms | -23% |
+| recomposite everything · 1920x1080, 3 layers (top active) (warm) | 43.0 ms | 36.3 ms | -16% |
+| recomposite everything · 2560x1440, 12 layers (middle active) (warm) | 297 ms | 247 ms | -17% |
+| recomposite everything · 2560x1440, 12 layers (top active) (warm) | 298 ms | 246 ms | -18% |
+| recomposite everything · masks+group+adjustment 1920x1080 (warm) | 68.9 ms | 59.1 ms | -14% |
+| Save: copy on the UI thread (warm), 2560 × 1440, 12 layers | 326 ms | 26.0 ms | -92% |
+| Save to disk (warm), 2560 × 1440, 12 layers | 2,140 ms | 1,278 ms | -40% |
+| Open (warm), 2560 × 1440, 12 layers | 764 ms | 528 ms | -31% |
+| Undo history after 30 big strokes | 310 MB | 195 MB | -37% |
+| Undo all 60 steps | 10,299 ms | 4,499 ms | -56% |
+| Animation: Frame change, first visit (avg) | 10.3 ms | 7.60 ms | -26% |
+| Animation: Render all 21 frames for export (warm) | 20.5 ms | 26.2 ms | +28% |
+| Animation: GIF encode | 1,753 ms | 1,840 ms | +5% |
+| Animation on twos: .dnk write | 322 ms | 310 ms | -4% |
+
+**Head to head**
+
+| Head to head | M010 | M011 | Change |
+|---|---|---|---|
+| Thin stroke, 1 layer, 24 px ink (per pen event) | 0.0249 ms | 0.0216 ms | -13% |
+| Thin stroke, 1 layer, 6 px pencil (per pen event) | 0.0186 ms | 0.0175 ms | -6% |
+| Thin stroke, 3 layers, 24 px ink (per pen event) | 0.0506 ms | 0.0446 ms | -12% |
+| Thin stroke, 3 layers, 6 px pencil (per pen event) | 0.0277 ms | 0.0235 ms | -15% |
+| save .dnk, 1920x1080 animation, 24 drawings | 2156.4 ms | 1390.6 ms | -36% |
+| save .dnk, 2560x1440 picture, 6 layers | 1216.2 ms | 723.1 ms | -41% |
+| PNG encode 256x256 sprite | 4.456 ms | 2.479 ms | -44% |
+| PNG decode 256x256 sprite | 0.862 ms | 0.38 ms | -56% |
+| PNG encode 2560x1440 picture | 643.9 ms | 531.2 ms | -18% |
+| PNG decode 2560x1440 picture | 67 ms | 36.7 ms | -45% |
+
+On Windows, every comparison is the same or faster except three rows:
+
+- **24 px ink on six layers** in the older performance test: +8% (0.061 → 0.066 ms; −14% to −17% in the other
+  thin-ink rows on that runner).
+- **Rendering all 21 frames for export:** +28% (20 → 26 ms). This row's spread is large on both systems (see below).
+- **GIF encoding:** +5%. The GIF code is unchanged.
+
+The packaged M011 app's smoke test on Windows reports a 1.4–1.7 ms average canvas frame (GPU texture) and undo of a
+thin stroke on six layers in about 1 ms.
+
+An earlier, unpaired comparison of different CI runs (#27 for M010, #28 for M011) had shown the older performance
+tests slower in M011. That run used a slower runner, and the heavy new benchmarks ran in the same process just before
+those tests. The paired run above replaces it, and the new benchmarks now run in their own CI step.
 
 ## 7. Regressions, noise and tradeoffs
 
@@ -372,7 +484,7 @@ The `PerformanceTests` from Mission 005 onwards, run alone in a fresh process, t
   write in a fresh process with large drawings measured faster too (816–928 ms vs 1,196–1,294 ms).
 - **Rows that flip between rounds** use code this mission didn't change, or are dominated by allocating many large
   images, so their spread is noise. Over eight rounds (M010 vs M011):
-  - rendering all 21 frames for export: 50–124 vs 62–127 ms;
+  - rendering all 21 frames for export: 50–124 vs 62–127 ms (20 vs 26 ms in the single Windows pair);
   - GIF encode: 1.9–2.2 vs 2.1–2.4 s;
   - palette analysis: 211–251 vs 242–250 ms;
   - charcoal per event: 0.29–0.39 vs 0.29–0.34 ms;

@@ -1,0 +1,126 @@
+{
+  "measuredAt": "2026-11-21T02:45:03.0650459+00:00",
+  "os": "Microsoft Windows NT 10.0.26100.0",
+  "cpu": "4 logical processors",
+  "configuration": "Release",
+  "note": "Engine only: brush work plus recompositing all visible layers under the brush; excludes drawing to the screen.",
+  "results": [
+    {
+      "document": "1920x1080",
+      "layers": 1,
+      "brush": "6 px pencil",
+      "avgMsPerEvent": 0.02,
+      "maxMsPerEvent": 0.056
+    },
+    {
+      "document": "1920x1080",
+      "layers": 1,
+      "brush": "24 px ink",
+      "avgMsPerEvent": 0.024,
+      "maxMsPerEvent": 0.081
+    },
+    {
+      "document": "1920x1080",
+      "layers": 1,
+      "brush": "120 px hard",
+      "avgMsPerEvent": 0.158,
+      "maxMsPerEvent": 2.659
+    },
+    {
+      "document": "1920x1080",
+      "layers": 1,
+      "brush": "300 px soft",
+      "avgMsPerEvent": 0.55,
+      "maxMsPerEvent": 1.903
+    },
+    {
+      "document": "1920x1080",
+      "layers": 1,
+      "fullRecompositeMs": 9.1,
+      "undoLastStrokeMs": 12.04,
+      "redoLastStrokeMs": 8.07,
+      "dnkSaveMs": 286,
+      "dnkLoadMs": 53,
+      "dnkBytes": 668352,
+      "undoHistoryBytes": 11600192
+    },
+    {
+      "document": "1920x1080",
+      "layers": 6,
+      "brush": "6 px pencil",
+      "avgMsPerEvent": 0.044,
+      "maxMsPerEvent": 2.025
+    },
+    {
+      "document": "1920x1080",
+      "layers": 6,
+      "brush": "24 px ink",
+      "avgMsPerEvent": 0.061,
+      "maxMsPerEvent": 0.108
+    },
+    {
+      "document": "1920x1080",
+      "layers": 6,
+      "brush": "120 px hard",
+      "avgMsPerEvent": 0.533,
+      "maxMsPerEvent": 0.951
+    },
+    {
+      "document": "1920x1080",
+      "layers": 6,
+      "brush": "300 px soft",
+      "avgMsPerEvent": 1.733,
+      "maxMsPerEvent": 8.748
+    },
+    {
+      "document": "1920x1080",
+      "layers": 6,
+      "fullRecompositeMs": 75.5,
+      "undoLastStrokeMs": 61.33,
+      "redoLastStrokeMs": 63.38,
+      "dnkSaveMs": 623,
+      "dnkLoadMs": 205,
+      "dnkBytes": 2983096,
+      "undoHistoryBytes": 75556160
+    },
+    {
+      "document": "2560x1440",
+      "layers": 12,
+      "brush": "6 px pencil",
+      "avgMsPerEvent": 0.077,
+      "maxMsPerEvent": 0.156
+    },
+    {
+      "document": "2560x1440",
+      "layers": 12,
+      "brush": "24 px ink",
+      "avgMsPerEvent": 0.149,
+      "maxMsPerEvent": 0.25
+    },
+    {
+      "document": "2560x1440",
+      "layers": 12,
+      "brush": "120 px hard",
+      "avgMsPerEvent": 1.355,
+      "maxMsPerEvent": 5.185
+    },
+    {
+      "document": "2560x1440",
+      "layers": 12,
+      "brush": "300 px soft",
+      "avgMsPerEvent": 4.715,
+      "maxMsPerEvent": 15.591
+    },
+    {
+      "document": "2560x1440",
+      "layers": 12,
+      "fullRecompositeMs": 304.9,
+      "undoLastStrokeMs": 231.66,
+      "redoLastStrokeMs": 230.72,
+      "dnkSaveMs": 2153,
+      "dnkLoadMs": 771,
+      "dnkBytes": 8552648,
+      "undoHistoryBytes": 264718912
+    }
+  ]
+}
