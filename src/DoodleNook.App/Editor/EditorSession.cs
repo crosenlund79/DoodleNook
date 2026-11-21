@@ -165,6 +165,9 @@ public sealed partial class EditorSession
 
     private void Changed() => StateChanged?.Invoke();
 
+    /// <summary>How many listeners react to every change (the smoke test checks that it doesn't grow).</summary>
+    internal int StateChangedListenerCount => StateChanged?.GetInvocationList().Length ?? 0;
+
     private void Tell(string message) => Message?.Invoke(message);
 
     // ================================================================ documents
@@ -908,9 +911,13 @@ public sealed partial class EditorSession
 
     private void OnLibraryChanged()
     {
+        LibraryRevision++;
         LibraryChanged?.Invoke();
         Changed();
     }
+
+    /// <summary>Counts library changes (panels that were hidden compare it to know whether to rebuild their tiles).</summary>
+    public int LibraryRevision { get; private set; }
 
     /// <summary>The preset the current brush came from (null if it no longer exists).</summary>
     public BrushPreset? CurrentPreset => Library.FindBrush(BrushPresetId);

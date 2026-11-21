@@ -31,8 +31,7 @@ public static class Blending
     {
         if (factor >= 255 || p == 0) return p;
         if (factor <= 0) return 0;
-        byte f = (byte)factor;
-        return Pixel.Pack(Pixel.Mul(Pixel.A(p), f), Pixel.Mul(Pixel.R(p), f), Pixel.Mul(Pixel.G(p), f), Pixel.Mul(Pixel.B(p), f));
+        return Pixel.Scale(p, (uint)factor); // the same rounding as Pixel.Mul on each channel
     }
 
     /// <summary>Blends premultiplied <paramref name="src"/> onto premultiplied <paramref name="dst"/>.</summary>

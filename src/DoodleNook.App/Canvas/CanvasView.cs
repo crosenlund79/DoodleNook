@@ -44,6 +44,14 @@ public sealed partial class CanvasView : Control, ICustomHitTest
     private Size _lastSize;
     private SKPath? _selectionPath;
     private float _antsOffset;
+    private volatile float _lastFrameMs;
+
+    /// <summary>Called on the render thread after the picture is drawn (Help › Diagnostics and the ants' pace).</summary>
+    private void OnFrameDrawn(double ms)
+    {
+        _lastFrameMs = (float)ms;
+        PerformanceLog.Frame(ms);
+    }
 
     public CanvasView()
     {
@@ -58,6 +66,11 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         _ants.Tick += (_, _) =>
         {
             _antsOffset = (_antsOffset + 1) % 8;
+            // The ants redraw the whole canvas. When drawing a frame is slow (software rendering of a big picture), march
+            // more slowly so they never keep the renderer busy (Mission 011): at most a quarter of its time. With a GPU the
+            // frames are quick and the ants keep their usual pace.
+            double interval = Math.Clamp(_lastFrameMs * 4, 120, 1000);
+            if (Math.Abs(_ants.Interval.TotalMilliseconds - interval) > 20) _ants.Interval = TimeSpan.FromMilliseconds(interval);
             InvalidateVisual();
         };
         _spray.Tick += (_, _) =>
@@ -283,7 +296,7 @@ public sealed partial class CanvasView : Control, ICustomHitTest
 
         double zoom = ActualZoom;
         context.Custom(new DocumentDrawOperation(visible, _texture, m, doc.Width, doc.Height, zoom, PixelExact, Tiled,
-            ShowGrid && zoom >= 5, _selectionPath, _antsOffset));
+            ShowGrid && zoom >= 5, _selectionPath, _antsOffset, OnFrameDrawn));
 
         DrawOverlays(context);
     }
@@ -758,7 +771,7 @@ public sealed partial class CanvasView : Control, ICustomHitTest
 
     /// <summary>Renders the projection with Skia (GPU when available), plus grid, tiles and the selection outline.</summary>
     private sealed class DocumentDrawOperation(Rect bounds, DocumentTexture texture, Affine matrix, int docWidth, int docHeight,
-        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset) : ICustomDrawOperation
+        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset, Action<double> drawn) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -776,7 +789,14 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         {
             var feature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
             if (feature is null) return;
+            long start = Stopwatch.GetTimestamp();
             using var lease = feature.Lease();
+            DrawAll(lease);
+            drawn(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        }
+
+        private void DrawAll(ISkiaSharpApiLease lease)
+        {
             var canvas = lease.SkCanvas;
             var m = new SKMatrix((float)matrix.M11, (float)matrix.M21, (float)matrix.Dx, (float)matrix.M12, (float)matrix.M22, (float)matrix.Dy, 0, 0, 1);
             var docRect = new SKRect(0, 0, docWidth, docHeight);

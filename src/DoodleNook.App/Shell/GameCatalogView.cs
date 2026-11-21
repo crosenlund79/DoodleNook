@@ -39,8 +39,18 @@ public sealed class GameCatalogView : Border
     private readonly Dictionary<string, (DateTime Written, string Palette, bool Outside)> _paletteChecks = new(StringComparer.OrdinalIgnoreCase);
     private bool _exceptionsOnly;
     private readonly Dictionary<string, (DateTime Written, Bitmap Thumb)> _thumbs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Thumbnails made so far (Help › Diagnostics).</summary>
+    internal int ThumbnailCount
+    {
+        get
+        {
+            lock (_thumbs) return _thumbs.Count;
+        }
+    }
     private readonly List<Action> _refresh = new();
     private readonly List<Action> _tileRefresh = new();
+    private readonly Dictionary<string, Action> _tileRefreshByPath = new(StringComparer.OrdinalIgnoreCase);
     private GameProject? _project;
     private GameImageStatus? _filter;
     private CancellationTokenSource? _loading;
@@ -136,6 +146,7 @@ public sealed class GameCatalogView : Border
     {
         _tiles.Children.Clear();
         _tileRefresh.Clear();
+        _tileRefreshByPath.Clear();
         if (_project is null) return;
         foreach (var image in _project.Images) _tiles.Children.Add(Tile(image));
         Refresh();
@@ -323,6 +334,7 @@ public sealed class GameCatalogView : Border
                 if (_thumbs.TryGetValue(image.PngPath, out var t)) thumb.Source = t.Thumb;
         }
         _tileRefresh.Add(Update);
+        _tileRefreshByPath[image.PngPath] = Update;
         Update();
         return tile;
     }
@@ -387,8 +399,10 @@ public sealed class GameCatalogView : Border
                         if (small is not null) _thumbs[image.PngPath] = (written, BrushPreview.ToBitmap(small));
                         if (outside is { } o) _paletteChecks[image.PngPath] = (written, key!, o);
                     }
-                    foreach (var r in _tileRefresh) r();
-                    if (outside is not null) ApplyFilter();
+                    // Only this image's tile changes (Mission 011: refreshing every tile for every thumbnail made opening a
+                    // large game folder quadratic). The filter only depends on the check when "Palette exceptions" is on.
+                    if (_tileRefreshByPath.TryGetValue(image.PngPath, out var refresh)) refresh();
+                    if (outside is not null && _exceptionsOnly) ApplyFilter();
                 });
             }
         }, cts.Token);

@@ -478,6 +478,10 @@ public sealed partial class Document
 
     internal FloatingPixels? Floating => _floating;
 
+    /// <summary>True when the projection shows exactly the picture (paper and layers), with no onion skins, floating pixels
+    /// or previews over it: then it equals <see cref="Flatten"/> (and, in an animation, the current frame).</summary>
+    internal bool ProjectionIsPicture => _floating is null && _overrides.Count == 0 && OnionImage is null;
+
     /// <summary>Shows pixels floating above a layer (move/transform preview). Null removes them.</summary>
     public void SetFloating(Layer layer, RasterImage? image, int x, int y)
     {
@@ -488,12 +492,14 @@ public sealed partial class Document
 
     public void RecompositeAll(bool notify = true)
     {
+        InvalidateBelow();
         Compositor.Compose(this, Bounds, Projection, includeOverlays: true, includePaper: true);
         if (notify) ProjectionChanged?.Invoke(Bounds);
     }
 
     public void Recomposite(PixelRect area)
     {
+        InvalidateBelow();
         area = area.Intersect(Bounds);
         if (area.IsEmpty) return;
         Compositor.Compose(this, area, Projection, includeOverlays: true, includePaper: true);
@@ -502,7 +508,50 @@ public sealed partial class Document
 
     internal void OnLayerPixelsChanged(Layer layer, PixelRect area)
     {
-        if (layer.Visible || _layers.Any(l => l.ClipToBelow)) Recomposite(area);
+        if (!layer.Visible && !AnyClipped()) return;
+        area = area.Intersect(Bounds);
+        if (area.IsEmpty) return;
+        // Painting a large area (a big brush): only the layer and those above it, over the cached part below (Mission 011).
+        if (area.Area >= BelowCacheMinArea && RecompositeAbove(layer, area)) return;
+        // A small change (a thin line) is quicker to compose directly than to cache whole tiles for. Only this layer
+        // changed, so a cache kept for it stays valid; one kept for another layer may now be out of date.
+        if (!ReferenceEquals(layer, _belowLayer)) InvalidateBelow();
+        Compositor.Compose(this, area, Projection, includeOverlays: true, includePaper: true);
+        ProjectionChanged?.Invoke(area);
+    }
+
+    /// <summary>Undo and redo: recomposites just the patched tiles (joined into runs along each row) and reports their outline
+    /// once. A stroke's tiles usually cover a small part of the rectangle around them, so this is much less work than
+    /// recompositing that rectangle; every pixel ends up exactly as a full recomposite would make it.</summary>
+    internal void OnLayerPixelsChanged(Layer layer, IReadOnlyList<TilePatch> patches)
+    {
+        if (!layer.Visible && !AnyClipped()) return;
+        InvalidateBelow();
+        var rects = new List<PixelRect>(patches.Count);
+        foreach (var p in patches)
+        {
+            var r = p.Rect.Intersect(Bounds);
+            if (!r.IsEmpty) rects.Add(r);
+        }
+        rects.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.Height != b.Height ? a.Height.CompareTo(b.Height) : a.X.CompareTo(b.X));
+        var all = PixelRect.Empty;
+        for (int i = 0; i < rects.Count;)
+        {
+            var run = rects[i++];
+            // Tiles side by side in the same row become one wider rectangle.
+            while (i < rects.Count && rects[i].Y == run.Y && rects[i].Height == run.Height && rects[i].X <= run.Right)
+                run = run.Union(rects[i++]);
+            Compositor.Compose(this, run, Projection, includeOverlays: true, includePaper: true);
+            all = all.Union(run);
+        }
+        if (!all.IsEmpty) ProjectionChanged?.Invoke(all);
+    }
+
+    private bool AnyClipped()
+    {
+        foreach (var l in _layers)
+            if (l.ClipToBelow) return true;
+        return false;
     }
 
     // ================================================================ internals used by history actions

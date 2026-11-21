@@ -270,6 +270,7 @@ public partial class MainWindow
         new("pixpencil", "Pixel slime (pixel art)", null, () => _ = OpenSampleAsync(SampleAnimation.PixelSlime)),
         MenuEntry.Separator,
         new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics),
+        new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()),
         new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()),
     ];
 
@@ -304,6 +305,7 @@ public partial class MainWindow
         list.AddRange(WorkspaceEntries());
         list.Add(MenuEntry.Separator);
         list.Add(new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics));
+        list.Add(new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()));
         list.Add(new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()));
         list.Add(new("settings", "Preferences…", null, () => _ = PreferencesAsync()));
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
@@ -406,8 +408,23 @@ public partial class MainWindow
         return _dialogs.ShowAsync("Keyboard shortcuts", new ScrollViewer { Content = grid, MaxHeight = 520 }, [("ok", "Close", true)], "ok", "ok", 560);
     }
 
+    /// <summary>Help › Diagnostics…: version, picture, memory, recent timings and caches, with Copy diagnostics (Mission 011).
+    /// Its numbers refresh every second while it is open; when it closes, it stops.</summary>
+    internal async Task ShowPerformanceDiagnosticsAsync()
+    {
+        var view = Diagnostics.DiagnosticsReport.View(this, out var stop);
+        try
+        {
+            await _dialogs.ShowAsync("Diagnostics", view, [("close", "Close", true)], "close", "close", width: 540);
+        }
+        finally
+        {
+            stop();
+        }
+    }
+
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 010 “The Finishing Touches”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 011 “Under the Hood”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
                         "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, and Game Edit Mode for replacing a game's graphics.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

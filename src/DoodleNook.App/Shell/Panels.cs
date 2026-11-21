@@ -131,8 +131,15 @@ public sealed class ColourPanel : StackPanel
         _hex.GotFocus += (_, _) => _editing = true;
         _hex.LostFocus += (_, _) => { _editing = false; CommitHex(); };
         _hex.KeyDown += (_, e) => { if (e.Key == Key.Enter) { CommitHex(); e.Handled = true; } };
-        session.StateChanged += Refresh;
-        session.LibraryChanged += Refresh;
+        UiKit.WhileShown(this, () =>
+        {
+            session.StateChanged += Refresh;
+            session.LibraryChanged += Refresh;
+        }, () =>
+        {
+            session.StateChanged -= Refresh;
+            session.LibraryChanged -= Refresh;
+        }, Refresh);
         Refresh();
     }
 
@@ -382,12 +389,28 @@ public sealed class BrushPanel : StackPanel
         _refresh.Add(rsym);
         settings.Children.Add(UiKit.Row(6, UiKit.Label("Mirror"), sym));
 
-        session.StateChanged += Refresh;
-        session.LibraryChanged += () =>
+        UiKit.WhileShown(this, () =>
         {
-            _tilesFor = null;
+            session.StateChanged += Refresh;
+            session.LibraryChanged += OnLibraryChanged;
+        }, () =>
+        {
+            session.StateChanged -= Refresh;
+            session.LibraryChanged -= OnLibraryChanged;
+        }, () =>
+        {
+            // Brushes may have been edited while the panel was hidden: compare the library's change count.
+            if (_libraryRevision != session.LibraryRevision) _tilesFor = null;
             Refresh();
-        };
+        });
+        Refresh();
+    }
+
+    private int _libraryRevision = -1;
+
+    private void OnLibraryChanged()
+    {
+        _tilesFor = null;
         Refresh();
     }
 
@@ -408,6 +431,7 @@ public sealed class BrushPanel : StackPanel
                      (_picker ? "|" + string.Join(",", _session.RecentBrushes) : "");
         if (eraser || _tilesFor == key) return;
         _tilesFor = key;
+        _libraryRevision = _session.LibraryRevision;
         _tiles.Children.Clear();
         var brushes = lib.Brushes.Where(b => query.Length == 0 || b.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                                                              || b.Category.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -440,7 +464,13 @@ public sealed class BrushPanel : StackPanel
         bool on = p.Id == _session.BrushPresetId;
         var lib = _session.Library;
         string pk = p.Settings + "|" + ink.ToHex();
-        if (!Previews.TryGetValue(pk, out var bmp)) Previews[pk] = bmp = BrushPreview.Render(p.Settings, ink, 102, 22, resources: lib.Resolve(p.Settings));
+        if (!Previews.TryGetValue(pk, out var bmp))
+        {
+            // One preview per brush and ink colour: over a long session with many colours this would keep growing, so it
+            // starts afresh past a few hundred (Mission 011). Tiles still showing an old preview keep it until rebuilt.
+            if (Previews.Count >= 400) Previews.Clear();
+            Previews[pk] = bmp = BrushPreview.Render(p.Settings, ink, 102, 22, resources: lib.Resolve(p.Settings));
+        }
         var stack = new StackPanel { Spacing = 1 };
         stack.Children.Add(new Image { Source = bmp, Width = 102, Height = 22, HorizontalAlignment = HorizontalAlignment.Left });
         stack.Children.Add(new TextBlock { Text = p.Name, FontSize = 12, Foreground = new SolidColorBrush(on ? DnColors.Text : DnColors.Text2), TextTrimming = TextTrimming.CharacterEllipsis });

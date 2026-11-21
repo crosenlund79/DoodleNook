@@ -181,7 +181,11 @@ public static class DnkFile
             }
             manifest.Animation = anim;
         }
-        var preview = doc.IsAnimated ? doc.RenderFrame(doc.CurrentFrame) : doc.Flatten();
+        // The thumbnail's source. When nothing extra is shown over the picture (onion skins, floating pixels, previews), the
+        // projection already is exactly that composite: copying it is far quicker than composing every layer again here on
+        // the UI thread (Mission 011; the thumbnail comes out byte for byte the same).
+        var preview = doc.ProjectionIsPicture ? doc.Projection.Clone()
+            : doc.IsAnimated ? doc.RenderFrame(doc.CurrentFrame) : doc.Flatten();
         return new DnkSnapshot(manifest, images, preview, doc.History.CurrentStateId);
     }
 

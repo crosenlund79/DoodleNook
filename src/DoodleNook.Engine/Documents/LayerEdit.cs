@@ -153,6 +153,11 @@ public sealed class LayerEdit
                     if (layer[row + x] != before[y * T + x]) { changed = true; break; }
             }
             if (!changed) continue;
+            if (Uniform(before, rect.Width, rect.Height) is { } fill)
+            {
+                patches.Add(new TilePatch(rect, fill)); // e.g. an untouched transparent tile: no copy needed
+                continue;
+            }
             var packed = new uint[rect.Area];
             for (int y = 0; y < rect.Height; y++) Array.Copy(before, y * T, packed, y * rect.Width, rect.Width);
             patches.Add(new TilePatch(rect, packed));
@@ -177,6 +182,15 @@ public sealed class LayerEdit
         if (action is null) return false;
         Document.Commit(action);
         return true;
+    }
+
+    /// <summary>The one value every pixel of a captured tile's area has, or null.</summary>
+    private static uint? Uniform(uint[] tile, int width, int height)
+    {
+        uint first = tile[0];
+        for (int y = 0; y < height; y++)
+            if (tile.AsSpan(y * T, width).IndexOfAnyExcept(first) >= 0) return null;
+        return first;
     }
 
     private void WriteTile(PixelRect rect, uint[] tile)

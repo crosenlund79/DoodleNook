@@ -1,3 +1,4 @@
+using DoodleNook.App.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -446,8 +447,15 @@ public partial class MainWindow
             catch (Exception) { /* reported by its own caller */ }
         }
         var doc = Session.Document;
+        long start = PerformanceLog.Now();
         var snapshot = DnkFile.Snapshot(doc, Version);
-        var task = Task.Run(() => DnkFile.Save(snapshot, path));
+        PerformanceLog.Operation("Save: copy (UI thread)", PerformanceLog.Since(start));
+        var task = Task.Run(() =>
+        {
+            long write = PerformanceLog.Now();
+            DnkFile.Save(snapshot, path);
+            PerformanceLog.Operation("Save: compress and write (background)", PerformanceLog.Since(write));
+        });
         _saveTask = task;
         await task;
         Session.MarkSaved(doc, path, snapshot.StateId);
@@ -490,10 +498,17 @@ public partial class MainWindow
         if (ReferenceEquals(doc, _autosavedDocument) && state == _autosavedState) return false;
         try
         {
+            long start = PerformanceLog.Now();
             var snapshot = DnkFile.Snapshot(doc, Version);
+            PerformanceLog.Operation("Autosave: copy (UI thread)", PerformanceLog.Since(start));
             string? original = Session.FilePath;
             string name = Session.DisplayName;
-            var task = Task.Run(() => store.Write(snapshot, original, name));
+            var task = Task.Run(() =>
+            {
+                long write = PerformanceLog.Now();
+                store.Write(snapshot, original, name);
+                PerformanceLog.Operation("Autosave: write (background)", PerformanceLog.Since(write));
+            });
             _autosaveTask = task;
             await task;
             _autosavedDocument = doc;

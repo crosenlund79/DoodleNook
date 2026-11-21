@@ -1,3 +1,4 @@
+using DoodleNook.App.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using DoodleNook.App.Dialogs;
@@ -21,13 +22,19 @@ public partial class MainWindow
     {
         if (CancelCrop()) return;
         var name = Session.Document.History.NextUndoName;
-        if (Session.Undo()) ShowToast($"Undid {name?.ToLowerInvariant()}");
+        long start = PerformanceLog.Now();
+        if (!Session.Undo()) return;
+        PerformanceLog.Operation("Undo", PerformanceLog.Since(start));
+        ShowToast($"Undid {name?.ToLowerInvariant()}");
     }
 
     public void Redo()
     {
         var name = Session.Document.History.NextRedoName;
-        if (Session.Redo()) ShowToast($"Redid {name?.ToLowerInvariant()}");
+        long start = PerformanceLog.Now();
+        if (!Session.Redo()) return;
+        PerformanceLog.Operation("Redo", PerformanceLog.Since(start));
+        ShowToast($"Redid {name?.ToLowerInvariant()}");
     }
 
     // ================================================================== view
@@ -337,12 +344,14 @@ public partial class MainWindow
         }
         try
         {
+            long start = PerformanceLog.Now();
             await using var stream = await file.OpenReadAsync();
             var doc = file.Name.EndsWith(DnkFile.Extension, StringComparison.OrdinalIgnoreCase)
                 ? DnkFile.Read(stream)
                 : Document.FromImage(ImageFiles.Decode(stream), ImageFiles.LayerNameFor(file.Name));
             Animator.Stop();
             Session.ReplaceDocument(doc, null);
+            PerformanceLog.Operation("Open", PerformanceLog.Since(start));
             ShowToast($"Opened {file.Name}");
         }
         catch (Exception ex)
@@ -356,9 +365,11 @@ public partial class MainWindow
     {
         try
         {
+            long start = PerformanceLog.Now();
             var doc = ImageFiles.Open(path);
             Animator.Stop();
             Session.ReplaceDocument(doc, path);
+            PerformanceLog.Operation("Open", PerformanceLog.Since(start));
             string hint = doc.IsAnimated && Workspace.Kind != WorkspaceKind.Animation ? " · Alt+6 opens Animation Studio" : "";
             ShowToast($"Opened {Path.GetFileName(path)} · {doc.Width} × {doc.Height}{(doc.Layers.Count > 1 ? $" · {doc.Layers.Count} layers" : "")}{(doc.IsAnimated ? $" · {doc.FrameCount} frames" : "")}{hint}");
             return true;

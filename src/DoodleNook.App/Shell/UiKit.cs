@@ -197,6 +197,31 @@ public static class UiKit
         return new DrawingBrush(group) { TileMode = TileMode.Tile, DestinationRect = new RelativeRect(0, 0, 10, 10, RelativeUnit.Absolute) };
     }
 
+    /// <summary>
+    /// Listens to the session (or anything else) only while <paramref name="control"/> is on screen: subscribes when it is
+    /// attached to a window and unsubscribes when it leaves. A panel in a closed pop-over, a hidden workspace or a rebuilt
+    /// options bar then does no work on every change, and nothing long-lived keeps it in memory (Mission 011: options
+    /// bars rebuilt on each tool change used to leave their pop-over panels subscribed for the rest of the session).
+    /// <paramref name="refresh"/> runs when the control comes back, so it shows what changed while it was away.
+    /// </summary>
+    public static void WhileShown(Control control, Action subscribe, Action unsubscribe, Action? refresh = null)
+    {
+        bool on = false;
+        control.AttachedToVisualTree += (_, _) =>
+        {
+            if (on) return;
+            on = true;
+            subscribe();
+            refresh?.Invoke();
+        };
+        control.DetachedFromVisualTree += (_, _) =>
+        {
+            if (!on) return;
+            on = false;
+            unsubscribe();
+        };
+    }
+
     private static readonly HashSet<Flyout> Open = new();
 
     /// <summary>Raised whenever one of DoodleNook's pop-overs opens (the window moves focus out of text boxes).</summary>

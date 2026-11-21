@@ -1,5 +1,5 @@
-DoodleNook — Mission 010 "The Finishing Touches"
-================================================
+DoodleNook — Mission 011 "Under the Hood"
+=========================================
 
 Start
 -----
@@ -46,8 +46,15 @@ The Artist's Workshop
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 
-The Finishing Touches (new)
----------------------------
+Under the Hood (new)
+--------------------
+Nothing new to learn: DoodleNook is quicker and steadier. Undo and redo on big pictures with many layers are several
+times faster, big brushes over many layers keep up better, saving holds the window for a fraction of the time, and
+long sessions no longer slow down as tools are changed. Help › Diagnostics… shows the picture's size, memory and
+recent timings; "Copy diagnostics" copies those numbers (no artwork, names or folders) if you want to report a problem.
+
+The Finishing Touches
+---------------------
 * Quick palette (right-click or the pen button; the Alt+1 wheel): drag the centre to size the brush (short moves
   fine-tune, long drags change a lot, Shift for extra fine). The brush pill under the wheel chooses another brush:
   recent ones first, your favourites and all brushes, your own included. Each brush remembers the size you last used.

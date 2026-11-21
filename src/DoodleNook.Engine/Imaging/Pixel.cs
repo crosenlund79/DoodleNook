@@ -46,7 +46,31 @@ public static class Pixel
     public static byte Div(byte x, byte a) => (byte)Math.Min(255, (x * 255 + a / 2) / a);
 
     /// <summary>Premultiplied "source over" of <paramref name="src"/> onto <paramref name="dst"/>.</summary>
+    /// <remarks>Mission 011: computes two channels at once in 16-bit lanes (red with blue, alpha with green). Each lane does
+    /// exactly what <see cref="Mul"/> does (x·a + 128, plus its high byte, shifted down; never more than 16 bits, so lanes
+    /// can't spill into each other), and colour channels are capped at 255 like before: the result is bit-for-bit the same
+    /// as the channel-by-channel formula (<see cref="OverReference"/>), only faster. Tests compare both exhaustively.</remarks>
     public static uint Over(uint src, uint dst)
+    {
+        uint sa = src >> 24;
+        if (sa == 255) return src;
+        if (sa == 0) return dst;
+        uint inv = 255 - sa;
+        uint rb = (dst & 0x00FF00FFu) * inv + 0x00800080u;
+        rb = ((rb + ((rb >> 8) & 0x00FF00FFu)) >> 8) & 0x00FF00FFu;
+        uint ag = ((dst >> 8) & 0x00FF00FFu) * inv + 0x00800080u;
+        ag = ((ag + ((ag >> 8) & 0x00FF00FFu)) >> 8) & 0x00FF00FFu;
+        rb += src & 0x00FF00FFu;
+        ag += (src >> 8) & 0x00FF00FFu;
+        // A lane above 255 has bit 8 set: cap it at 255 (only colour channels can get there; alpha never exceeds 255).
+        rb = (rb | (((rb >> 8) & 0x00010001u) * 0xFFu)) & 0x00FF00FFu;
+        ag = (ag | (((ag >> 8) & 0x00010001u) * 0xFFu)) & 0x00FF00FFu;
+        return (ag << 8) | rb;
+    }
+
+    /// <summary>The channel-by-channel "source over" (Mission 010 and earlier); kept as the reference that tests compare
+    /// <see cref="Over"/> with.</summary>
+    public static uint OverReference(uint src, uint dst)
     {
         byte sa = A(src);
         if (sa == 255) return src;
@@ -57,5 +81,15 @@ public static class Pixel
             (byte)Math.Min(255, R(src) + Mul(R(dst), inv)),
             (byte)Math.Min(255, G(src) + Mul(G(dst), inv)),
             (byte)Math.Min(255, B(src) + Mul(B(dst), inv)));
+    }
+
+    /// <summary>Every channel × <paramref name="factor"/>/255, rounded like <see cref="Mul"/> (two channels at a time).</summary>
+    public static uint Scale(uint p, uint factor)
+    {
+        uint rb = (p & 0x00FF00FFu) * factor + 0x00800080u;
+        rb = ((rb + ((rb >> 8) & 0x00FF00FFu)) >> 8) & 0x00FF00FFu;
+        uint ag = ((p >> 8) & 0x00FF00FFu) * factor + 0x00800080u;
+        ag = ((ag + ((ag >> 8) & 0x00FF00FFu)) >> 8) & 0x00FF00FFu;
+        return (ag << 8) | rb;
     }
 }

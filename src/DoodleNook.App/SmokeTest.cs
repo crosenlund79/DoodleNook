@@ -574,9 +574,50 @@ internal static class SmokeTest
             fdoc.MarkSaved();
         }
 
+        // 16. Mission 011 — Under the Hood: exact compositing with the painting cache, quick undo, steady listeners, diagnostics.
+        {
+            var udoc = new Engine.Documents.Document(1600, 1000, ColorRgb.White, "Back");
+            for (int i = 1; i < 6; i++) udoc.AddLayer($"Layer {i}");
+            session.ReplaceDocument(udoc, null);
+            window.Canvas.FitToView();
+            await Task.Delay(50);
+            session.SelectTool(ToolKind.Brush);
+            session.ApplyPreset("soft");
+            session.SetSize(260);
+            Drag(100, 200, 1400, 800);
+            session.SetSize(12);
+            Drag(100, 800, 1400, 200);
+            var full = udoc.Flatten();
+            Check("painting over five layers shows exactly the full composite", udoc.Projection.Pixels.AsSpan().SequenceEqual(full.Pixels) && udoc.StrokeCacheBytes > 0);
+            int steps = udoc.History.UndoCount;
+            long undoStart = Diagnostics.PerformanceLog.Now();
+            window.Undo();
+            double undoMs = Diagnostics.PerformanceLog.Since(undoStart);
+            report["undoThinStrokeOn6LayersMs"] = Math.Round(undoMs, 2);
+            Check("undo puts back exactly the earlier composite", udoc.Projection.Pixels.AsSpan().SequenceEqual(udoc.Flatten().Pixels) && udoc.History.UndoCount == steps - 1,
+                $"{undoMs:0.0} ms");
+            int listeners = session.StateChangedListenerCount;
+            foreach (var t in new[] { ToolKind.Eraser, ToolKind.Fill, ToolKind.Brush, ToolKind.Smudge, ToolKind.Brush })
+            {
+                session.SelectTool(t);
+                await Task.Delay(20);
+            }
+            Check("changing tools adds no listeners", session.StateChangedListenerCount == listeners, $"{listeners} → {session.StateChangedListenerCount}");
+            var sections = Diagnostics.DiagnosticsReport.Build(window);
+            string text = Diagnostics.DiagnosticsReport.ToText(sections);
+            Check("Diagnostics reports the picture and memory, without folders", text.Contains("1600 × 1000 px", StringComparison.Ordinal) && text.Contains("Working set", StringComparison.Ordinal)
+                && !text.Contains(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) && !text.Contains(Environment.UserName, StringComparison.OrdinalIgnoreCase));
+            if (Diagnostics.PerformanceLog.RecentFrames() is { } frames)
+            {
+                report["canvasFrameAverageMs"] = Math.Round(frames.AverageMs, 2);
+                report["canvasFrameMaxMs"] = Math.Round(frames.MaxMs, 2);
+            }
+            udoc.MarkSaved();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M010", window.Title);
+            && MainWindow.Milestone == "M011", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

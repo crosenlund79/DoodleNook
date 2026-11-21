@@ -72,6 +72,46 @@ public static class Compositor
         Stack(doc, 0, area, surface, source, includeOverlays ? doc.Floating : null, 0);
     }
 
+    // ------------------------------------------------------------------ split at a layer (Mission 011)
+    //
+    // Painting changes one top-level layer. Everything under it (paper, onion skins, the layers below with their groups,
+    // masks and adjustments) composes to the same pixels on every pen event, so the document keeps that part in a buffer
+    // (see Document.StrokeCache) and only composes the painted layer and the layers above it each time. Both halves run
+    // the very same loop as Compose, split at layer index k, so the result is identical pixel for pixel.
+
+    /// <summary>Paper, onion skins and the top-level layers before index <paramref name="k"/>, into a document-sized buffer.</summary>
+    internal static void ComposeBelow(Document doc, PixelRect area, uint[] buffer, int k)
+    {
+        area = area.Intersect(doc.Bounds);
+        if (area.IsEmpty) return;
+        int w = doc.Width;
+        uint paper = doc.Paper is { } p && doc.PaperVisible ? Pixel.Opaque(p) : 0u;
+        for (int y = area.Y; y < area.Bottom; y++) Array.Fill(buffer, paper, y * w + area.X, area.Width);
+        if (doc.OnionImage is { } onion)
+        {
+            var region = doc.OnionBounds.Intersect(area);
+            var o = onion.Pixels;
+            for (int y = region.Y; y < region.Bottom; y++)
+            {
+                int row = y * w;
+                for (int x = region.X; x < region.Right; x++)
+                {
+                    uint s = o[row + x];
+                    if (s != 0) buffer[row + x] = Pixel.Over(s, buffer[row + x]);
+                }
+            }
+        }
+        Stack(doc, 0, area, new Surface(buffer, w, 0, 0), l => (doc.ImageFor(l), l.ContentBounds), doc.Floating, 0, to: k);
+    }
+
+    /// <summary>The top-level layers from index <paramref name="k"/> up, over what is already in <paramref name="target"/>.</summary>
+    internal static void ComposeFrom(Document doc, PixelRect area, RasterImage target, int k, Layer? clipBase)
+    {
+        area = area.Intersect(doc.Bounds).Intersect(target.Bounds);
+        if (area.IsEmpty) return;
+        Stack(doc, 0, area, new Surface(target.Pixels, doc.Width, 0, 0), l => (doc.ImageFor(l), l.ContentBounds), doc.Floating, 0, from: k, clipBase: clipBase);
+    }
+
     /// <summary>Pixels addressed in document coordinates: index = (y − OriginY) · Stride + (x − OriginX).</summary>
     private readonly record struct Surface(uint[] Pixels, int Stride, int OriginX, int OriginY)
     {
@@ -79,11 +119,10 @@ public static class Compositor
     }
 
     private static void Stack(Document doc, int parentId, PixelRect area, Surface dst, Func<Layer, (RasterImage? Image, PixelRect Bounds)> source,
-        FloatingPixels? floating, int depth)
+        FloatingPixels? floating, int depth, int from = 0, int to = int.MaxValue, Layer? clipBase = null)
     {
         var layers = doc.Layers;
-        Layer? clipBase = null;
-        for (int i = 0; i < layers.Count; i++)
+        for (int i = from; i < layers.Count && i < to; i++)
         {
             var layer = layers[i];
             if (layer.ParentId != parentId) continue;
@@ -148,6 +187,18 @@ public static class Compositor
     {
         int w = doc.Width;
         var d = dst.Pixels;
+        if (src is not null && floating is null && mask is null && baseSrc is null && mode == BlendMode.Normal)
+        {
+            // The common case (a plain layer in Normal mode, no mask, no clipping) in a tight loop. Same arithmetic as below.
+            for (int y = region.Y; y < region.Bottom; y++)
+            {
+                var s = src.AsSpan(y * w + region.X, region.Width);
+                var t = d.AsSpan(dst.Index(region.X, y), region.Width);
+                if (opacity >= 255) OverRow(s, t);
+                else OverRowFaded(s, t, (uint)opacity);
+            }
+            return;
+        }
         for (int y = region.Y; y < region.Bottom; y++)
         {
             int row = y * w;
@@ -174,6 +225,28 @@ public static class Compositor
                 }
                 d[di] = mode == BlendMode.Normal ? Pixel.Over(s, d[di]) : Blending.Blend(s, d[di], mode);
             }
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
+    private static void OverRow(ReadOnlySpan<uint> src, Span<uint> dst)
+    {
+        for (int i = 0; i < src.Length; i++)
+        {
+            uint s = src[i];
+            if (s == 0) continue;
+            dst[i] = s >= 0xFF000000u ? s : Pixel.Over(s, dst[i]);
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
+    private static void OverRowFaded(ReadOnlySpan<uint> src, Span<uint> dst, uint opacity)
+    {
+        for (int i = 0; i < src.Length; i++)
+        {
+            uint s = src[i];
+            if (s == 0) continue;
+            dst[i] = Pixel.Over(Pixel.Scale(s, opacity), dst[i]);
         }
     }
 

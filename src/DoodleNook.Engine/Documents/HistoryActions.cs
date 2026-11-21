@@ -20,11 +20,20 @@ public sealed class LayerPixelsAction : IHistoryAction
         _patches = patches;
         _mask = mask;
         Bounds = patches.Aggregate(PixelRect.Empty, (r, p) => r.Union(p.Rect));
-        ByteSize = patches.Sum(p => (long)p.Pixels.Length * sizeof(uint)) + 64;
     }
 
     public string Name { get; }
-    public long ByteSize { get; }
+
+    /// <summary>The memory held now (one-colour patches are kept small, and undo/redo can change that).</summary>
+    public long ByteSize
+    {
+        get
+        {
+            long bytes = 64;
+            foreach (var p in _patches) bytes += p.ByteSize;
+            return bytes;
+        }
+    }
     public PixelRect Bounds { get; }
     public int LayerId => _layerId;
 
@@ -39,7 +48,7 @@ public sealed class LayerPixelsAction : IHistoryAction
             if (layer.Mask is { } m) foreach (var p in _patches) p.SwapWith(m);
             layer.Revision++;
             layer.MaskRevision++;
-            d.OnLayerPixelsChanged(layer, Bounds);
+            d.OnLayerPixelsChanged(layer, _patches);
             return;
         }
         var target = _cel?.Image ?? layer.Image;
@@ -47,7 +56,7 @@ public sealed class LayerPixelsAction : IHistoryAction
         if (ReferenceEquals(target, layer.Image))
         {
             layer.Touch(Bounds);
-            d.OnLayerPixelsChanged(layer, Bounds);
+            d.OnLayerPixelsChanged(layer, _patches); // only the tiles that changed, not the whole rectangle around them
         }
         else if (_cel is not null)
         {

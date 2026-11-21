@@ -12,25 +12,66 @@ public interface IHistoryAction
 }
 
 /// <summary>A rectangle of pixels saved for undo. Undo and redo simply swap it with the image.</summary>
+/// <remarks>Mission 011: a patch whose pixels are all the same (typically fully transparent: the untouched part of a new
+/// layer under a line of ink) keeps just that one value instead of a copy of every pixel. Undo and redo give exactly the
+/// same pixels; only the memory differs.</remarks>
 public sealed class TilePatch
 {
+    private uint[]? _pixels;
+    private uint _fill;
+
     public TilePatch(PixelRect rect, uint[] pixels)
     {
         if (pixels.Length != rect.Area) throw new ArgumentException("Patch size mismatch.", nameof(pixels));
         Rect = rect;
-        Pixels = pixels;
+        Store(pixels);
+    }
+
+    /// <summary>A patch of <paramref name="rect"/> filled with one value.</summary>
+    internal TilePatch(PixelRect rect, uint fill)
+    {
+        Rect = rect;
+        _fill = fill;
     }
 
     public PixelRect Rect { get; }
 
-    /// <summary>Tightly packed premultiplied pixels for <see cref="Rect"/>.</summary>
-    public uint[] Pixels { get; private set; }
+    /// <summary>Tightly packed premultiplied pixels for <see cref="Rect"/> (a one-colour patch is expanded on request).</summary>
+    public uint[] Pixels
+    {
+        get
+        {
+            if (_pixels is not null) return _pixels;
+            var filled = new uint[Rect.Area];
+            Array.Fill(filled, _fill);
+            return filled;
+        }
+    }
+
+    /// <summary>True when every pixel of the patch has the same value (then only that value is kept).</summary>
+    public bool IsUniform => _pixels is null;
+
+    /// <summary>The memory the patch holds now (it can change after undo or redo, which swap the pixels).</summary>
+    public long ByteSize => _pixels is null ? 16 : (long)_pixels.Length * sizeof(uint);
+
+    private void Store(uint[] pixels)
+    {
+        uint first = pixels.Length > 0 ? pixels[0] : 0;
+        if (pixels.AsSpan().IndexOfAnyExcept(first) < 0)
+        {
+            _pixels = null;
+            _fill = first;
+        }
+        else _pixels = pixels;
+    }
 
     internal void SwapWith(RasterImage image)
     {
         var current = image.CopyRegion(Rect);
-        image.WriteRegion(Rect, Pixels);
-        Pixels = current;
+        if (_pixels is not null) image.WriteRegion(Rect, _pixels);
+        else
+            for (int y = Rect.Y; y < Rect.Bottom; y++) Array.Fill(image.Pixels, _fill, y * image.Width + Rect.X, Rect.Width);
+        Store(current);
     }
 }
 

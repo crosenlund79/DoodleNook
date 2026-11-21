@@ -60,7 +60,8 @@ public sealed class AssetPicker : StackPanel
         var more = UiKit.Button("dots", null, "Library: import or export packs, manage collections", () => _ = app.OpenLibraryAsync(kind));
         foreach (var b in new[] { fromSelection, import, more }) b.Height = 30;
         Children.Add(UiKit.Row(4, fromSelection, import, more));
-        app.Session.LibraryChanged += Refresh;
+        // The pop-over refreshes the picker as it opens; while it is closed, library changes need no work here.
+        UiKit.WhileShown(this, () => app.Session.LibraryChanged += Refresh, () => app.Session.LibraryChanged -= Refresh);
         Refresh();
     }
 

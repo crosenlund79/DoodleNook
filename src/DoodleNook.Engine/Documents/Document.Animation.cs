@@ -206,6 +206,7 @@ public sealed partial class Document
 
     private void RecompositeFrame()
     {
+        InvalidateBelow();
         int f = CurrentFrame;
         bool cacheable = _onion is null && _floating is null && _overrides.Count == 0;
         if (cacheable && _frameCache.TryGetValue(f, out var e) && e.Key == FrameKey(f))

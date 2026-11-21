@@ -555,7 +555,7 @@ public sealed class ViewZoomGroup : StackPanel
         Children.Add(_text);
         Children.Add(plus);
         Children.Add(fit);
-        app.Canvas.ViewChanged += Refresh;
+        UiKit.WhileShown(this, () => app.Canvas.ViewChanged += Refresh, () => app.Canvas.ViewChanged -= Refresh, Refresh);
         Refresh();
     }
 
