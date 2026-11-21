@@ -87,6 +87,29 @@ public sealed class QuickStartScreenshots
     }
 
     [AvaloniaFact]
+    public async Task Capture_learn_by_doing()
+    {
+        // 9. The first guided tutorial: a ball drawn, the guide pointing at New frame.
+        var w = Open(WorkspaceKind.Painting);
+        w.Session.Document.MarkSaved();
+        w.Tutorials.Start(Tutorials.FirstAnimationTutorial.Create());
+        w.Tutorials.Next();
+        w.CaptureRenderedFrame()?.Dispose();
+        Click(w, Find<Button>(w, "TutorialAction"));
+        await ArtistsCompanionWindowTests.Until(() => w.Tutorials.Index == 1);
+        w.Session.SelectTool(Editor.ToolKind.Brush);
+        w.Session.SetSize(10);
+        w.Session.SetForeground(ColorRgb.Parse("#C96F4A"));
+        var ball = Enumerable.Range(0, 30).Select(i => (128 + 26 * Math.Cos(i * Math.PI / 14), 52 + 26 * Math.Sin(i * Math.PI / 14))).ToArray();
+        Drag(w, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None, ball);
+        await ArtistsCompanionWindowTests.Until(() => w.Tutorials.Index == 2);
+        w.ShowToast("");
+        Save(w, "09-learn-by-doing");
+        w.Tutorials.Exit();
+        FinishingTouchesScreenshots.CloseNow(w);
+    }
+
+    [AvaloniaFact]
     public async Task Capture_animate_import_and_reference()
     {
         // 5. Animation Studio with the bouncing ball sample, onion skin on.

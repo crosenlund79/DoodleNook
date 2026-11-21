@@ -422,6 +422,7 @@ public partial class MainWindow
             DnkFile.Write(Session.Document, stream, Version);
             Session.Document.MarkSaved();
             ShowToast($"Saved {file.Name}");
+            NoteSaved();
             return true;
         }
         catch (Exception ex)
@@ -442,12 +443,14 @@ public partial class MainWindow
             {
                 await SaveProjectInBackgroundAsync(path);
                 ShowToast($"Saved {Path.GetFileName(path)}");
+                NoteSaved();
                 return true;
             }
             if (Session.Document.Layers.Count == 1 && ImageFiles.FormatForPath(path) is { } f) ImageFiles.Export(Session.Document, path, f);
             else throw new InvalidOperationException("Pictures with layers are saved as .dnk; use File › Export for a flat copy.");
             Session.MarkSaved(path);
             ShowToast($"Saved {Path.GetFileName(path)}");
+            NoteSaved();
             return true;
         }
         catch (Exception ex)

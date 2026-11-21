@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>0.13.0</Version>
+    <Version>0.14.0</Version>
     <!-- The milestone shown in the window title ("DoodleNook — M009"). Change it here for the next mission. -->
-    <DoodleNookMilestone>M013</DoodleNookMilestone>
+    <DoodleNookMilestone>M014</DoodleNookMilestone>
     <Product>DoodleNook</Product>
     <Company>DoodleNook</Company>
     <Copyright>DoodleNook contributors</Copyright>

@@ -253,7 +253,7 @@ public sealed class ArtistsCompanionWindowTests : IDisposable
         var blocks = Dialogs.QuickStartGuide.Parse(md);
         Assert.Single(blocks, b => b.Kind == "heading" && b.Level == 1);
         int sections = blocks.Count(b => b.Kind == "heading" && b.Level == 2);
-        Assert.InRange(sections, 5, 9);
+        Assert.InRange(sections, 5, 10);
         var pictures = blocks.Where(b => b.Kind == "image").Select(b => b.Text).ToList();
         Assert.NotEmpty(pictures);
         var onDisk = Directory.GetFiles(Docs(Path.Combine("screenshots", "quick-start")), "*.png").Select(Path.GetFileName).Order().ToList();

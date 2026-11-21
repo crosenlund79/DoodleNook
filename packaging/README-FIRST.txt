@@ -1,5 +1,5 @@
-DoodleNook — Mission 013 "Animation Reference Library"
-======================================================
+DoodleNook — Mission 014 "The Gentle Guide"
+==========================================
 
 Start
 -----
@@ -46,8 +46,18 @@ The Artist's Workshop
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 
-Animation Reference Library (new)
----------------------------------
+The Gentle Guide (new)
+----------------------
+* Help › Guided Tutorials… › "Your First Animation": a bouncing ball in about 10 minutes, done in the real
+  Animation Studio. A small guide points at the control to use next (a soft orange outline) and notices when each
+  step is done. You do all the drawing.
+* It opens a new 256 × 256 practice animation at 8 fps. If the picture you have open has unsaved changes, you're
+  asked first (Save / Don't save / Cancel), as for any new picture. Nothing is ever saved without you choosing where.
+* Back, Skip step and "I've done this" are always there; the × closes the guide at any point and your drawing stays.
+  Drag the guide's title bar to move it. "Show me" brings back a control you've hidden.
+
+Animation Reference Library
+---------------------------
 * Animation › Insert reference cycle…: 22 ready-made motion guides for game animation (idle, walk, run, sneak, jump,
   fall, land, two attacks, hurt, death, cast, shoot, pick up, drop, push, pull, climb, sit down, stand up, hammer, dig)
   as a simple mannequin in side, top-down or three-quarter view, facing the way you need.
@@ -59,7 +69,7 @@ Animation Reference Library (new)
 
 The Artist's Companion
 ----------------------
-* Help › Quick Start Guide: eight short illustrated sections, built in (no internet needed).
+* Help › Quick Start Guide: short illustrated sections, built in (no internet needed).
 * File › Import animation… (also in the Animation menu): a GIF, an animated PNG or numbered PNG pictures (choose one;
   the rest of its sequence comes along) become an animation with four layers: Reference (the frames, 35 % and locked),
   Sketch, Outline and Coloring. Timing is kept. Click frames to leave them out. Your files are only read.

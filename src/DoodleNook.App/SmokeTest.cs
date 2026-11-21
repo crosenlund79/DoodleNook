@@ -744,9 +744,61 @@ internal static class SmokeTest
             rdoc.MarkSaved();
         }
 
+        // 19. Mission 014 — The Gentle Guide: Help › Guided Tutorials, "Your First Animation" in the real window: the
+        // practice animation, the highlighted controls, a drawing noticed, a skipped step, Exit, and the drawing still usable.
+        {
+            static void Press(Avalonia.Controls.Button b) => b.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            Avalonia.Controls.Button? Named(string name) => window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().FirstOrDefault(b => b.Name == name && b.IsEffectivelyVisible);
+            bool Rings(string name)
+            {
+                var target = window.GetVisualDescendants().OfType<Avalonia.Controls.Control>().FirstOrDefault(c => c.Name == name && c.IsEffectivelyVisible);
+                var ring = window.Tutorials.Highlight;
+                if (target is null || !ring.IsVisible || target.TranslatePoint(new Point(0, 0), window) is not { } t || ring.TranslatePoint(new Point(0, 0), window) is not { } r) return false;
+                return new Rect(r, ring.Bounds.Size).Contains(new Rect(t, target.Bounds.Size).Center) && !window.Tutorials.GuideRect.Intersects(new Rect(t, target.Bounds.Size));
+            }
+            async Task Wait(Func<bool> done)
+            {
+                for (int i = 0; i < 250 && !done(); i++) await Task.Delay(20);
+            }
+            session.Document.MarkSaved();
+            int listeners = session.StateChangedListenerCount;
+            var picker = window.ShowGuidedTutorialsAsync();
+            await Wait(() => window.Dialogs.IsOpen);
+            window.Dialogs.Close("start:" + Tutorials.FirstAnimationTutorial.Id);
+            await picker;
+            var runner = window.Tutorials;
+            Check("Help › Guided Tutorials starts “Your First Animation”", runner.IsRunning && runner.Index == -1 && runner.Tutorial?.Steps.Count == 8);
+            Press(Named("TutorialStart")!);
+            Press(Named("TutorialAction")!);
+            await Wait(() => runner.Index == 1);
+            var practice = session.Document;
+            Check("the tutorial makes a fresh practice animation in Animation Studio (256 × 256, 8 fps, unsaved)",
+                runner.Index == 1 && practice.Width == 256 && practice.Height == 256 && practice.Animation?.Fps == 8 && session.FilePath is null
+                && window.Workspace.Kind == WorkspaceKind.Animation, $"step {runner.Index + 1}");
+            await Task.Delay(100);
+            bool brush = Rings("ToolBrush");
+            session.SelectTool(ToolKind.Brush);
+            session.SetSize(10);
+            Drag(90, 40, 150, 70);
+            await Wait(() => runner.Index == 2);
+            await Task.Delay(100);
+            await Shot("smoke-P-tutorial.png");
+            Check("the guide points at the real controls and notices a drawing", brush && runner.Index == 2 && Rings("NewFrameButton"), $"step {runner.Index + 1}");
+            Press(Named("TutorialSkip")!);
+            Check("a step can be skipped", runner.Index == 3);
+            Press(Named("TutorialExit")!);
+            bool usable = !runner.IsRunning && ReferenceEquals(session.Document, practice) && session.StateChangedListenerCount == listeners
+                && practice.CelAt(practice.ActiveLayer, 0) is { ContentBounds.IsEmpty: false };
+            session.NewFrame(duplicate: false);
+            Drag(90, 120, 150, 150);
+            Check("Exit closes the guide and its listeners; the practice drawing stays and keeps working", usable && practice.FrameCount == 2
+                && practice.CelAt(practice.ActiveLayer, 1) is { ContentBounds.IsEmpty: false }, $"{practice.FrameCount} frames");
+            practice.MarkSaved();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M013", window.Title);
+            && MainWindow.Milestone == "M014", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

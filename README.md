@@ -2,13 +2,15 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 013 "Animation Reference Library"**: 22 built-in reference cycles for game animation
-(walk, run, attacks, jump, hurt, pick up…) as a simple mannequin in side, top-down and three-quarter view, inserted
-into new or already-started animations as a locked, faint layer that changes nothing else. Read
-[docs/iterations/013-animation-reference-library](docs/iterations/013-animation-reference-library/README.md) and try it
-with the [playtest guide](docs/iterations/013-animation-reference-library/PLAYTEST.md); the
-[Quick Start guide](docs/QUICK-START.md) (also Help › Quick Start Guide) has a new section on it.
-Earlier milestones: [Mission 012 "The Artist's Companion"](docs/iterations/012-artists-companion/README.md) (animation
+**Current milestone: Mission 014 "The Gentle Guide"**: Help › Guided Tutorials… and the first interactive lesson,
+"Your First Animation". A small floating guide points at the real controls with a soft outline and notices when each
+step is done, while you draw a bouncing ball, add frames, use onion skin, play, save and export it. Read
+[docs/iterations/014-the-gentle-guide](docs/iterations/014-the-gentle-guide/README.md) and try it with the
+[playtest guide](docs/iterations/014-the-gentle-guide/PLAYTEST.md); the [Quick Start guide](docs/QUICK-START.md)
+(also Help › Quick Start Guide) has a new section, "Learn by doing".
+Earlier milestones: [Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)
+(22 reference cycles for game animation as locked reference layers),
+[Mission 012 "The Artist's Companion"](docs/iterations/012-artists-companion/README.md) (animation
 import for reconstruction, layer opacity, pasting from other programs, credited palettes, the Quick Start guide),
 [Mission 011 "Under the Hood"](docs/iterations/011-under-the-hood/README.md) (measured speed-ups
 and Help › Diagnostics), [Mission 010 "The Finishing Touches"](docs/iterations/010-finishing-touches/README.md) (Liquify,
@@ -27,7 +29,7 @@ pen-drawing foundation).
 **Less is more — but capable when needed. Ease of use first.** The interface rules are in [`CLAUDE.md`](CLAUDE.md) and
 [docs/design/INTERFACE-PHILOSOPHY.md](docs/design/INTERFACE-PHILOSOPHY.md).
 
-- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F013-animation-reference-library) → newest green run → artifact **DoodleNook-win-x64**.
+- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F014-the-gentle-guide) → newest green run → artifact **DoodleNook-win-x64**.
 - Earlier research and the approved design prototype: [docs/](docs/README.md).
 - Sound identity sketches: [sound-experiments/](sound-experiments/README.md).
 

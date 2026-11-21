@@ -45,10 +45,13 @@ public class TransformModeWindowTests
         // Drag the top-left corner inward: preview only.
         Drag(w, MouseButton.Left, RawInputModifiers.None, (100, 100), (120, 110), (140, 120));
         Assert.Equal((140.0, 120.0), (Math.Round(s.ActiveTransform!.Corners[0].X), Math.Round(s.ActiveTransform.Corners[0].Y)));
+        Assert.NotNull(w.Canvas.Input!.Overlay.TransformHandles);
         Key(w, Avalonia.Input.Key.Escape);
         Assert.Null(s.ActiveTransform);
         Assert.Equal(original, s.Document.ActiveLayer.Image.Pixels);
         Assert.Equal(steps, s.Document.History.UndoCount);
+        Assert.Null(w.Canvas.Input.Overlay.TransformHandles); // the four corner handles leave with the transform
+        Assert.Null(w.Canvas.Input.Overlay.TransformFrame);
 
         // Again, and apply with Enter.
         w.TransformIn(TransformMode.Perspective);
@@ -56,6 +59,7 @@ public class TransformModeWindowTests
         Drag(w, MouseButton.Left, RawInputModifiers.None, (260, 100), (230, 125));
         Key(w, Avalonia.Input.Key.Enter);
         Assert.Null(s.ActiveTransform);
+        Assert.Null(w.Canvas.Input.Overlay.TransformHandles);
         Assert.Equal(0u, s.Document.ActiveLayer.Image[110, 105]);       // the corner moved away
         Assert.NotEqual(0u, s.Document.ActiveLayer.Image[180, 130]);   // the middle is still the sign
         Assert.NotEqual(0u, s.Document.ActiveLayer.Image[105, 175]);   // the bottom keeps its corners
@@ -83,7 +87,10 @@ public class TransformModeWindowTests
         Assert.Equal(p13.Y, Math.Round(s.ActiveTransform!.Warp!.Points[13].Y));
         Drag(w, MouseButton.Left, RawInputModifiers.None, (p13.X, p13.Y), (p13.X, p13.Y + 40));
         Drag(w, MouseButton.Left, RawInputModifiers.None, (p14.X, p14.Y), (p14.X, p14.Y + 40));
+        Assert.NotNull(w.Canvas.Input!.Overlay.TransformGrid);
         Key(w, Avalonia.Input.Key.Enter);
+        Assert.Null(w.Canvas.Input.Overlay.TransformGrid); // the warp grid and its points leave with the transform
+        Assert.Null(w.Canvas.Input.Overlay.TransformHandles);
         var img = s.Document.ActiveLayer.Image;
         Assert.NotEqual(0u, img[180, 205]);  // the middle of the bottom edge sags
         Assert.Equal(0u, img[102, 205]);     // the corners stay

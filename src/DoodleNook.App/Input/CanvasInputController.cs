@@ -696,7 +696,10 @@ public sealed partial class CanvasInputController
         var t = _session.ActiveTransform;
         if (t is null)
         {
+            // All of a finished transform's marks go: its frame, and a Perspective's corners or a Warp's grid.
             Overlay.TransformFrame = null;
+            Overlay.TransformHandles = null;
+            Overlay.TransformGrid = null;
             return;
         }
         double w = t.Source.Width, h = t.Source.Height;

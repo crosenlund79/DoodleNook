@@ -266,6 +266,7 @@ public partial class MainWindow
     private IEnumerable<MenuEntry> HelpMenu() =>
     [
         new("info", "Quick Start Guide", null, () => _ = DoodleNook.App.Dialogs.QuickStartGuide.ShowAsync(this)),
+        new("play", "Guided Tutorials…", null, () => _ = ShowGuidedTutorialsAsync()),
         new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()),
         MenuEntry.Separator,
         MenuEntry.Heading("Sample animations"),
@@ -310,6 +311,7 @@ public partial class MainWindow
         list.Add(new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics));
         list.Add(new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()));
         list.Add(new("info", "Quick Start Guide", null, () => _ = DoodleNook.App.Dialogs.QuickStartGuide.ShowAsync(this)));
+        list.Add(new("play", "Guided Tutorials…", null, () => _ = ShowGuidedTutorialsAsync()));
         list.Add(new("keyboard", "Keyboard shortcuts", "F1", () => _ = ShowShortcutsAsync()));
         list.Add(new("settings", "Preferences…", null, () => _ = PreferencesAsync()));
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
@@ -431,8 +433,8 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 013 “Animation Reference Library”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, animation import for drawing over existing animations, and a library of reference cycles (walk, run, attack…) to animate over.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 014 “The Gentle Guide”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, animation import for drawing over existing animations, a library of reference cycles (walk, run, attack…) to animate over, and guided tutorials (Help › Guided Tutorials).\n\n" +
                         "Bundled palettes by other artists are credited in the Palettes window and in PALETTE-ATTRIBUTION.md.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

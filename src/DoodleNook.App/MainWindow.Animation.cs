@@ -326,6 +326,13 @@ public partial class MainWindow
     /// <summary>Writes an animation export without asking (tests and smoke test). Returns a description of what was written.</summary>
     public async Task<string> ExportAnimationToPathAsync(string path, AnimationExportSettings settings)
     {
+        var written = await WriteAnimationExportAsync(path, settings);
+        NoteAnimationExported();
+        return written;
+    }
+
+    private async Task<string> WriteAnimationExportAsync(string path, AnimationExportSettings settings)
+    {
         var doc = Session.Document;
         bool paper = settings.Background && doc.Paper is not null && doc.PaperVisible;
         // Frames are composited here (the document belongs to this thread); encoding and writing run in the background.

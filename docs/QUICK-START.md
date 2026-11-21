@@ -89,3 +89,11 @@ locks it once it is in place.
 
 `Ctrl+S` saves a `.dnk` file with every layer and frame. **File › Export as PNG…** saves a flat picture, and
 **File › Export animation…** saves a GIF, a sprite sheet or numbered PNGs. `F1` lists every shortcut.
+
+## 10. Learn by doing
+
+![The first guided tutorial pointing at New frame](screenshots/quick-start/09-learn-by-doing.png)
+
+Open **Help › Guided Tutorials…** to follow interactive lessons inside DoodleNook. In **Your First Animation** a small
+guide points at the real controls while you draw a bouncing ball, frame by frame. You do the drawing; stop whenever you
+like, and your animation stays open.
