@@ -119,7 +119,21 @@ public sealed class QuickStartScreenshots
             Directory.Delete(folder, true);
         }
 
-        // 7. A picture copied elsewhere, pasted as a reference and being placed (handles showing).
+        // 7. The reference cycle library: a walk chosen and placed over the imported animation.
+        {
+            w.Session.GoToFrame(0);
+            var pick = w.InsertReferenceCycleAsync();
+            await ArtistsCompanionWindowTests.Until(() => w.Dialogs.IsOpen);
+            w.CaptureRenderedFrame()?.Dispose();
+            Click(w, Find<Button>(w, "ReferenceCycle_walk"));
+            await Task.Delay(250); // let the preview play a couple of drawings
+            w.ShowToast("");
+            Save(w, "07-reference-cycle");
+            w.Dialogs.Close("cancel");
+            Assert.False(await pick);
+        }
+
+        // 8. A picture copied elsewhere, pasted as a reference and being placed (handles showing).
         var doc = w.Session.Document;
         var picture = new RasterImage(doc.Width / 2, doc.Height / 2);
         for (int y = 0; y < picture.Height; y++)
@@ -132,7 +146,7 @@ public sealed class QuickStartScreenshots
         w.SystemClipboard = new ClipboardWindowTests.FakeClipboard { Content = new ClipboardContent(PngCodec.Encode(picture), null, [], true), ChangeCount = 7 };
         w.Session.GoToFrame(4);
         Assert.True(await w.PasteAsync(asReference: true));
-        Save(w, "07-reference");
+        Save(w, "08-paste-reference");
         FinishingTouchesScreenshots.CloseNow(w);
     }
 }

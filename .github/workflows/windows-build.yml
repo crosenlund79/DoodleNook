@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion", "iteration/013-animation-reference-library" ]
   workflow_dispatch:
 
 permissions:
@@ -117,7 +117,7 @@ jobs:
           if (-not $p.WaitForExit(240000)) { $p.Kill(); throw "The app did not finish its smoke test within 4 minutes" }
           if (Test-Path "$out/smoke-report.json") { Get-Content "$out/smoke-report.json" } else { Write-Host "No report written" }
           if ($p.ExitCode -ne 0) { throw "Smoke test failed (exit code $($p.ExitCode))" }
-          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board, plus Palette Lock and Remap to Palette (alpha kept exactly), and imported a GIF as a four-layer animation, pasted pictures from the Windows clipboard (PNG, a bitmap and a copied file, also as a reference) and found the bundled palettes and the built-in Quick Start guide."
+          Write-Host "Smoke test passed: the packaged DoodleNook.exe started, used all six workspaces, saved and reopened .dnk pictures and animations, played an animation, exported PNG/JPEG/WebP, a sprite sheet, a PNG sequence and GIFs (format switching in the export dialog stayed responsive), and used the creative tools: a brush tip from the artwork, a stamp, a pattern fill, a palette from the picture, the Brush Laboratory and the reference board, plus Palette Lock and Remap to Palette (alpha kept exactly), and imported a GIF as a four-layer animation, pasted pictures from the Windows clipboard (PNG, a bitmap and a copied file, also as a reference) and found the bundled palettes and the built-in Quick Start guide, and inserted a walk reference cycle into a started animation (nothing else changed, undo and redo, saved and reopened)."
 
       - name: Upload DoodleNook-win-x64
         uses: actions/upload-artifact@v7

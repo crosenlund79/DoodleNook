@@ -67,12 +67,13 @@ public sealed class LayerPixelsAction : IHistoryAction
 }
 
 /// <summary>A layer was added (Undo removes it, Redo puts it back at the same place).</summary>
-public sealed class AddLayerAction(string name, Layer layer, int index) : IHistoryAction
+public sealed class AddLayerAction(string name, Layer layer, int index, bool makeActive = true) : IHistoryAction
 {
     public string Name { get; } = name;
-    public long ByteSize { get; } = (long)layer.Image.Pixels.Length * 4 + 64;
+    public long ByteSize { get; } = (long)layer.Image.Pixels.Length * 4 + 64
+                                    + (layer.Cells?.OfType<Cel>().Distinct().Sum(c => (long)c.Image.Pixels.Length * 4) ?? 0);
     public void Undo(Document d) => d.RemoveLayerInternal(layer);
-    public void Redo(Document d) => d.InsertLayerInternal(layer, index, makeActive: true);
+    public void Redo(Document d) => d.InsertLayerInternal(layer, index, makeActive);
 }
 
 /// <summary>A layer was deleted.</summary>

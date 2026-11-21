@@ -189,6 +189,7 @@ public sealed partial class Document
         copy.ContentSize = source.ContentSize;
         copy.SubstituteFont = source.SubstituteFont;
         copy.Mask = source.Mask?.Clone();
+        copy.ReferenceCycle = source.ReferenceCycle;
         if (source.IsTrack) CopyTrack(source, copy);
         return copy;
     }

@@ -30,6 +30,9 @@ public sealed class DnkFormatException(string message) : Exception(message);
 /// editable text (<c>text</c>), shapes (<c>shape</c>) and adjustment layers (<c>adjustment</c>), guides and the
 /// perspective assistant; it is written only for pictures that use them. Text and shapes are stored as their description
 /// (not pixels) and drawn again when opened; a missing font is replaced and named, and the layer keeps asking for it.
+/// Version 5 (Mission 013) adds, per layer, the settings of a cycle from the Reference Animation Library
+/// (<c>reference</c>: cycle, view, facing, size, anchor and timing) so it can be adjusted later; it is written only for
+/// animations that have such a layer. The layer's drawings are stored like any other animation layer's.
 /// Files are written to a temporary file first and then moved into place, so a failed save
 /// never damages the previous version. Files from a newer format version are refused with a clear message.
 /// </summary>
@@ -38,8 +41,11 @@ public static class DnkFile
     public const string Extension = ".dnk";
     public const string MimeType = "application/x-doodlenook";
 
-    /// <summary>The newest format this build reads and writes (4 = groups, masks, text, shapes, adjustment layers).</summary>
-    public const int CurrentVersion = 4;
+    /// <summary>The newest format this build reads and writes (5 = reference cycles from the library).</summary>
+    public const int CurrentVersion = 5;
+
+    /// <summary>Animations with a Reference Animation Library layer are written in version 5.</summary>
+    public const int ReferenceVersion = 5;
 
     /// <summary>Pictures with groups, masks, text, shapes, adjustment layers, guides or perspective are written in version 4.</summary>
     public const int DesignVersion = 4;
@@ -76,7 +82,8 @@ public static class DnkFile
         var manifest = new Manifest
         {
             Format = "DoodleNook",
-            Version = doc.UsesDesignFeatures ? DesignVersion : doc.PaletteLocked ? PaletteLockVersion : doc.IsAnimated ? AnimationVersion : StillVersion,
+            Version = doc.Layers.Any(l => l.ReferenceCycle is not null) ? ReferenceVersion
+                : doc.UsesDesignFeatures ? DesignVersion : doc.PaletteLocked ? PaletteLockVersion : doc.IsAnimated ? AnimationVersion : StillVersion,
             CreatedWith = appVersion is null ? "DoodleNook" : $"DoodleNook {appVersion}",
             Width = doc.Width,
             Height = doc.Height,
@@ -115,6 +122,7 @@ public static class DnkFile
                 info.Mask = $"masks/mask-{i + 1:000}.png";
                 images.Add(new SnapshotImage(info.Mask, mask.Clone(), full, FullSize: true));
             }
+            if (l.ReferenceCycle is { } rc) info.Reference = ReferenceInfo.From(rc);
             switch (l.Content)
             {
                 case TextContent t:
@@ -321,6 +329,9 @@ public static class DnkFile
                 doc = new Document(manifest.Width, manifest.Height, paper, manifest.Paper?.Visible ?? true, layers, manifest.ActiveLayer);
             }
             if (design) ReadDesign(zip, manifest, doc, kinds);
+            if (manifest.Version >= ReferenceVersion)
+                for (int i = 0; i < manifest.Layers.Count && i < doc.Layers.Count; i++)
+                    if (manifest.Layers[i].Reference?.ToSettings() is { } rc && doc.Layers[i].IsTrack) doc.Layers[i].ReferenceCycle = rc;
             if (manifest.Palette is { Colors.Count: > 0 } pal)
             {
                 var palette = new Palette(pal.Name ?? "Palette", pal.Colors.Select(s => ColorRgb.TryParse(s, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>())
@@ -647,6 +658,35 @@ public static class DnkFile
         public TextInfo? Text { get; set; }
         public ShapeInfo? Shape { get; set; }
         public AdjustmentInfo? Adjustment { get; set; }
+
+        // Version 5
+        public ReferenceInfo? Reference { get; set; }
+    }
+
+    /// <summary>Version 5: a Reference Animation Library cycle's settings.</summary>
+    internal sealed class ReferenceInfo
+    {
+        public string? Cycle { get; set; }
+        public References.ReferenceView View { get; set; }
+        public References.ReferenceFacing Facing { get; set; }
+        public double Height { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public int Start { get; set; }
+        public int Hold { get; set; } = 1;
+        public bool Repeat { get; set; } = true;
+        public bool Extend { get; set; } = true;
+        public bool Marker { get; set; } = true;
+        public bool HardEdges { get; set; }
+
+        public static ReferenceInfo From(References.ReferenceCycleSettings s) => new()
+        {
+            Cycle = s.CycleId, View = s.View, Facing = s.Facing, Height = Math.Round(s.Height, 3), X = Math.Round(s.AnchorX, 3), Y = Math.Round(s.AnchorY, 3),
+            Start = s.StartFrame, Hold = s.Hold, Repeat = s.Repeat, Extend = s.Extend, Marker = s.Marker, HardEdges = s.HardEdges,
+        };
+
+        public References.ReferenceCycleSettings? ToSettings() => string.IsNullOrWhiteSpace(Cycle) ? null
+            : new References.ReferenceCycleSettings(Cycle, View, Facing, Height, X, Y, Start, Hold, Repeat, Extend, Marker, HardEdges).Normalized();
     }
 
     internal sealed class PaletteInfo

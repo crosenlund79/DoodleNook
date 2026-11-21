@@ -431,8 +431,8 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 012 “The Artist's Companion”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, and animation import for drawing over existing animations.\n\n" +
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 013 “Animation Reference Library”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, animation import for drawing over existing animations, and a library of reference cycles (walk, run, attack…) to animate over.\n\n" +
                         "Bundled palettes by other artists are credited in the Palettes window and in PALETTE-ATTRIBUTION.md.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

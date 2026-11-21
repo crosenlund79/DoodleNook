@@ -53,6 +53,10 @@ public sealed class Layer
     /// <summary>Raster (paint), group, text, shape or adjustment.</summary>
     public LayerKind Kind { get; }
 
+    /// <summary>Mission 013: for a layer made from the Reference Animation Library, the cycle and how it was placed
+    /// (so it can be adjusted later); null for every other layer.</summary>
+    public References.ReferenceCycleSettings? ReferenceCycle { get; internal set; }
+
     /// <summary>The editable text, shape or adjustment (null for raster layers and groups).</summary>
     public LayerContent? Content { get; internal set; }
 

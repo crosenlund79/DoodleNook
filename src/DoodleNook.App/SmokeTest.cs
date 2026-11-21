@@ -706,9 +706,47 @@ internal static class SmokeTest
             adoc.MarkSaved();
         }
 
+        // 18. Mission 013 — the Reference Animation Library: a walk cycle into the animation from section 17 (which already
+        // has an imported reference, drawings and pasted layers), placed under the layer being drawn on, nothing else
+        // changed; undo and redo; saved and reopened with its settings.
+        {
+            var rdoc = session.Document;
+            var drawOn = rdoc.Layers.First(l => l.Name == "Sketch");
+            rdoc.SetActiveLayer(drawOn);
+            var before = rdoc.Layers.ToDictionary(l => l, l => Enumerable.Range(0, rdoc.FrameCount).Select(f => rdoc.CelAt(l, f)).ToList());
+            int frames = rdoc.FrameCount, steps = rdoc.History.UndoCount;
+            var insert = window.InsertReferenceCycleAsync();
+            for (int i = 0; i < 200 && !window.Dialogs.IsOpen; i++) await Task.Delay(20);
+            await Task.Delay(300); // the preview plays
+            await Shot("smoke-N-reference-dialog.png");
+            window.Dialogs.Close("ok");
+            bool inserted = await insert;
+            var refLayer = rdoc.Layers.FirstOrDefault(l => l.ReferenceCycle is not null);
+            bool untouched = before.All(kv => rdoc.Layers.Contains(kv.Key)
+                && kv.Value.SequenceEqual(Enumerable.Range(0, kv.Value.Count).Select(f => rdoc.CelAt(kv.Key, f))));
+            Check("a reference cycle goes into a started animation under the drawing layer, locked and faint, changing nothing else",
+                inserted && refLayer is not null && refLayer.Locked && Math.Abs(refLayer.Opacity - 0.35) < 1e-9 && ReferenceEquals(rdoc.ActiveLayer, drawOn)
+                && rdoc.Layers.ToList().IndexOf(refLayer) == rdoc.Layers.ToList().IndexOf(drawOn) - 1 && untouched
+                && rdoc.FrameCount == Math.Max(frames, 8) && rdoc.History.UndoCount == steps + 1,
+                $"{refLayer?.Name}, {frames} → {rdoc.FrameCount} frames");
+            await Shot("smoke-O-reference-cycle.png");
+            window.Undo();
+            bool undone = rdoc.Layers.All(l => l.ReferenceCycle is null) && rdoc.FrameCount == frames;
+            window.Redo();
+            Check("one undo takes the reference cycle away and redo brings it back", undone && rdoc.Layers.Count(l => l.ReferenceCycle is not null) == 1);
+            var path = Path.Combine(dir, "smoke-reference.dnk");
+            Engine.Files.DnkFile.Save(rdoc, path);
+            var cycleFile = Engine.Files.DnkFile.Load(path);
+            var backLayer = cycleFile.Layers.FirstOrDefault(l => l.ReferenceCycle is not null);
+            Check("saved and reopened with the cycle's settings and drawings", backLayer is not null && backLayer.ReferenceCycle == refLayer!.ReferenceCycle
+                && Enumerable.Range(0, cycleFile.FrameCount).All(f => cycleFile.CelAt(backLayer, f)?.Image.Pixels.AsSpan().SequenceEqual(rdoc.CelAt(refLayer, f)!.Image.Pixels) == true));
+            report["referenceCycles"] = Engine.References.ReferenceLibrary.Cycles.Count;
+            rdoc.MarkSaved();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M012", window.Title);
+            && MainWindow.Milestone == "M013", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

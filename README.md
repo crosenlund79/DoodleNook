@@ -2,13 +2,15 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 012 "The Artist's Companion"**: import a GIF, animated PNG or PNG sequence to draw over it
-on four ready layers, layer opacity in Animation Studio, Ctrl+V of pictures from other programs and Edit › Paste as
-reference, ten credited palettes by other pixel artists, and an illustrated [Quick Start guide](docs/QUICK-START.md)
-(also Help › Quick Start Guide). Read [docs/iterations/012-artists-companion](docs/iterations/012-artists-companion/README.md),
-the palette credits in [PALETTE-ATTRIBUTION.md](docs/PALETTE-ATTRIBUTION.md), and try it with the
-[playtest guide](docs/iterations/012-artists-companion/PLAYTEST.md).
-Earlier milestones: [Mission 011 "Under the Hood"](docs/iterations/011-under-the-hood/README.md) (measured speed-ups
+**Current milestone: Mission 013 "Animation Reference Library"**: 22 built-in reference cycles for game animation
+(walk, run, attacks, jump, hurt, pick up…) as a simple mannequin in side, top-down and three-quarter view, inserted
+into new or already-started animations as a locked, faint layer that changes nothing else. Read
+[docs/iterations/013-animation-reference-library](docs/iterations/013-animation-reference-library/README.md) and try it
+with the [playtest guide](docs/iterations/013-animation-reference-library/PLAYTEST.md); the
+[Quick Start guide](docs/QUICK-START.md) (also Help › Quick Start Guide) has a new section on it.
+Earlier milestones: [Mission 012 "The Artist's Companion"](docs/iterations/012-artists-companion/README.md) (animation
+import for reconstruction, layer opacity, pasting from other programs, credited palettes, the Quick Start guide),
+[Mission 011 "Under the Hood"](docs/iterations/011-under-the-hood/README.md) (measured speed-ups
 and Help › Diagnostics), [Mission 010 "The Finishing Touches"](docs/iterations/010-finishing-touches/README.md) (Liquify,
 Smudge, Clone and Repair, Perspective and Warp, the quick palette's brush sizing and choice),
 [Mission 009 "Game Edit Mode"](docs/iterations/009-game-edit-mode/README.md) (a game's graphics
@@ -25,7 +27,7 @@ pen-drawing foundation).
 **Less is more — but capable when needed. Ease of use first.** The interface rules are in [`CLAUDE.md`](CLAUDE.md) and
 [docs/design/INTERFACE-PHILOSOPHY.md](docs/design/INTERFACE-PHILOSOPHY.md).
 
-- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F012-artists-companion) → newest green run → artifact **DoodleNook-win-x64**.
+- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F013-animation-reference-library) → newest green run → artifact **DoodleNook-win-x64**.
 - Earlier research and the approved design prototype: [docs/](docs/README.md).
 - Sound identity sketches: [sound-experiments/](sound-experiments/README.md).
 

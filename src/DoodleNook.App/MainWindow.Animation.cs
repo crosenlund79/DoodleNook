@@ -79,6 +79,9 @@ public partial class MainWindow
             new("film", "Preview panel", null, () => SetPreviewPanel(!AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation)),
                 Checked: AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation)),
             MenuEntry.Separator,
+            new("figure", "Insert reference cycle…", null, () => _ = InsertReferenceCycleAsync()),
+            new(null, "Adjust reference cycle…", null, () => _ = AdjustReferenceCycleAsync(), layer.ReferenceCycle is not null),
+            MenuEntry.Separator,
             new("new", "New animation…", null, () => _ = NewAnimationAsync()),
             new("open", "Import animation…", null, () => _ = ImportAnimationAsync()),
             new("export", "Export animation…", null, () => _ = ExportAnimationAsync()),
@@ -171,6 +174,7 @@ public partial class MainWindow
             new("chevd", "Move layer down", "Ctrl+[", () => s.MoveLayer(-1), i > 0),
             new(l.Visible ? "eyeoff" : "eye", l.Visible ? "Hide layer" : "Show layer", null, () => s.SetLayerProperty(l, p => p with { Visible = !p.Visible })),
             new("lock", "Lock layer", null, () => s.SetLayerProperty(l, p => p with { Locked = !p.Locked }), Checked: l.Locked),
+            new("figure", "Adjust reference cycle…", null, () => _ = AdjustReferenceCycleAsync(l), l.ReferenceCycle is not null),
             new("layers", "Opacity, blending and more: Layers panel…", null, ShowAnimationLayersPanel),
         ];
     }

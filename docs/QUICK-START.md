@@ -68,15 +68,24 @@ sequence comes along). Click a frame to leave it out, then press Import. You get
 
 The file's timing is kept.
 
-## 7. Paste pictures and references
+## 7. Reference cycles
 
-![A pasted reference being placed over the drawing](screenshots/quick-start/07-reference.png)
+![Choosing a walk cycle and placing it in the scene](screenshots/quick-start/07-reference-cycle.png)
+
+**Animation › Insert reference cycle…** adds a ready-made motion guide in side, top-down or three-quarter view:
+idle, walk, run, jump, attacks, hurt, pick up and more. Drag in the preview to place its feet, then choose its height
+and facing and press Insert. It lands faint and locked under the layer you draw on, and nothing already in the
+animation changes. **Animation › Adjust reference cycle…** moves or changes it later.
+
+## 8. Paste pictures and references
+
+![A pasted reference being placed over the drawing](screenshots/quick-start/08-paste-reference.png)
 
 `Ctrl+V` pastes a picture copied in another program (a browser, Paint, a screenshot) onto a new layer, ready to
 move: drag the handles, then press `Enter`. **Edit › Paste as reference** puts it at 35 % under the layer you draw on and
 locks it once it is in place.
 
-## 8. Save and export
+## 9. Save and export
 
 `Ctrl+S` saves a `.dnk` file with every layer and frame. **File › Export as PNG…** saves a flat picture, and
 **File › Export animation…** saves a GIF, a sprite sheet or numbered PNGs. `F1` lists every shortcut.

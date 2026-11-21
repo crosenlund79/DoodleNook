@@ -1,5 +1,5 @@
-DoodleNook — Mission 012 "The Artist's Companion"
-=================================================
+DoodleNook — Mission 013 "Animation Reference Library"
+======================================================
 
 Start
 -----
@@ -46,8 +46,19 @@ The Artist's Workshop
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 
-The Artist's Companion (new)
-----------------------------
+Animation Reference Library (new)
+---------------------------------
+* Animation › Insert reference cycle…: 22 ready-made motion guides for game animation (idle, walk, run, sneak, jump,
+  fall, land, two attacks, hurt, death, cast, shoot, pick up, drop, push, pull, climb, sit down, stand up, hammer, dig)
+  as a simple mannequin in side, top-down or three-quarter view, facing the way you need.
+* Drag in the preview to place the feet; choose the height, where it starts and how long each drawing lasts.
+* It is added as its own faint (35 %), locked layer just under the layer you draw on. Nothing already in the
+  animation changes; if the animation is too short, frames are added at the end (other layers hold there).
+* Animation › Adjust reference cycle… (or right-click the layer in the timeline) moves, resizes, turns or swaps it.
+* The mannequin's right arm and leg are orange, the left ones blue.
+
+The Artist's Companion
+----------------------
 * Help › Quick Start Guide: eight short illustrated sections, built in (no internet needed).
 * File › Import animation… (also in the Animation menu): a GIF, an animated PNG or numbered PNG pictures (choose one;
   the rest of its sequence comes along) become an animation with four layers: Reference (the frames, 35 % and locked),
