@@ -218,3 +218,27 @@ A PDF was not made: the guide inside DoodleNook and the Markdown on GitHub cover
 Branch `iteration/012-artists-companion`, started from Mission 011's final commit (efa32ae). The Windows build is the
 artifact **DoodleNook-win-x64** of the newest green run of
 [Windows build on this branch](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F012-artists-companion).
+
+### Results
+
+**Windows CI**, run [#32](https://github.com/crosenlund79/DoodleNook/actions/runs/44911040955) (commit f7a74cc):
+
+- **Automated tests:** app 195, engine 314, and the three benchmark tests in their own step. All passed.
+- **Package:** published self-contained. The package was verified, including `PALETTE-ATTRIBUTION.md`, and zipped.
+- **The packaged app's smoke test: 74/74.** Section 17 imported a GIF as four layers and checked the reference's 35 %
+  in an export. Through the real Windows clipboard, it pasted:
+  - a transparent PNG (both halves exact);
+  - a 32-bit bitmap with empty alpha (pasted opaque);
+  - a PNG file copied as Explorer does, as a reference: 35 %, locked once placed, on its frame only.
+
+  It also found the ten credited palettes and the built-in guide's seven pictures. The version reads 0.12.0 and the
+  title "DoodleNook — M012".
+
+**Linux:**
+
+- **Engine:** 316/316.
+- **App:** the complete run passed 195 of 196. The one failure was the guide test, run before its screenshots were
+  in `docs/`. After they were added, the guide tests and every test touching the later changes pass (46/46).
+- **Smoke test under Xvfb:** 71/71. The three Windows clipboard checks don't run there.
+
+The final commit's run and its artifact link are in the delivery report.
