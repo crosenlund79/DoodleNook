@@ -169,6 +169,20 @@ artifact **DoodleNook-win-x64** of the newest green run of
 
 ### Results
 
+**Windows CI**, run [#36](https://github.com/crosenlund79/DoodleNook/actions/runs/44932509720) (commit 72f7d74):
+
+- **Automated tests:** app 207, engine 331, and the three benchmark tests in their own step. All passed.
+- **Package:** published self-contained and zipped. `DoodleNook.exe` reports 0.14.0+72f7d74, and its README-FIRST
+  has the new "The Gentle Guide" section.
+- **The packaged app's smoke test: 82/82.** Section 19:
+  - opened Guided Tutorials and started the lesson;
+  - got a fresh, unsaved 256 × 256, 8 fps practice animation in Animation Studio;
+  - saw the brush outlined, a drawing noticed, and New frame outlined;
+  - skipped a step and exited midway;
+  - afterwards the listeners were back to before, and the drawing stayed and kept working.
+
+  The title reads "DoodleNook — M014".
+
 **Linux:**
 
 - **Tests:** engine 333/333, app 208/208.
