@@ -189,3 +189,28 @@ The Quick Start tests check the new section's shortcuts and menu paths.
 Branch `iteration/013-animation-reference-library`, started from Mission 012's final commit (16dfd7f). The Windows
 build is the artifact **DoodleNook-win-x64** of the newest green run of
 [Windows build on this branch](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F013-animation-reference-library).
+
+### Results
+
+**Windows CI**, run [#34](https://github.com/crosenlund79/DoodleNook/actions/runs/44920791069) (commit 5c302de):
+
+- **Automated tests:** app 199, engine 331, and the three benchmark tests in their own step. All passed.
+- **Package:** published self-contained, verified and zipped. `DoodleNook.exe` reports 0.13.0+5c302de and has the
+  guide with its new picture built in.
+- **The packaged app's smoke test: 77/77.** Section 18 inserted a walk cycle into the animation from section 17
+  (imported reference, drawings and pasted layers):
+  - it went under the drawing layer, locked and at 35 %;
+  - nothing else changed;
+  - the animation grew from 4 to 8 frames;
+  - it took one undo step, and undo and redo worked;
+  - it was saved and reopened with its settings and drawings.
+
+  The Mission 012 Windows-clipboard checks pass as before. The title reads "DoodleNook — M013".
+
+**Linux:**
+
+- **Tests:** engine 333/333, app 200/200. The one engine test that used "version 5" as "a newer DoodleNook" now uses
+  6, since version 5 is real.
+- **Smoke test under Xvfb:** 74/74. The three Windows-clipboard checks don't run there.
+
+The final commit's run and its artifact link are in the delivery report.
