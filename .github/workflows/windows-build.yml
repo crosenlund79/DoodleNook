@@ -45,6 +45,29 @@ jobs:
         # which would otherwise disturb the older performance measurements. Results: tests/*/out/*.json.
         run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName~UnderTheHoodBenchmarks|FullyQualifiedName~UnderTheHoodAppBenchmarks|FullyQualifiedName~HeadToHeadBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
 
+      - name: Compare with Mission 010 on the same runner (Mission 011 only)
+        # The Windows half of Mission 011's before/after measurements: Mission 010's engine (commit 702aa2f) with the same
+        # benchmark files, then this commit's, one after the other on this runner. Results: comparison/ in test-results.
+        if: github.ref == 'refs/heads/iteration/011-under-the-hood'
+        shell: pwsh
+        run: |
+          git fetch --depth 1 origin 702aa2f7310d309b6190d9c204b1a7e2ee526bb1
+          git worktree add ../m010 702aa2f7310d309b6190d9c204b1a7e2ee526bb1
+          Copy-Item tests/DoodleNook.Engine.Tests/UnderTheHoodBenchmarks.cs, tests/DoodleNook.Engine.Tests/HeadToHeadBenchmarks.cs ../m010/tests/DoodleNook.Engine.Tests/
+          dotnet build ../m010/tests/DoodleNook.Engine.Tests/DoodleNook.Engine.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force comparison | Out-Null
+          $filter = "FullyQualifiedName~DoodleNook.Engine.Tests.PerformanceTests|FullyQualifiedName~UnderTheHoodBenchmarks|FullyQualifiedName~HeadToHeadBenchmarks"
+          foreach ($v in @(@{ Name = "m010"; Dir = "../m010" }, @{ Name = "m011"; Dir = "." })) {
+            $env:DN_BENCH_NAME = "$($v.Name)-under-the-hood.json"
+            $env:THIN_OUT = "$($v.Name)-head-to-head.txt"
+            dotnet test "$($v.Dir)/tests/DoodleNook.Engine.Tests/DoodleNook.Engine.Tests.csproj" -c Release --no-build --filter $filter
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            $out = "$($v.Dir)/tests/DoodleNook.Engine.Tests/out"
+            Copy-Item "$out/$($env:DN_BENCH_NAME)", "$out/$($env:THIN_OUT)" comparison/
+            Copy-Item "$out/performance.json" "comparison/$($v.Name)-performance.json"
+          }
+
       - name: Publish self-contained Windows app
         run: >
           dotnet publish src/DoodleNook.App/DoodleNook.App.csproj -c Release -r win-x64 --self-contained true
@@ -114,4 +137,5 @@ jobs:
             tests/DoodleNook.App.Tests/out/screenshots/
             tests/DoodleNook.App.Tests/out/*.json
             tests/DoodleNook.Engine.Tests/out/
+            comparison/
           if-no-files-found: ignore
