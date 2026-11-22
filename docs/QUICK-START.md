@@ -94,7 +94,8 @@ animation changes. **Animation › Adjust reference cycle…** moves or changes 
 ![A pasted reference being placed over the drawing](screenshots/quick-start/08-paste-reference.png)
 
 `Ctrl+V` pastes a picture copied in another program (a browser, Paint, a screenshot) onto a new layer, ready to
-move: drag the handles, then press `Enter`. **Edit › Paste as reference** puts it at 35 % under the layer you draw on and
+move: drag the handles, then press `Enter`. The other way works too: `Ctrl+C` copies the selection (or the layer) so you
+can paste it into other programs, with its transparency where they support it. **Edit › Paste as reference** puts it at 35 % under the layer you draw on and
 locks it once it is in place.
 
 ## 9. Storybook
@@ -104,7 +105,8 @@ locks it once it is in place.
 **File › New storybook…** makes comic or storyboard pages from your drawings. Choose a layout for each page, then
 double-click a panel to draw in it: it opens in the normal editor at exactly the right size, and **Back to the
 storybook** shows it on the page. Every panel has the same pixels per centimetre, whatever its size. **Export** saves
-pages as PNG or one PDF. **Help › A little walk (storybook)** opens a sample.
+pages as PNG or one PDF. While a storybook is shown it has the window to itself; `Esc` (or **Back to drawing**) brings
+the drawing and its tools back. **Help › A little walk (storybook)** opens a sample.
 
 ## 10. Learn by doing
 

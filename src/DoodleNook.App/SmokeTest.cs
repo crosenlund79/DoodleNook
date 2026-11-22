@@ -891,7 +891,7 @@ internal static class SmokeTest
 
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M015", window.Title);
+            && MainWindow.Milestone == "M016", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

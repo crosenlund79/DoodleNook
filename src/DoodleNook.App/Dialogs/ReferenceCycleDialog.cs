@@ -86,8 +86,11 @@ public sealed class ReferenceCycleDialog
         d.Restart();
         try
         {
-            var scroller = new ScrollViewer { Content = body, MaxHeight = Math.Max(360, app.Bounds.Height - 150), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-            var r = await app.Dialogs.ShowAsync(adjusting ? "Adjust reference cycle" : "Insert reference cycle", scroller,
+            // What will happen to the timeline stays in view below the choices (Mission 016: at 150 % it was scrolled off).
+            var scroller = new ScrollViewer { Content = body, MaxHeight = Math.Max(300, app.Bounds.Height - 200), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            d._plan.Margin = new Thickness(210, 8, 0, 0);
+            var page = new DockPanel { Children = { WithDock(d._plan, Dock.Bottom), scroller } };
+            var r = await app.Dialogs.ShowAsync(adjusting ? "Adjust reference cycle" : "Insert reference cycle", page,
                 [("cancel", "Cancel", false), ("ok", adjusting ? "Apply" : "Insert", true)], "ok", "cancel", 800);
             return r == "ok" ? new ReferenceCycleChoice(d._s, d._opacity) : null;
         }
@@ -252,7 +255,6 @@ public sealed class ReferenceCycleDialog
         right.Children.Add(UiKit.Row(8, Dim("Starts at", 78), start, Dim("Each drawing lasts"), hold, Dim("frames")));
         right.Children.Add(UiKit.Row(8, Dim("", 78), repeat, extend));
         right.Children.Add(UiKit.Row(8, Dim("Opacity", 78), opacity, marker));
-        right.Children.Add(_plan);
         if (_adjusting)
             right.Children.Add(DialogHost.Text("The layer's drawings are made again from these settings; anything painted on it by hand is replaced."));
 

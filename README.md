@@ -2,15 +2,16 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 015 "The Game Artist's Workshop"**: four everyday jobs made easier. **File › Import sprite
-sheet…** slices a sheet into an animation with the grid shown over it (and **Sprite sheet from pictures…** goes the other
-way); **View › Animation preview** loops the animation while you draw any frame, docked or in its own window;
-**Palettes › Import folder…** brings a whole folder of palettes into your library at once; and **Storybook Studio**
-(**File › New storybook…**) arranges your drawings into comic and storyboard pages, every panel at the same pixels per
-centimetre. Read [docs/iterations/015-game-artists-workshop](docs/iterations/015-game-artists-workshop/README.md) and try it
-with the [playtest guide](docs/iterations/015-game-artists-workshop/PLAYTEST.md); the [Quick Start guide](docs/QUICK-START.md)
-(also Help › Quick Start Guide) has new sections for sprite sheets and Storybook.
-Earlier milestones: [Mission 014 "The Gentle Guide"](docs/iterations/014-the-gentle-guide/README.md) (Help › Guided
+**Current milestone: Mission 016 "The Completion Pass"**: no new features — what was reported is fixed and the
+existing workflows were checked with real files. GIF export keeps the colours you drew, the reference picker shows only
+the chosen cycle, Storybook has the window to itself (and never changes the drawing underneath), Copy reaches other
+programs, real palette folders and sprite sheets import better, and dialogs fit the Kamvas at 150 %. Read
+[docs/iterations/016-completion-pass](docs/iterations/016-completion-pass/README.md), the
+[quality report](docs/iterations/016-completion-pass/QUALITY-REPORT.md) and the
+[playtest guide](docs/iterations/016-completion-pass/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
+sums up what has been tested by you and what by the automated checks.
+Earlier milestones: [Mission 015 "The Game Artist's Workshop"](docs/iterations/015-game-artists-workshop/README.md)
+(sprite sheets, the Live Animation Preview, palette folders, Storybook Studio), [Mission 014 "The Gentle Guide"](docs/iterations/014-the-gentle-guide/README.md) (Help › Guided
 Tutorials… and "Your First Animation"),
 [Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)
 (now 35 reference cycles for game animation, with Expansion Pack 1: carrying, limping, emotions, transitions),

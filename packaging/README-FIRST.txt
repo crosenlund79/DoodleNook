@@ -1,5 +1,5 @@
-DoodleNook — Mission 015 "The Game Artist's Workshop"
-=====================================================
+DoodleNook — Mission 016 "The Completion Pass"
+==============================================
 
 Start
 -----

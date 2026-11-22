@@ -26,6 +26,7 @@ public sealed class DialogHost
         _layer = layer;
         _card = card;
         _layer.PointerPressed += (_, e) => e.Handled = true; // block the canvas while a dialog is open
+        _layer.SizeChanged += (_, e) => FitCard(e.NewSize.Height); // the window resized while a dialog is open
     }
 
     public bool IsOpen => _pending is not null;
@@ -39,14 +40,17 @@ public sealed class DialogHost
         _defaultResult = defaultId;
         _cancelResult = cancelId;
 
-        var stack = new StackPanel { Spacing = 14, Width = width };
-        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9 };
+        // Mission 016: the title and the buttons always stay in view; when the window is too short for the whole
+        // dialog (the Kamvas at 150 %), the part between them scrolls. Before, the buttons could end up off screen.
+        var stack = new DockPanel { Width = width, LastChildFill = true };
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9, Margin = new Thickness(0, 0, 0, 14) };
         head.Children.Add(new BrandMark());
         head.Children.Add(new TextBlock { Text = title, FontFamily = (FontFamily)Application.Current!.FindResource("DnBrandFont")!, FontSize = 18, VerticalAlignment = VerticalAlignment.Center });
+        DockPanel.SetDock(head, Dock.Top);
         stack.Children.Add(head);
-        stack.Children.Add(body);
 
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 0, 0) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0), Name = "DialogButtons" };
+        DockPanel.SetDock(row, Dock.Bottom);
         foreach (var (id, label, primary) in buttons)
         {
             var b = UiKit.Button(null, label);
@@ -64,9 +68,23 @@ public sealed class DialogHost
             row.Children.Add(b);
         }
         stack.Children.Add(row);
+        stack.Children.Add(new ScrollViewer
+        {
+            Content = body,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Name = "DialogBody",
+        });
+        FitCard(TopLevel.GetTopLevel(_layer)?.ClientSize.Height);
         _card.Child = stack;
         _layer.IsVisible = true;
         return tcs.Task;
+    }
+
+    /// <summary>The card is never taller than the window (less a small margin).</summary>
+    private void FitCard(double? windowHeight)
+    {
+        if (windowHeight is > 0 and var h) _card.MaxHeight = Math.Max(180, h - 24);
     }
 
     public void Close(string? result)
