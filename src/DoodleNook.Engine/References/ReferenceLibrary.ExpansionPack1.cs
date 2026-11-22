@@ -315,7 +315,8 @@ public static partial class ReferenceLibrary
 
     /// <summary>Laughing: irregular bursts, a big one and two smaller, then a quick breath in. Each burst folds the chest
     /// forward onto the right hand on the belly and rocks back with the head up; the left hand slaps the thigh on the
-    /// bigger ones; the knees give a little each time.</summary>
+    /// bigger ones and rests on it in between, lifting a little just before the next slap (Mission 016: it used to hang
+    /// out in front in mid-air between slaps); the knees give a little each time.</summary>
     private static Pose[] LaughPoses()
     {
         double[] lean = [18, -8, 12, -3, 8, -6, -2, 9];
@@ -324,6 +325,7 @@ public static partial class ReferenceLibrary
         double[] twist = [-6, 4, -4, 2, -3, 5, 1, -5];
         double[] tilt = [2, -3, 1, -1, 2, -2, 0, 1];
         bool[] slap = [true, false, true, false, false, false, false, true];
+        double[] lift = [0, 1, 0, 0.2, 0.15, 0.25, 1, 0]; // between slaps: resting, or lifting for the next one
         return
         [
             .. Enumerable.Range(0, 8).Select(f =>
@@ -336,7 +338,7 @@ public static partial class ReferenceLibrary
                 var j = PoseSolver.At(p, height[f]);
                 var belly = j.Pelvis + V(0.02, 0.13, 0.09);
                 var thigh = (j.HipL + j.KneeL) / 2 + V(-0.02, 0.03, 0.06);
-                var hand = slap[f] ? thigh : thigh + V(-0.05, 0.13, 0.08);
+                var hand = slap[f] ? thigh : thigh + V(-0.02, 0.015 + 0.075 * lift[f], 0.02 * lift[f]);
                 return PoseSolver.Reach(p, height[f], belly, hand);
             }),
         ];

@@ -430,19 +430,28 @@ public static partial class ReferenceLibrary
     }
 
     /// <summary>Sit down: the stool stays where it is, so the hips go straight down onto it from a stand just in front
-    /// of it, feet planted.</summary>
+    /// of it, feet planted; once seated, the hands rest on the thighs (Mission 016: they used to reach forward past the
+    /// knees, in the air). Stand up plays it backwards, so it pushes up from the thighs.</summary>
     private static Pose[] SitPoses()
     {
         FootAt r = Foot(0.13, 0.11), l = Foot(0.13, -0.11);
         Pose At(Pose upper, double height) => Plant(upper with { Prop = PropKind.Stool }, height, r, l);
+        Pose Seated(Pose upper, double height)
+        {
+            var p = At(upper, height);
+            var j = PoseSolver.At(p, height);
+            // On top of each thigh, a little more than halfway to the knee.
+            return PoseSolver.Reach(p, height, System.Numerics.Vector3.Lerp(j.HipR, j.KneeR, 0.62f) + V(0, 0.04, 0),
+                System.Numerics.Vector3.Lerp(j.HipL, j.KneeL, 0.62f) + V(0, 0.04, 0));
+        }
         return
         [
             At(new Pose { Lean = 10, ArmL = new(6, 9, 16), ArmR = new(6, 9, 16) }, 0.515),
             At(new Pose { Lean = 24, HeadPitch = -6, ArmL = new(20, 10, 20), ArmR = new(20, 10, 20) }, 0.465),
             At(new Pose { Lean = 32, HeadPitch = -12, ArmL = new(30, 12, 25), ArmR = new(30, 12, 25) }, 0.395),
             At(new Pose { Lean = 24, HeadPitch = -8, ArmL = new(30, 12, 30), ArmR = new(30, 12, 30) }, 0.33),
-            At(new Pose { Lean = 9, ArmL = new(28, 10, 40), ArmR = new(28, 10, 40) }, 0.308),
-            At(new Pose { Lean = 4, ArmL = new(34, 8, 46), ArmR = new(34, 8, 46) }, 0.308),
+            Seated(new Pose { Lean = 9, ArmL = new(28, 10, 40), ArmR = new(28, 10, 40) }, 0.308),
+            Seated(new Pose { Lean = 4, ArmL = new(34, 8, 46), ArmR = new(34, 8, 46) }, 0.308),
         ];
     }
 
