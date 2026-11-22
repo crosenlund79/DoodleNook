@@ -225,11 +225,14 @@ public sealed class CreativeLibrary
 
     public IReadOnlyList<PaletteAsset> Palettes => [.. BuiltInAssets.Palettes, .. _palettes];
 
+    /// <summary>The most colours one palette keeps (longer files keep their first colours).</summary>
+    public const int MaxPaletteColours = 1024;
+
     public PaletteAsset? FindPalette(string? id) => id is null ? null : Palettes.FirstOrDefault(p => p.Id == id);
 
     public PaletteAsset AddPalette(string name, string? collection, IEnumerable<ColorRgb> colors)
     {
-        var p = new PaletteAsset(NewId(), CleanName(name, "Palette"), CleanName(collection, "My palettes"), colors.Take(1024).ToList());
+        var p = new PaletteAsset(NewId(), CleanName(name, "Palette"), CleanName(collection, "My palettes"), colors.Take(MaxPaletteColours).ToList());
         _palettes.Add(p);
         Save();
         return p;
@@ -241,7 +244,7 @@ public sealed class CreativeLibrary
         var added = new List<PaletteAsset>();
         foreach (var (data, collection, file) in palettes)
         {
-            var p = new PaletteAsset(NewId(), CleanName(data.Name, "Palette"), CleanName(collection, "Imported"), data.Colors.Take(1024).ToList(),
+            var p = new PaletteAsset(NewId(), CleanName(data.Name, "Palette"), CleanName(collection, "Imported"), data.Colors.Take(MaxPaletteColours).ToList(),
                 Origin: new PaletteOrigin(file, Short(data.Description), Short(data.Creator), Short(data.Source), Short(data.Licence)));
             _palettes.Add(p);
             added.Add(p);
@@ -252,7 +255,7 @@ public sealed class CreativeLibrary
 
     private static string? Short(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim().Length > 400 ? text.Trim()[..400] + "…" : text.Trim();
 
-    public bool UpdatePalette(string id, IEnumerable<ColorRgb> colors) => Replace(_palettes, id, p => p with { Colors = colors.Take(1024).ToList() });
+    public bool UpdatePalette(string id, IEnumerable<ColorRgb> colors) => Replace(_palettes, id, p => p with { Colors = colors.Take(MaxPaletteColours).ToList() });
 
     public bool RenamePalette(string id, string name) => Replace(_palettes, id, p => p with { Name = CleanName(name, p.Name) });
 

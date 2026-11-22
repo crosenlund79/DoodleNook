@@ -314,8 +314,11 @@ public sealed class PaletteManager : Grid
                 else
                 {
                     var data = PaletteFiles.ReadFile(path);
-                    Select(Lib.AddPalettes([(data, "Imported", Path.GetFileName(path))])[0].Id);
-                    _info.Text = $"Imported “{data.Name}” ({data.Colors.Count} colours).";
+                    var added = Lib.AddPalettes([(data, "Imported", Path.GetFileName(path))])[0];
+                    Select(added.Id);
+                    _info.Text = added.Colors.Count < data.Colors.Count
+                        ? $"Imported “{added.Name}”: the first {added.Colors.Count} of its {data.Colors.Count} colours (a palette holds at most {CreativeLibrary.MaxPaletteColours})."
+                        : $"Imported “{added.Name}” ({added.Colors.Count} colours).";
                 }
             }
             catch (Exception ex)

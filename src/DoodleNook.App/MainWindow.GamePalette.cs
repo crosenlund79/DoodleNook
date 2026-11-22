@@ -179,7 +179,7 @@ public partial class MainWindow
         {
             Title = "Import a palette",
             AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Palettes (.gpl, .hex)") { Patterns = ["*.gpl", "*.hex"] }, FilePickerFileTypes.All],
+            FileTypeFilter = [new FilePickerFileType("Palettes (.gpl, .hex, .pal, .txt, .ase, .png)") { Patterns = PaletteFiles.Extensions.Select(e => "*" + e).ToList() }, FilePickerFileTypes.All],
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return null;
         try

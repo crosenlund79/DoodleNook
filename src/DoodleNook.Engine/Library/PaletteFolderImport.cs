@@ -127,6 +127,10 @@ public static class PaletteFolderImport
                 items.Add(new PaletteImportItem(file, PaletteImportOutcome.Error, Detail: ex.Message));
                 continue;
             }
+            // A palette keeps at most 1024 colours: decide on exactly what will be kept, so importing the same file
+            // again is recognised (Mission 016: a 5414-colour Munsell chart was imported again every time).
+            int found = data.Colors.Count;
+            if (found > CreativeLibrary.MaxPaletteColours) data = data with { Colors = data.Colors.Take(CreativeLibrary.MaxPaletteColours).ToList() };
             var key = Key(data.Colors);
             if (known.TryGetValue(key, out var already))
             {
@@ -144,7 +148,9 @@ public static class PaletteFolderImport
             names.Add(name);
             known[key] = name;
             add.Add((data with { Name = name }, collection, Path.GetFileName(file)));
-            items.Add(new PaletteImportItem(file, PaletteImportOutcome.Imported, name, $"{data.Colors.Count} colours"));
+            items.Add(new PaletteImportItem(file, PaletteImportOutcome.Imported, name, found > data.Colors.Count
+                ? $"the first {data.Colors.Count} of {found} colours (a palette holds at most {CreativeLibrary.MaxPaletteColours})"
+                : $"{data.Colors.Count} colours"));
         }
         return new PaletteImportPlan(items, add);
     }

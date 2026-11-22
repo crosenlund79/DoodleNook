@@ -237,4 +237,26 @@ public sealed class PaletteImportTests : IDisposable
         Assert.Equal(imported.Id, doc.Palette.LibraryId);
         for (int x = 0; x < 4; x++) Assert.Equal(Pixel.Opaque(Sunset[x]), doc.ActiveLayer.Image[x, 0]);
     }
+
+    /// <summary>Mission 016 (found with Inkscape's 5414-colour Munsell chart): a palette longer than 1024 colours keeps
+    /// its first 1024, the summary says so, and importing the same folder again adds nothing.</summary>
+    [Fact]
+    public void A_very_long_palette_keeps_its_first_1024_colours_and_is_recognised_when_imported_again()
+    {
+        var text = new System.Text.StringBuilder("GIMP Palette\nName: Huge chart\n");
+        for (int i = 0; i < 1500; i++) text.Append($"{i % 256} {i / 256 * 40} {(i * 7) % 256}\tc{i}\n");
+        Write("charts/huge.gpl", text.ToString());
+        var library = new CreativeLibrary(_lib);
+        var first = PaletteFolderImport.Import(library, _src, includeSubfolders: true);
+        var item = Assert.Single(first.Items);
+        Assert.Equal(PaletteImportOutcome.Imported, item.Outcome);
+        Assert.Equal("the first 1024 of 1500 colours (a palette holds at most 1024)", item.Detail);
+        Assert.Equal(1024, first.Imported[0].Colors.Count);
+        Assert.Equal(new ColorRgb(0, 0, 0), first.Imported[0].Colors[0]);
+
+        var again = PaletteFolderImport.Import(library, _src, includeSubfolders: true);
+        Assert.Equal(PaletteImportOutcome.Duplicate, Assert.Single(again.Items).Outcome);
+        Assert.Empty(again.Imported);
+        Assert.Single(new CreativeLibrary(_lib).Palettes, p => p.Name.StartsWith("Huge chart"));
+    }
 }
