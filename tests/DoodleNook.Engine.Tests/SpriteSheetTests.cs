@@ -114,6 +114,39 @@ public sealed class SpriteSheetTests : IDisposable
         Assert.Equal(4, SpriteSheetSlicer.Layout(strip, 96, 24).Frames.Count);
     }
 
+    /// <summary>Mission 016, from real sheets (OpenGameArt characters, Kenney's tile sheets): characters standing on the
+    /// bottom row of their cell, and tiles separated by a transparent line, are guessed right.</summary>
+    [Fact]
+    public void The_first_guess_allows_sprites_touching_their_cell_border_and_finds_gaps_between_frames()
+    {
+        // 5 × 3 cells of 20 × 24: each figure stands on the cell's last pixel row and is 2 px narrower than the cell.
+        var standing = new RasterImage(100, 72);
+        for (int i = 0; i < 15; i++)
+        {
+            int x0 = i % 5 * 20, y0 = i / 5 * 24;
+            for (int y = 6 + i % 3; y < 24; y++)
+                for (int x = 1; x < 19; x++) standing[x0 + x, y0 + y] = Pixel.Opaque(Leaf);
+        }
+        var g = SpriteSheetSlicer.Suggest(standing);
+        Assert.Equal((20, 24, 0, 0), (g.FrameWidth, g.FrameHeight, g.SpacingX, g.SpacingY));
+
+        // A figure that does cross into the next cell is never cut: 24 isn't offered for its rows.
+        standing[30, 24] = Pixel.Opaque(Leaf);
+        standing[30, 23] = Pixel.Opaque(Leaf);
+        standing[30, 25] = Pixel.Opaque(Leaf);
+        standing[30, 22] = Pixel.Opaque(Leaf);
+        Assert.NotEqual(24, SpriteSheetSlicer.Suggest(standing).FrameHeight);
+
+        // Tiles filling their whole 12 × 12 cell, one transparent line between them (4 × 2 tiles: 51 × 25).
+        var tiles = Sheet(12, 12, 4, 2, spacing: 1);
+        for (int i = 0; i < 8; i++)
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++) tiles[i % 4 * 13 + x, i / 4 * 13 + y] = Pixel.Opaque(Ink);
+        var t = SpriteSheetSlicer.Suggest(tiles);
+        Assert.Equal((12, 12, 1, 1), (t.FrameWidth, t.FrameHeight, t.SpacingX, t.SpacingY));
+        Assert.Equal(8, SpriteSheetSlicer.Layout(t, tiles.Width, tiles.Height).Frames.Count);
+    }
+
     [Fact]
     public void A_sheets_json_gives_the_exact_grid()
     {

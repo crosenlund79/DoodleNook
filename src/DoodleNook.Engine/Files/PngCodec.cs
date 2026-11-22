@@ -94,6 +94,50 @@ public static class PngCodec
         return png.ToArray();
     }
 
+    /// <summary>
+    /// Mission 016: reads a PNG made by another program — every standard colour type and bit depth (palette and grey,
+    /// with or without transparency), not only the 8-bit RGB(A) that <see cref="Decode"/> reads in DoodleNook's own
+    /// files. Interlaced PNGs aren't read (a short message says how to fix that).
+    /// </summary>
+    public static RasterImage DecodeAny(byte[] data)
+    {
+        if (data.Length < 8 || !data.AsSpan(0, 8).SequenceEqual(Signature)) throw new InvalidDataException("Not a PNG image.");
+        int pos = 8, w = 0, h = 0, depth = 0, colorType = -1, interlace = 0;
+        byte[]? palette = null, trns = null;
+        using var idat = new MemoryStream();
+        while (pos + 8 <= data.Length)
+        {
+            int len = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(pos));
+            if (len < 0 || pos + 12 + len > data.Length) throw new InvalidDataException("The PNG data is damaged.");
+            var type = data.AsSpan(pos + 4, 4);
+            var body = data.AsSpan(pos + 8, len);
+            if (type.SequenceEqual("IHDR"u8))
+            {
+                if (len < 13) throw new InvalidDataException("The PNG header is damaged.");
+                w = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(body);
+                h = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(body[4..]);
+                depth = body[8];
+                colorType = body[9];
+                interlace = body[12];
+                RasterImage.Validate(w, h);
+            }
+            else if (type.SequenceEqual("PLTE"u8)) palette = body.ToArray();
+            else if (type.SequenceEqual("tRNS"u8)) trns = body.ToArray();
+            else if (type.SequenceEqual("IDAT"u8)) idat.Write(body);
+            else if (type.SequenceEqual("IEND"u8)) break;
+            pos += 12 + len;
+        }
+        if (colorType < 0) throw new InvalidDataException("The PNG has no header.");
+        if (interlace != 0) throw new InvalidDataException("Interlaced PNGs can't be read. Save it without interlacing and try again.");
+        if (idat.Length == 0) throw new InvalidDataException("The PNG has no image data.");
+        if (colorType == 3 && palette is null) throw new InvalidDataException("The PNG's palette is missing.");
+        var rgba = ApngDecoder.DecodePixels(idat.ToArray(), w, h, depth, colorType, palette, trns);
+        var image = new RasterImage(w, h);
+        for (int i = 0; i < image.Pixels.Length; i++)
+            image.Pixels[i] = Pixel.FromStraight(rgba[4 * i], rgba[4 * i + 1], rgba[4 * i + 2], rgba[4 * i + 3]);
+        return image;
+    }
+
     public static RasterImage Decode(ReadOnlySpan<byte> data)
     {
         if (data.Length < 8 || !data[..8].SequenceEqual(Signature)) throw new InvalidDataException("Not a PNG image.");

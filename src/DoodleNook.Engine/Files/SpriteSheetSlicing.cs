@@ -116,21 +116,22 @@ public static class SpriteSheetSlicer
 
     /// <summary>
     /// A sensible first grid for a sheet: the exact grid when the sheet's JSON (DoodleNook's own, or a common
-    /// "frames" list of x/y/w/h) is given; otherwise the smallest frame size whose cell borders fall on clear,
-    /// transparent lines; otherwise a row of square frames for a long strip. Trailing empty cells aren't counted.
+    /// "frames" list of x/y/w/h) is given; otherwise the smallest frame size (and gap) at which no sprite crosses a cell
+    /// border; otherwise a row of square frames for a long strip. Trailing empty cells aren't counted.
     /// </summary>
     public static SliceGrid Suggest(RasterImage sheet, string? json = null)
     {
         if (json is not null && FromJson(json, sheet.Width, sheet.Height) is { } fromJson) return fromJson;
         int w = sheet.Width, h = sheet.Height;
-        int fw = ClearSpan(sheet, vertical: true), fh = ClearSpan(sheet, vertical: false);
+        var (fw, gapX) = ClearSpan(sheet, vertical: true);
+        var (fh, gapY) = ClearSpan(sheet, vertical: false);
         if (fw == w && fh == h)
         {
             // Nothing to go on (an opaque sheet, or one big picture): a strip of square frames if it is one.
             if (w > h && w % h == 0) fw = h;
             else if (h > w && h % w == 0) fh = w;
         }
-        var grid = new SliceGrid(fw, fh);
+        var grid = new SliceGrid(fw, fh, SpacingX: gapX, SpacingY: gapY);
         return grid with { Count = CountUpToLastDrawn(sheet, grid) };
     }
 
@@ -144,35 +145,54 @@ public static class SpriteSheetSlicer
     }
 
     /// <summary>
-    /// The smallest whole division of the sheet's width (or height) at which every cell border lies on a transparent line
-    /// (the pixel lines on both sides of it), so sprites never cross the border of their cell, and every band between two
-    /// borders has something drawn in it (empty space inside a frame isn't a border). The whole size when none.
+    /// The smallest frame size along one side of the sheet, and the gap between frames (none, or a transparent line or
+    /// two, as many tile sheets have), at which no sprite crosses a cell border and every band between two borders has
+    /// something drawn in it (empty space inside a frame isn't a border). A sprite may touch its border — characters
+    /// usually stand on the bottom row of their cell — but no pixel on one side of a border may touch a pixel on the
+    /// other. The whole size when nothing fits.
+    /// <para>Mission 016: real sheets (OpenGameArt characters, Kenney's tile sheets) were all guessed wrongly, because
+    /// both pixel lines at every border had to be empty and gaps between frames weren't considered.</para>
     /// </summary>
-    private static int ClearSpan(RasterImage sheet, bool vertical)
+    private static (int Size, int Spacing) ClearSpan(RasterImage sheet, bool vertical)
     {
         int size = vertical ? sheet.Width : sheet.Height, across = vertical ? sheet.Height : sheet.Width;
-        bool Clear(int line)
-        {
-            for (int i = 0; i < across; i++)
-            {
-                uint p = vertical ? sheet.Pixels[i * sheet.Width + line] : sheet.Pixels[line * sheet.Width + i];
-                if (p >> 24 != 0) return false;
-            }
-            return true;
-        }
+        bool Opaque(int line, int i) => (vertical ? sheet.Pixels[i * sheet.Width + line] : sheet.Pixels[line * sheet.Width + i]) >> 24 != 0;
         var clear = new bool[size];
         bool any = false;
-        for (int i = 0; i < size; i++) any |= clear[i] = Clear(i);
-        if (!any) return size;
-        for (int d = 4; d < size; d++)
+        for (int line = 0; line < size; line++)
         {
-            if (size % d != 0) continue;
-            bool ok = true;
-            for (int line = d; line < size && ok; line += d) ok = clear[line - 1] && clear[line];
-            for (int band = 0; band < size && ok; band += d) ok = Array.IndexOf(clear, false, band, d) >= 0;
-            if (ok) return d;
+            bool c = true;
+            for (int i = 0; i < across && c; i++) c = !Opaque(line, i);
+            any |= clear[line] = c;
         }
-        return size;
+        if (!any) return (size, 0);
+        bool Crossed(int border)
+        {
+            if (clear[border - 1] || clear[border]) return false;
+            for (int i = 0; i < across; i++)
+                if (Opaque(border - 1, i) && Opaque(border, i)) return true;
+            return false;
+        }
+        // Frames without gaps first; a gap only when no grid without one fits (transparent space around sprites isn't a
+        // gap: 64 px of two 32 px frames is not two 31 px frames with 2 px between).
+        for (int gap = 0; gap <= 2; gap++)
+            for (int d = 4; d < size; d++)
+            {
+                int pitch = d + gap;
+                if ((size + gap) % pitch != 0 || (size + gap) / pitch < 2) continue;
+                int n = (size + gap) / pitch;
+                bool ok = true;
+                for (int k = 1; k < n && ok; k++)
+                {
+                    int border = k * pitch; // the first line of the next cell
+                    if (gap == 0) ok = !Crossed(border);
+                    else
+                        for (int g = border - gap; g < border && ok; g++) ok = clear[g];
+                }
+                for (int k = 0; k < n && ok; k++) ok = Array.IndexOf(clear, false, k * pitch, d) >= 0;
+                if (ok) return (d, gap);
+            }
+        return (size, 0);
     }
 
     /// <summary>

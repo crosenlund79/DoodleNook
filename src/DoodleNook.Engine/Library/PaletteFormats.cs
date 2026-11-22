@@ -226,7 +226,7 @@ public static partial class PaletteFiles
         RasterImage image;
         try
         {
-            image = PngCodec.Decode(bytes);
+            image = PngCodec.DecodeAny(bytes); // palette pictures from other tools are often indexed-colour PNGs
         }
         catch (Exception ex) when (ex is InvalidDataException or ArgumentException or NotSupportedException)
         {

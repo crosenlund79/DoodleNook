@@ -146,7 +146,7 @@ public static class StorybookRenderer
         {
             if (!File.Exists(path)) return null;
             if (path.EndsWith(DnkFile.Extension, StringComparison.OrdinalIgnoreCase)) return Flatten(DnkFile.Load(path));
-            return PngCodec.Decode(File.ReadAllBytes(path));
+            return PngCodec.DecodeAny(File.ReadAllBytes(path));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DnkFormatException or InvalidDataException)
         {
