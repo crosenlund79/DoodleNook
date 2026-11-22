@@ -9,14 +9,43 @@ namespace DoodleNook.App.Platform;
 /// format (screenshot tools, browsers, Paint.NET, GIMP) first, then copied files (Explorer), then the device-independent
 /// bitmaps every program provides (CF_DIBV5, CF_DIB; Windows makes one from the other). Another program may hold the
 /// clipboard for a moment, so opening it is retried briefly. Nothing is written to the clipboard while reading.
+/// <para>Mission 016: Copy and Cut also put the copied pixels on the clipboard for other programs, in the same formats
+/// in the same order of preference: "PNG" (transparency kept: Paint.NET, GIMP, Krita, browsers, Office), CF_DIBV5 (32
+/// bits with alpha) and CF_DIB (on white, for programs that ignore alpha and would show transparent areas black).</para>
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class WindowsClipboard : ISystemClipboard
+internal sealed partial class WindowsClipboard(nint owner = 0) : ISystemClipboard
 {
     public const uint CfDib = 8, CfHdrop = 15, CfDibV5 = 17;
     private const long MaxBytes = 1_600_000_000; // beyond DoodleNook's largest picture either way
 
     public uint? ChangeCount => GetClipboardSequenceNumber();
+
+    public async Task<string?> WriteImageAsync(DoodleNook.Engine.Imaging.RasterImage image)
+    {
+        (string?, uint, byte[])[] items;
+        try
+        {
+            // Encoding a large picture takes a moment: off the UI thread, so drawing never waits for it.
+            items = await Task.Run(() => new (string?, uint, byte[])[]
+            {
+                ("PNG", 0, DoodleNook.Engine.Files.PngCodec.Encode(image)),
+                (null, CfDibV5, DoodleNook.Engine.Files.DibEncoder.EncodeV5(image)),
+                (null, CfDib, DoodleNook.Engine.Files.DibEncoder.EncodeOnWhite(image)),
+            });
+        }
+        catch (Exception ex) when (ex is ArgumentException or OutOfMemoryException)
+        {
+            return "The picture is too large for the clipboard.";
+        }
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            var result = TryPut(owner, items);
+            if (result != PutResult.Busy) return result == PutResult.Done ? null : "Windows couldn't take the picture (out of memory?).";
+            await Task.Delay(25);
+        }
+        return "The clipboard is busy in another program.";
+    }
 
     public async Task<ClipboardContent> ReadAsync()
     {
@@ -87,25 +116,60 @@ internal sealed partial class WindowsClipboard : ISystemClipboard
     /// copy like other programs do).</summary>
     internal static bool Put(params (string? Name, uint Format, byte[] Data)[] items)
     {
-        for (int attempt = 0; attempt < 20 && !OpenClipboard(0); attempt++) Thread.Sleep(25);
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            var result = TryPut(0, items);
+            if (result != PutResult.Busy) return result == PutResult.Done;
+            Thread.Sleep(25);
+        }
+        return false;
+    }
+
+    private enum PutResult { Done, Busy, Failed }
+
+    private static PutResult TryPut(nint owner, (string? Name, uint Format, byte[] Data)[] items)
+    {
+        if (!OpenClipboard(owner)) return PutResult.Busy;
         try
         {
-            if (!EmptyClipboard()) return false;
+            if (!EmptyClipboard()) return PutResult.Failed;
             foreach (var (name, fixedFormat, data) in items)
             {
                 uint format = name is null ? fixedFormat : RegisterClipboardFormat(name);
                 nint h = GlobalAlloc(0x0002 /* GMEM_MOVEABLE */, (nuint)data.Length);
-                if (h == 0) return false;
+                if (h == 0) return PutResult.Failed;
                 nint p = GlobalLock(h);
+                if (p == 0)
+                {
+                    GlobalFree(h);
+                    return PutResult.Failed;
+                }
                 Marshal.Copy(data, 0, p, data.Length);
                 GlobalUnlock(h);
                 if (SetClipboardData(format, h) == 0)
                 {
                     GlobalFree(h);
-                    return false;
+                    return PutResult.Failed;
                 }
             }
-            return true;
+            return PutResult.Done;
+        }
+        finally
+        {
+            CloseClipboard();
+        }
+    }
+
+    /// <summary>The formats on the clipboard right now, as raw bytes (the smoke test checks what Copy published).</summary>
+    internal static Dictionary<string, byte[]> ReadFormats()
+    {
+        var found = new Dictionary<string, byte[]>();
+        for (int attempt = 0; attempt < 20 && !OpenClipboard(0); attempt++) Thread.Sleep(25);
+        try
+        {
+            foreach (var (name, format) in new[] { ("PNG", RegisterClipboardFormat("PNG")), ("CF_DIBV5", CfDibV5), ("CF_DIB", CfDib) })
+                if (format != 0 && IsClipboardFormatAvailable(format) && Read(format) is { } data) found[name] = data;
+            return found;
         }
         finally
         {

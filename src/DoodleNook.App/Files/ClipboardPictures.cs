@@ -24,12 +24,16 @@ public sealed record ClipboardContent(byte[]? Encoded, byte[]? Dib, IReadOnlyLis
 /// <summary>The system clipboard as DoodleNook reads pictures from it. Tests replace it with a fake.</summary>
 public interface ISystemClipboard
 {
-    /// <summary>A number that changes whenever any program puts something new on the clipboard; null when the platform
-    /// can't tell. DoodleNook's own Copy doesn't change the system clipboard, so an unchanged number means DoodleNook's
-    /// copy is the newest thing copied.</summary>
+    /// <summary>A number that changes whenever any program (DoodleNook included) puts something new on the clipboard;
+    /// null when the platform can't tell. DoodleNook remembers the number after its own Copy, so an unchanged number
+    /// means DoodleNook's copy is the newest thing copied.</summary>
     uint? ChangeCount { get; }
 
     Task<ClipboardContent> ReadAsync();
+
+    /// <summary>Mission 016: puts a picture on the clipboard for other programs, with its transparency where they
+    /// support it. Null when it worked, otherwise a short reason.</summary>
+    Task<string?> WriteImageAsync(RasterImage image);
 }
 
 /// <summary>Mission 012: turns what was on the clipboard into a picture, or a short reason why not.</summary>
@@ -115,13 +119,28 @@ public static class ClipboardPictures
     /// <summary>The platform's clipboard reader: Windows' own clipboard formats on Windows (exact control over bitmap
     /// transparency), Avalonia's clipboard elsewhere.</summary>
     public static ISystemClipboard ForWindow(TopLevel window) =>
-        OperatingSystem.IsWindows() ? new Platform.WindowsClipboard() : new AvaloniaClipboard(window);
+        OperatingSystem.IsWindows() ? new Platform.WindowsClipboard(window.TryGetPlatformHandle()?.Handle ?? 0) : new AvaloniaClipboard(window);
 }
 
 /// <summary>Reads pictures and files through Avalonia's clipboard (non-Windows platforms).</summary>
 internal sealed class AvaloniaClipboard(TopLevel window) : ISystemClipboard
 {
     public uint? ChangeCount => null;
+
+    public async Task<string?> WriteImageAsync(RasterImage image)
+    {
+        if (window.Clipboard is not { } clipboard) return "There is no clipboard here.";
+        try
+        {
+            using var bitmap = Controls.BrushPreview.ToBitmap(image);
+            await clipboard.SetBitmapAsync(bitmap);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"The clipboard couldn't be written ({ex.GetType().Name}).";
+        }
+    }
 
     public async Task<ClipboardContent> ReadAsync()
     {

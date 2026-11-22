@@ -694,6 +694,30 @@ internal static class SmokeTest
                     && reference.Locked && Math.Abs(reference.Opacity - 0.35) < 1e-9 && adoc.CelAt(reference, 1) is not null && adoc.CelAt(reference, 0) is null,
                     window.LastToast);
                 await Shot("smoke-M-companion.png");
+
+                // Mission 016: DoodleNook's own Copy reaches other programs through the real Windows clipboard — PNG with
+                // transparency, a 32-bit bitmap with alpha, a 24-bit one on white — and Ctrl+V still pastes its own copy.
+                session.Deselect();
+                session.PlaceImage(pic, "Copy me");
+                session.CommitTransform();
+                uint before = window.SystemClipboard.ChangeCount ?? 0;
+                bool copied = await window.CopyAsync(cut: false);
+                var formats = Platform.WindowsClipboard.ReadFormats();
+                RasterImage? fromPng = formats.TryGetValue("PNG", out var pngBytes) ? PngCodec.Decode(pngBytes) : null;
+                RasterImage? fromV5 = formats.TryGetValue("CF_DIBV5", out var v5) ? DibDecoder.Decode(v5) : null;
+                RasterImage? fromDib = formats.TryGetValue("CF_DIB", out var dib24) ? DibDecoder.Decode(dib24) : null;
+                Check("Copy puts the picture on the Windows clipboard with its transparency (PNG and 32-bit bitmap)", copied
+                    && window.LastCopyProblem is null && window.SystemClipboard.ChangeCount != before
+                    && fromPng is not null && fromPng.Pixels.AsSpan().SequenceEqual(pic.Pixels)
+                    && fromV5 is not null && fromV5.Pixels.AsSpan().SequenceEqual(pic.Pixels),
+                    window.LastCopyProblem ?? $"formats: {string.Join(", ", formats.Keys)}");
+                Check("Copy also gives programs without transparency a bitmap on white", fromDib is not null && fromDib.Width == 10
+                    && fromDib[1, 1] == pic[1, 1] && Pixel.A(fromDib[7, 1]) == 255 && Pixel.ToStraight(fromDib[7, 1]).G > 150,
+                    fromDib is null ? "no CF_DIB" : $"{Pixel.ToStraight(fromDib[7, 1])}");
+                int count = adoc.Layers.Count;
+                pasted = await window.PasteAsync(asReference: false);
+                Check("after DoodleNook's own Copy, Ctrl+V pastes DoodleNook's copy in place (Windows clipboard)", pasted
+                    && adoc.Layers.Count == count + 1 && adoc.ActiveLayer.Name == "Pasted", window.LastToast);
             }
             else report["windowsClipboard"] = "not checked (not Windows)";
 

@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using DoodleNook.App.Files;
 using DoodleNook.App.Shell;
+using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Imaging;
 using static DoodleNook.App.Tests.WindowTests;
@@ -41,6 +42,20 @@ public sealed class ClipboardWindowTests : IDisposable
         {
             Content = content;
             ChangeCount++;
+        }
+
+        /// <summary>Pictures DoodleNook put on the clipboard (Mission 016), newest last.</summary>
+        public List<RasterImage> Written { get; } = new();
+
+        /// <summary>When set, writing fails with this reason.</summary>
+        public string? WriteProblem { get; set; }
+
+        public Task<string?> WriteImageAsync(RasterImage image)
+        {
+            if (WriteProblem is { } problem) return Task.FromResult<string?>(problem);
+            Written.Add(image);
+            Copied(new ClipboardContent(PngCodec.Encode(image), null, [], true)); // like Windows: a new change number
+            return Task.FromResult<string?>(null);
         }
     }
 
@@ -120,6 +135,111 @@ public sealed class ClipboardWindowTests : IDisposable
         clip.Copied(new ClipboardContent(null, null, [], HasOther: true)); // then text: DoodleNook's own picture is still there
         Assert.True(await w.PasteAsync(asReference: false));
         Assert.Equal("Pasted", doc.ActiveLayer.Name);
+        doc.MarkSaved();
+        w.Close();
+    }
+
+    /// <summary>A layer holding <see cref="Picture"/> (with its half-transparent half) at the canvas centre.</summary>
+    private static async Task<Layer> PlacedPicture(MainWindow w, FakeClipboard clip)
+    {
+        clip.Copied(Png(Picture()));
+        Assert.True(await w.PasteAsync(asReference: false));
+        w.Session.CommitTransform();
+        return w.Session.Document.ActiveLayer;
+    }
+
+    /// <summary>Mission 016: Copy also gives other programs the copied pixels — just those, with their transparency —
+    /// and Ctrl+V in DoodleNook still pastes its own copy at the same place.</summary>
+    [AvaloniaFact]
+    public async Task Copy_puts_the_copied_pixels_on_the_system_clipboard_with_transparency_and_Ctrl_V_still_pastes_in_place()
+    {
+        var (w, clip) = Open();
+        var doc = w.Session.Document;
+        var layer = await PlacedPicture(w, clip);
+        int x0 = (doc.Width - 20) / 2, y0 = (doc.Height - 10) / 2;
+        int reads = clip.Reads;
+
+        Key(w, Avalonia.Input.Key.C, RawInputModifiers.Control);
+        await ArtistsCompanionWindowTests.Until(() => clip.Written.Count == 1);
+        var published = clip.Written[0];
+        Assert.Equal((20, 10), (published.Width, published.Height)); // just the copied pixels, not the whole canvas
+        Assert.Equal(Picture().Pixels, published.Pixels);             // opaque and half-transparent pixels exactly
+        Assert.Null(w.LastCopyProblem);
+        Assert.Equal("Copied", w.LastToast);
+
+        // A selection copies only its part.
+        w.Session.ApplySelection(SelectionMask.Rectangle(doc.Width, doc.Height, new PixelRect(x0 + 8, y0 + 2, 6, 5)), "Select");
+        Assert.True(await w.CopyAsync(cut: false));
+        Assert.Equal((6, 5), (clip.Written[1].Width, clip.Written[1].Height));
+        Assert.Equal(Picture()[8, 2], clip.Written[1][0, 0]);
+        Assert.Equal(Picture()[13, 6], clip.Written[1][5, 4]);
+        w.Session.Deselect();
+
+        // Ctrl+V: DoodleNook's own copy (the newest thing copied), back at its place on a new layer; the system
+        // clipboard isn't even read.
+        Assert.True(await w.PasteAsync(asReference: false));
+        Assert.Equal("Pasted", doc.ActiveLayer.Name);
+        Assert.Equal(reads, clip.Reads);
+        Assert.Equal(Picture()[8, 2], doc.ActiveLayer.Image[x0 + 8, y0 + 2]);
+        Assert.Equal(0u, Pixel.A(doc.ActiveLayer.Image[x0, y0]));
+        Assert.Equal(Picture()[8, 2], layer.Image[x0 + 8, y0 + 2]); // the original is untouched
+
+        // Something copied in another program afterwards wins, as before.
+        clip.Copied(Png(Picture(4, 4)));
+        Assert.True(await w.PasteAsync(asReference: false));
+        Assert.Equal("Pasted image", doc.ActiveLayer.Name);
+        doc.MarkSaved();
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task When_the_system_clipboard_cannot_be_written_the_copy_still_works_inside_DoodleNook()
+    {
+        var (w, clip) = Open();
+        var doc = w.Session.Document;
+        await PlacedPicture(w, clip);
+        clip.WriteProblem = "The clipboard is busy in another program.";
+        Assert.True(await w.CopyAsync(cut: false));
+        Assert.Equal("Copied for DoodleNook, but not for other programs: The clipboard is busy in another program.", w.LastToast);
+        Assert.Empty(clip.Written);
+        Assert.True(await w.PasteAsync(asReference: false));
+        Assert.Equal("Pasted", doc.ActiveLayer.Name);
+
+        // Nothing to copy: nothing is written, and the message says why.
+        clip.WriteProblem = null;
+        w.Session.AddLayer();
+        Assert.False(await w.CopyAsync(cut: false));
+        Assert.Empty(clip.Written);
+        doc.MarkSaved();
+        w.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_locked_layer_can_be_copied_but_not_cut()
+    {
+        var (w, clip) = Open();
+        var doc = w.Session.Document;
+        var layer = await PlacedPicture(w, clip);
+        w.Session.SetLayerProperty(layer, p => p with { Locked = true });
+        var before = layer.Image.Pixels.ToArray();
+        int undo = doc.History.UndoCount;
+
+        Assert.True(await w.CopyAsync(cut: false));
+        Assert.Single(clip.Written);
+        Assert.True(await w.CopyAsync(cut: true));
+        Assert.Equal(2, clip.Written.Count); // copied all the same
+        Assert.Equal(before, layer.Image.Pixels);
+        Assert.Equal(undo, doc.History.UndoCount);
+        Assert.Equal($"Copied · “{layer.Name}” is locked, so nothing was cut", w.LastToast);
+
+        // Unlocked, Cut removes the pixels (one undo step) and still publishes them.
+        w.Session.SetLayerProperty(layer, p => p with { Locked = false });
+        Assert.True(await w.CopyAsync(cut: true));
+        Assert.Equal(3, clip.Written.Count);
+        Assert.Equal(Picture().Pixels, clip.Written[2].Pixels);
+        Assert.All(layer.Image.Pixels, p => Assert.Equal(0u, Pixel.A(p))); // the pixels are gone
+        w.Undo();
+        Assert.Equal(before, layer.Image.Pixels);
         doc.MarkSaved();
         w.Close();
     }

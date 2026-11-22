@@ -4,7 +4,8 @@ using DoodleNook.Engine.Imaging;
 namespace DoodleNook.App;
 
 /// <summary>
-/// Mission 012 — pasting pictures from other programs. Ctrl+V pastes the newest thing copied: DoodleNook's own copy, or a
+/// Mission 012 — pasting pictures from other programs (and, Mission 016, copying pictures to them). Ctrl+V pastes the
+/// newest thing copied: DoodleNook's own copy, or a
 /// picture copied in Paint, a browser, a screenshot tool or Explorer (a copied image file). External pictures keep their
 /// transparency, land on a new layer (never on the active one, so a locked layer is safe) and come with transform
 /// handles. Edit › Paste as reference does the same at 35 % and locks the layer once it is in place. Problems (an empty
@@ -14,6 +15,7 @@ public partial class MainWindow
 {
     private ISystemClipboard? _systemClipboard;
     private uint? _ownCopyStamp;
+    private int _copyVersion;
     private bool _pasting;
 
     /// <summary>The system clipboard as DoodleNook reads pictures from it (tests set a fake).</summary>
@@ -23,12 +25,42 @@ public partial class MainWindow
         set => _systemClipboard = value;
     }
 
-    public void Copy(bool cut)
+    public void Copy(bool cut) => _ = CopyAsync(cut);
+
+    /// <summary>
+    /// Copies (or cuts) the selection on the active layer, or the whole layer: for DoodleNook (Ctrl+V puts it back on a
+    /// new layer at the same place) and, Mission 016, as a picture for other programs (transparency kept where they
+    /// support it). If the system clipboard can't be written, DoodleNook's own copy still works and a short message says
+    /// so. False when there was nothing to copy.
+    /// </summary>
+    public async Task<bool> CopyAsync(bool cut)
     {
-        if (!Session.Copy(cut)) return;
+        bool locked = cut && Session.Document.ActiveLayer.Locked;
+        if (!Session.Copy(cut)) return false;
+        string done = locked ? $"Copied · “{Session.Document.ActiveLayer.Name}” is locked, so nothing was cut" : cut ? "Cut" : "Copied";
+        ShowToast(done);
+        // Until the picture is on the system clipboard, DoodleNook's copy is the newest thing copied.
         _ownCopyStamp = ChangeCount();
-        ShowToast(cut ? "Cut" : "Copied");
+        if (Session.ClipboardPicture() is not { } picture) return true;
+        int version = ++_copyVersion;
+        string? problem;
+        try
+        {
+            problem = await SystemClipboard.WriteImageAsync(picture);
+        }
+        catch (Exception ex)
+        {
+            problem = $"The clipboard couldn't be written ({ex.GetType().Name}).";
+        }
+        if (version != _copyVersion) return true; // copied again meanwhile: that copy decides
+        if (problem is null) _ownCopyStamp = ChangeCount();
+        else ShowToast($"{done} for DoodleNook, but not for other programs: {problem}");
+        LastCopyProblem = problem;
+        return true;
     }
+
+    /// <summary>Why the last copy didn't reach other programs, or null (tests, smoke test).</summary>
+    internal string? LastCopyProblem { get; private set; }
 
     public void Paste() => _ = PasteAsync(asReference: false);
 

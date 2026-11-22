@@ -160,6 +160,12 @@ public sealed partial class EditorSession
     /// <summary>Pixels copied with Copy/Cut (document-sized, transparent around the copied part).</summary>
     public RasterImage? Clipboard { get; private set; }
 
+    /// <summary>Where the copied pixels are in <see cref="Clipboard"/>.</summary>
+    public PixelRect ClipboardArea { get; private set; }
+
+    /// <summary>Just the copied pixels (what other programs get when you copy), or null.</summary>
+    public RasterImage? ClipboardPicture() => Clipboard is { } clip && !ClipboardArea.IsEmpty ? clip.Crop(ClipboardArea) : null;
+
     public event Action? StateChanged;
     public event Action? DocumentReplaced;
     public event Action<string>? Message;
@@ -1064,8 +1070,13 @@ public sealed partial class EditorSession
             for (int x = area.X; x < area.Right; x++)
                 clip[x, y] = Blending.Fade(layer.Image[x, y], Document.SelectionAt(x, y));
         Clipboard = clip;
-        if (cut) Document.Clear(layer);
-        Tell(cut ? "Cut" : "Copied");
+        ClipboardArea = area;
+        if (cut && layer.Locked) Tell($"Copied · “{layer.Name}” is locked, so nothing was cut");
+        else
+        {
+            if (cut) Document.Clear(layer);
+            Tell(cut ? "Cut" : "Copied");
+        }
         return true;
     }
 
