@@ -796,9 +796,78 @@ internal static class SmokeTest
             practice.MarkSaved();
         }
 
+        // 20. Mission 015 — The Game Artist's Workshop: a sprite sheet round trip through the import dialog, the live preview
+        // on its own clock (docked and in its own window), a palette folder in one go, and the sample storybook with a page
+        // exported at its print size.
+        {
+            async Task Wait(Func<bool> done)
+            {
+                for (int i = 0; i < 250 && !done(); i++) await Task.Delay(20);
+            }
+            var work = Path.Combine(dir, "m015");
+            Directory.CreateDirectory(work);
+            var walk = Engine.References.ReferenceLibrary.Find("walk")!;
+            var framing = new Engine.References.ReferenceFraming(Engine.References.ReferenceView.Side, Engine.References.ReferenceFacing.Right, 54, 32, 60, HardEdges: true, Marker: false);
+            var frames = Enumerable.Range(0, walk.Frames)
+                .Select(d => new Engine.Files.ExportFrame(Engine.References.ReferenceRenderer.Render(walk.Pose(d), 64, 64, framing), 100, d)).ToList();
+            var sheet = Engine.Files.AnimationExport.BuildSheet(frames, new Engine.Files.SpriteSheetOptions(Engine.Files.SheetLayout.Grid, 4, 2, 1, 3));
+            var sheetPath = Path.Combine(work, "walk-sheet.png");
+            File.WriteAllBytes(sheetPath, Engine.Files.PngCodec.Encode(sheet.Image));
+            File.WriteAllText(Path.ChangeExtension(sheetPath, ".json"), Engine.Files.AnimationExport.SheetJson(sheet, "walk-sheet.png", 8, true));
+            session.Document.MarkSaved();
+            var import = window.ImportSpriteSheetFromAsync(sheetPath);
+            await Wait(() => window.Dialogs.IsOpen);
+            await Shot("smoke-Q-sprite-sheet.png");
+            window.Dialogs.Close("import");
+            bool imported = await import;
+            var sdoc = session.Document;
+            bool same = imported && sdoc.FrameCount == 8 && Enumerable.Range(0, 8).All(f =>
+                sdoc.RenderFrame(f, includePaper: false).Pixels.AsSpan().SequenceEqual(Engine.Files.PngCodec.Decode(Engine.Files.PngCodec.Encode(frames[f].Image)).Pixels));
+            Check("a sprite sheet exported from an animation imports back pixel for pixel (8 frames, with its JSON)", same, $"{sdoc.FrameCount} frames");
+
+            session.GoToFrame(5);
+            window.SetPreviewPanel(true);
+            var preview = window.AnimationPreviewPanel;
+            preview.ManualElapsedMs = 260;
+            preview.Tick();
+            bool independent = preview.ShownFrame == 2 && sdoc.CurrentFrame == 5;
+            window.SetPreviewFloating(true);
+            bool floating = window.PreviewWindow is { IsVisible: true };
+            window.SetPreviewFloating(false);
+            bool docked = window.PreviewWindow is null && preview.IsVisible;
+            window.SetPreviewPanel(false);
+            preview.ManualElapsedMs = null;
+            Check("the live preview plays on its own clock (editing frame 6, showing frame 3) and opens in its own window", independent && floating && docked,
+                $"shown {preview.ShownFrame + 1}, editing {sdoc.CurrentFrame + 1}");
+            sdoc.MarkSaved();
+
+            var pals = Path.Combine(work, "palettes");
+            Directory.CreateDirectory(pals);
+            File.WriteAllText(Path.Combine(pals, "smoke.gpl"), "GIMP Palette\n#Palette Name: Smoke Test\n10 20 30\n40 50 60\n200 210 220\n");
+            File.WriteAllText(Path.Combine(pals, "smoke.hex"), "0a141e\n28323c\nc8d2dc\n");
+            File.WriteAllText(Path.Combine(pals, "readme.txt"), "Palettes.\n");
+            var scratchLibrary = new Engine.Library.CreativeLibrary(); // in memory: the smoke test never changes the user's library
+            var pal = Engine.Library.PaletteFolderImport.Import(scratchLibrary, pals, includeSubfolders: true);
+            Check("a folder of palettes imports in one go: one imported, its duplicate skipped, the text file left alone",
+                pal.ImportedCount == 1 && pal.Duplicates == 1 && pal.Unsupported == 1, Engine.Library.PaletteFolderImport.Describe(pal));
+
+            await window.OpenSampleStorybookAsync(Path.Combine(work, "story"));
+            var book = window.Storybook;
+            if (book is not null && window.StorybookView is { } sv)
+                await Wait(() => book.Usage().Keys.All(k => sv.Thumbnails.Get(k, false) is { Bitmap: not null }));
+            await Shot("smoke-R-storybook.png");
+            var written = await window.ExportStorybookToAsync(StorybookExport.ThisPage, Path.Combine(work, "story-page.png"));
+            var pageImage = written.Count == 1 ? Engine.Files.PngCodec.Decode(File.ReadAllBytes(written[0])) : null;
+            Check("the sample storybook opens (2 pages, 6 linked drawings, one shared) and a page exports at A4, 300 dpi: 2480 × 3508",
+                book is { Pages.Count: 2 } && book.Usage().Count == 6 && pageImage is { Width: 2480, Height: 3508 },
+                pageImage is null ? "no page" : $"{pageImage.Width} × {pageImage.Height}");
+            report["storybookPageExport"] = pageImage is null ? null : $"{pageImage.Width} x {pageImage.Height}";
+            window.CloseStorybook();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M014", window.Title);
+            && MainWindow.Milestone == "M015", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

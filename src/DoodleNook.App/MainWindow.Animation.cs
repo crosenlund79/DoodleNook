@@ -39,6 +39,7 @@ public partial class MainWindow
         Animator = new AnimationController(Session);
         _animationPreview = new AnimationPreview(this) { IsVisible = false };
         CanvasHost.Children.Add(_animationPreview);
+        ApplyCanvasBackdrop();
         Canvas.GestureStarted += _ => Animator.Pause();
         _autosaveTimer.Tick += async (_, _) => await AutosaveNowAsync();
     }
@@ -76,8 +77,7 @@ public partial class MainWindow
             new(null, "Onion-skin settings…", null, () => _timeline?.OpenOnionSettings(), here),
             new("loop", "Frame rate and looping…", null, () => _timeline?.OpenPlaybackSettings(), here),
             new("pixpencil", "Pixel-art animation", null, () => SetPixelAnimation(!AnimationState.PixelAnimation), Checked: AnimationState.PixelAnimation),
-            new("film", "Preview panel", null, () => SetPreviewPanel(!AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation)),
-                Checked: AnimationState.IsShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation)),
+            new("film", "Animation preview", null, () => SetPreviewPanel(!PreviewOpen), Checked: PreviewOpen),
             MenuEntry.Separator,
             new("figure", "Insert reference cycle…", null, () => _ = InsertReferenceCycleAsync()),
             new(null, "Adjust reference cycle…", null, () => _ = AdjustReferenceCycleAsync(), layer.ReferenceCycle is not null),

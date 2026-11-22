@@ -317,15 +317,21 @@ public partial class MainWindow
 
     public async Task OpenAsync()
     {
-        if (!await ConfirmDiscardAsync("opening another picture")) return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open a picture",
+            Title = "Open a picture (or a storybook)",
             AllowMultiple = false,
-            FileTypeFilter = [AnyPicture, DnkType, PngType, JpegType, WebPType, FilePickerFileTypes.All],
+            FileTypeFilter = [AnyPicture, DnkType, PngType, JpegType, WebPType, StorybookType, FilePickerFileTypes.All],
         });
         if (files.Count == 0) return;
         var file = files[0];
+        // A storybook opens in Storybook Studio; the picture being edited stays open.
+        if (file.TryGetLocalPath() is { } book && book.EndsWith(Engine.Storybook.StorybookProject.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenStorybookFromAsync(book);
+            return;
+        }
+        if (!await ConfirmDiscardAsync("opening another picture")) return;
         if (file.TryGetLocalPath() is { } path)
         {
             await OpenPathAsync(path);

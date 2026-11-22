@@ -61,6 +61,12 @@ public sealed class AppSettings
     /// <summary>Recovery copies of unsaved work every this many seconds (0 = off).</summary>
     public int AutosaveSeconds { get; set; } = 60;
 
+    /// <summary>Mission 015: the Live Animation Preview's remembered place, zoom, loop and background.</summary>
+    public PreviewSettings Preview { get; set; } = new();
+
+    /// <summary>Mission 015: what the canvas shows behind transparent areas (display only; never in the picture).</summary>
+    public BackdropSetting CanvasBackdrop { get; set; } = new();
+
     /// <summary>The last Export animation choices.</summary>
     public AnimationExportSettings AnimationExport { get; set; } = new();
 
@@ -202,3 +208,45 @@ public sealed record AnimationExportSettings(
     bool Loop = true,
     bool Dither = true,
     bool Background = false);
+
+/// <summary>What is shown behind transparent areas: a checkerboard, white, black, one colour, or a picture. Display only.</summary>
+public sealed class BackdropSetting
+{
+    public BackdropKind Kind { get; set; } = BackdropKind.Checker;
+
+    /// <summary>The colour for <see cref="BackdropKind.Colour"/> (#RRGGBB).</summary>
+    public string? Colour { get; set; }
+
+    /// <summary>The picture for <see cref="BackdropKind.Picture"/> (only read; a missing file falls back to the checkerboard).</summary>
+    public string? Picture { get; set; }
+
+    public BackdropSetting Clone() => new() { Kind = Kind, Colour = Colour, Picture = Picture };
+}
+
+public enum BackdropKind
+{
+    Checker,
+    White,
+    Black,
+    Colour,
+    Picture,
+}
+
+/// <summary>The Live Animation Preview's settings (Mission 015).</summary>
+public sealed class PreviewSettings
+{
+    /// <summary>In its own window (true) or in the corner of the canvas.</summary>
+    public bool Floating { get; set; }
+
+    public int? WindowX { get; set; }
+    public int? WindowY { get; set; }
+    public double WindowWidth { get; set; } = 420;
+    public double WindowHeight { get; set; } = 360;
+
+    /// <summary>0 = fit the panel; 1–4 = that many screen pixels per picture pixel.</summary>
+    public int Zoom { get; set; }
+
+    public bool Loop { get; set; } = true;
+
+    public BackdropSetting Backdrop { get; set; } = new();
+}

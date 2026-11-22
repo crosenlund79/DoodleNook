@@ -296,12 +296,37 @@ public sealed partial class CanvasView : Control, ICustomHitTest
 
         double zoom = ActualZoom;
         context.Custom(new DocumentDrawOperation(visible, _texture, m, doc.Width, doc.Height, zoom, PixelExact, Tiled,
-            ShowGrid && zoom >= 5, _selectionPath, _antsOffset, OnFrameDrawn));
+            ShowGrid && zoom >= 5, _selectionPath, _antsOffset, OnFrameDrawn, _backdropColour, _backdropImage));
 
         DrawOverlays(context);
     }
 
     private static readonly IBrush Shade = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0));
+
+    private SKColor? _backdropColour;
+    private SKImage? _backdropImage;
+
+    /// <summary>
+    /// Mission 015: what is shown behind transparent areas instead of the checkerboard: a colour, or a picture covering the
+    /// canvas (null and null: the checkerboard). Display only: it is never part of the picture or of an export.
+    /// </summary>
+    public void SetBackdrop(ColorRgb? colour, RasterImage? picture)
+    {
+        _backdropColour = colour is { } c ? new SKColor(c.R, c.G, c.B) : null;
+        SKImage? image = null;
+        if (colour is null && picture is not null)
+        {
+            using var bmp = new SKBitmap(new SKImageInfo(picture.Width, picture.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
+            System.Runtime.InteropServices.Marshal.Copy((int[])(object)picture.Pixels, 0, bmp.GetPixels(), picture.Pixels.Length);
+            image = SKImage.FromBitmap(bmp);
+        }
+        // The previous picture may still be on its way to the screen: it is left to the garbage collector.
+        _backdropImage = image;
+        InvalidateVisual();
+    }
+
+    /// <summary>True when something other than the checkerboard is behind transparent areas (tests).</summary>
+    internal bool HasBackdrop => _backdropColour is not null || _backdropImage is not null;
 
     private WriteableBitmap? _stampBitmap;
     private RasterImage? _stampBitmapSource;
@@ -771,7 +796,8 @@ public sealed partial class CanvasView : Control, ICustomHitTest
 
     /// <summary>Renders the projection with Skia (GPU when available), plus grid, tiles and the selection outline.</summary>
     private sealed class DocumentDrawOperation(Rect bounds, DocumentTexture texture, Affine matrix, int docWidth, int docHeight,
-        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset, Action<double> drawn) : ICustomDrawOperation
+        double zoom, bool pixelExact, bool tiled, bool grid, SKPath? selection, float antsOffset, Action<double> drawn,
+        SKColor? backdropColour, SKImage? backdropImage) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -820,8 +846,10 @@ public sealed partial class CanvasView : Control, ICustomHitTest
                         clip.Transform(tile);
                         canvas.ClipPath(clip, antialias: true);
                     }
-                    DrawChecker(canvas);
+                    if (backdropColour is { } bc) canvas.DrawColor(bc);
+                    else if (backdropImage is null) DrawChecker(canvas);
                     canvas.SetMatrix(canvas.TotalMatrix.PreConcat(tile));
+                    if (backdropColour is null && backdropImage is { } bi) DrawPicture(canvas, bi, docRect);
                     texture.Draw(canvas, lease.GrContext, docRect, sampling);
                     if (tx != 0 || ty != 0)
                     {
@@ -864,6 +892,16 @@ public sealed partial class CanvasView : Control, ICustomHitTest
             path.Transform(m);
             using var paint = new SKPaint { Color = new SKColor(40, 32, 28, 70), Style = SKPaintStyle.Stroke, StrokeWidth = 1, IsAntialias = false };
             canvas.DrawPath(path, paint);
+        }
+
+        /// <summary>A background picture covering the canvas (cropped to its shape, never stretched).</summary>
+        private static void DrawPicture(SKCanvas canvas, SKImage image, SKRect docRect)
+        {
+            float s = Math.Max(docRect.Width / image.Width, docRect.Height / image.Height);
+            float w = docRect.Width / s, h = docRect.Height / s;
+            var src = SKRect.Create((image.Width - w) / 2, (image.Height - h) / 2, w, h);
+            using var paint = new SKPaint();
+            canvas.DrawImage(image, src, docRect, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), paint);
         }
 
         private static void DrawChecker(SKCanvas canvas)

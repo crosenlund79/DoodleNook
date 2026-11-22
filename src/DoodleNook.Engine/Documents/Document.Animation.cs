@@ -243,6 +243,12 @@ public sealed partial class Document
         _frameCacheBytes = 0;
     }
 
+    /// <summary>
+    /// Changes whenever anything that decides how <paramref name="frame"/> looks changes (its drawings, layer settings,
+    /// paper), and only then: a preview can redraw just the frames whose signature changed (Mission 015).
+    /// </summary>
+    public ulong FrameSignature(int frame) => FrameKey(_animation is null ? 0 : Math.Clamp(frame, 0, _animation.FrameCount - 1));
+
     /// <summary>Identifies everything that decides how a frame looks (drawings and their revisions, layer settings, paper).</summary>
     private ulong FrameKey(int frame)
     {

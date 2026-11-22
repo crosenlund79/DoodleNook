@@ -13,7 +13,13 @@ public static class PngCodec
     private static readonly byte[] Signature = [137, 80, 78, 71, 13, 10, 26, 10];
     private static readonly uint[] CrcTable = BuildCrcTable();
 
-    public static byte[] Encode(RasterImage image, CompressionLevel level = CompressionLevel.Optimal)
+    public static byte[] Encode(RasterImage image, CompressionLevel level = CompressionLevel.Optimal) => Encode(image, level, null);
+
+    /// <summary>Encodes with the print resolution stored in the file (a "pHYs" chunk), so other programs know the
+    /// picture's physical size (Mission 015: Storybook pages).</summary>
+    public static byte[] Encode(RasterImage image, int dpi) => Encode(image, CompressionLevel.Optimal, dpi);
+
+    private static byte[] Encode(RasterImage image, CompressionLevel level, int? dpi)
     {
         int w = image.Width, h = image.Height, stride = w * 4;
         var rgba = image.ToStraightRgba();
@@ -74,6 +80,15 @@ public static class PngCodec
         ihdr[8] = 8;  // bit depth
         ihdr[9] = 6;  // RGBA
         WriteChunk(png, "IHDR", ihdr);
+        if (dpi is { } d and > 0)
+        {
+            var phys = new byte[9];
+            uint perMetre = (uint)Math.Round(d / 0.0254);
+            BinaryPrimitives.WriteUInt32BigEndian(phys, perMetre);
+            BinaryPrimitives.WriteUInt32BigEndian(phys.AsSpan(4), perMetre);
+            phys[8] = 1; // the unit is the metre
+            WriteChunk(png, "pHYs", phys);
+        }
         WriteChunk(png, "IDAT", raw.ToArray());
         WriteChunk(png, "IEND", []);
         return png.ToArray();

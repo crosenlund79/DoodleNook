@@ -154,6 +154,8 @@ public partial class MainWindow
     /// <summary>Shows or hides Animation Studio's preview panel (remembered, like a pinned option).</summary>
     public void SetPreviewPanel(bool shown)
     {
+        // Outside Animation Studio there is no corner to dock it in: it opens in its own window.
+        if (shown && Workspace.Kind != WorkspaceKind.Animation) _settings.Preview.Floating = true;
         _settings.StateFor(WorkspaceKind.Animation).SetShown(CustomOptions.PreviewPanel, WorkspaceKind.Animation, shown);
         ApplyChromeVisibility();
         _optionsBar?.Refresh();
@@ -231,7 +233,7 @@ public partial class MainWindow
         _corner.IsVisible = pure;
         _pixelPreview.IsVisible = kind == WorkspaceKind.PixelArt && WsState.Preview;
         if (_pixelPreview.IsVisible) _pixelPreview.Update();
-        _animationPreview.IsVisible = !hidden && kind == WorkspaceKind.Animation && WsState.IsShown(CustomOptions.PreviewPanel, kind);
+        PlacePreview(hidden, kind);
         _quickBar?.SetLayersChipVisible(_settings.StateFor(WorkspaceKind.QuickSketch).IsShown(CustomOptions.LayersChip, WorkspaceKind.QuickSketch));
         if (kind == WorkspaceKind.Animation) _timeline?.ApplyLayout();
         ApplyReferenceBoard();

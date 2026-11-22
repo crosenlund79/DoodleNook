@@ -1,5 +1,5 @@
-DoodleNook — Mission 014 "The Gentle Guide"
-==========================================
+DoodleNook — Mission 015 "The Game Artist's Workshop"
+=====================================================
 
 Start
 -----
@@ -46,8 +46,25 @@ The Artist's Workshop
 * In the Samples folder: "Woodland starter pack.dnkpack" (Window › Creative library… › Import a pack…),
   "Autumn walk.gpl" (Window › Palettes… › Import…) and "Sample references.dnkboard" (the board's ··· menu › Open board…).
 
-The Gentle Guide (new)
-----------------------
+The Game Artist's Workshop (new)
+--------------------------------
+* Sprite sheets: File › Import sprite sheet… shows the sheet with the grid it will cut (drag it, drag the first
+  frame's corner, or type the frame size; empty cells start left out) and imports it as an animation, or as a
+  reference to redraw (Reference locked at 35 %, Sketch, Outline, Coloring). A sheet's .json gives the exact grid.
+  File › Sprite sheet from pictures… lays numbered pictures out on one sheet. File › Export animation… makes a sheet
+  from an animation, as before.
+* Live Animation Preview: View › Animation preview loops the animation while you draw any frame. Docked in Animation
+  Studio's canvas corner, or ⤢ for its own window. Pause, loop, zoom (Fit, 1×–4×) and a background behind transparent
+  areas (display only, never exported). View › Behind transparent areas does the same for the canvas.
+* Palettes: Window › Palettes… › Import folder… imports every palette in a folder at once (.gpl, .hex, .pal, .txt,
+  .ase, .png), with one summary. Palettes you already have are skipped; imported ones are your own copies.
+* Storybook Studio: File › New storybook… arranges your drawings into comic and storyboard pages (six layouts). Every
+  panel has the same pixels per centimetre; New drawing makes one at exactly the right size. Double-click a panel to
+  draw in it, "Back to the storybook" to see the page. Export as PNG (with the print resolution) or one PDF.
+  Help › A little walk (storybook) opens a sample (made in Documents\DoodleNook\Samples).
+
+The Gentle Guide
+----------------
 * Help › Guided Tutorials… › "Your First Animation": a bouncing ball in about 10 minutes, done in the real
   Animation Studio. A small guide points at the control to use next (a soft orange outline) and notices when each
   step is done. You do all the drawing.

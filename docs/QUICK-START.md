@@ -12,6 +12,8 @@ DoodleNook opens ready to draw.
 - `B` is the brush and `E` the eraser. `[` and `]` make it smaller or larger.
 - **Right-click** (or your pen's button) opens the quick palette at the pen, with colours, brushes and size.
 - `Ctrl+Z` undoes and `Ctrl+Shift+Z` redoes.
+- `Ctrl+S` saves a `.dnk` file with every layer and frame. **File › Export as PNG…** saves a flat picture, and
+  **File › Export animation…** a GIF, a sprite sheet or numbered PNGs. `F1` lists every shortcut.
 
 ## 2. Choose a workspace
 
@@ -34,8 +36,9 @@ stay visible.
 ![The Palettes window showing Resurrect 64 and its credit](screenshots/quick-start/03-palettes.png)
 
 Click a swatch to paint with it. **Window › Palettes…** holds DoodleNook's own palettes plus ten classic palettes by
-pixel artists, in the *Lospec* collection. Each shows its creator, terms and source. **Import…** reads `.gpl` and
-`.hex` palette files.
+pixel artists, in the *Lospec* collection. Each shows its creator, terms and source. **Import…** reads one palette file;
+**Import folder…** brings in a whole folder of them at once (`.gpl`, `.hex`, `.pal`, `.txt`, `.ase`, `.png`). Palettes you
+already have are skipped, and the imported ones are your own copies: the folder can go afterwards.
 
 ## 4. Pixel art
 
@@ -55,8 +58,11 @@ converts a finished picture.
 - `N` adds a new frame and `O` turns onion skin on or off.
 - `Enter` plays and pauses.
 - Click a layer's percentage in the timeline to change its opacity on every frame.
+- **View › Animation preview** keeps the whole animation looping in the corner while you draw on any frame. Its ⤢
+  button opens it in its own window (a second screen works too); its background button chooses what shows behind
+  transparent areas. That background is only for looking: it is never exported.
 
-## 6. Draw over an existing animation
+## 6. Draw over an animation or a sprite sheet
 
 ![The Import animation window](screenshots/quick-start/06-import.png)
 
@@ -67,6 +73,12 @@ sequence comes along). Click a frame to leave it out, then press Import. You get
 - **Sketch**, **Outline** and **Coloring:** empty, ready to draw on.
 
 The file's timing is kept.
+
+![A sprite sheet with its slicing grid](screenshots/quick-start/10-sprite-sheet.png)
+
+**File › Import sprite sheet…** shows the sheet with the grid it will cut: drag the grid, drag the first frame's corner,
+or type the frame size. Import it as a plain animation, or as the four layers above. **File › Export animation…** turns an
+animation into a sheet, and **File › Sprite sheet from pictures…** lays numbered pictures out on one.
 
 ## 7. Reference cycles
 
@@ -85,10 +97,14 @@ animation changes. **Animation › Adjust reference cycle…** moves or changes 
 move: drag the handles, then press `Enter`. **Edit › Paste as reference** puts it at 35 % under the layer you draw on and
 locks it once it is in place.
 
-## 9. Save and export
+## 9. Storybook
 
-`Ctrl+S` saves a `.dnk` file with every layer and frame. **File › Export as PNG…** saves a flat picture, and
-**File › Export animation…** saves a GIF, a sprite sheet or numbered PNGs. `F1` lists every shortcut.
+![A storybook page with linked drawings](screenshots/quick-start/11-storybook.png)
+
+**File › New storybook…** makes comic or storyboard pages from your drawings. Choose a layout for each page, then
+double-click a panel to draw in it: it opens in the normal editor at exactly the right size, and **Back to the
+storybook** shows it on the page. Every panel has the same pixels per centimetre, whatever its size. **Export** saves
+pages as PNG or one PDF. **Help › A little walk (storybook)** opens a sample.
 
 ## 10. Learn by doing
 

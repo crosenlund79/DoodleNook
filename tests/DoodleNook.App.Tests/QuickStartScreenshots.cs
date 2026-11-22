@@ -172,4 +172,39 @@ public sealed class QuickStartScreenshots
         Save(w, "08-paste-reference");
         FinishingTouchesScreenshots.CloseNow(w);
     }
+
+    [AvaloniaFact]
+    public async Task Capture_sprite_sheets_and_storybook()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "dn-quickstart-15-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            // 10. A sprite sheet with its grid, about to be imported.
+            var w = Open(WorkspaceKind.Animation);
+            w.Session.Document.MarkSaved();
+            var png = Path.Combine(folder, "walk-sheet.png");
+            File.WriteAllBytes(png, PngCodec.Encode(GameArtistScreenshots.WalkSheet()));
+            var import = w.ImportSpriteSheetFromAsync(png);
+            await ArtistsCompanionWindowTests.Until(() => w.Dialogs.IsOpen);
+            await ArtistsCompanionWindowTests.Until(() => Has(w, "SheetFrame8"));
+            Save(w, "10-sprite-sheet");
+            w.Dialogs.Close("cancel");
+            await import;
+
+            // 11. Storybook Studio with the sample's first page.
+            await w.OpenSampleStorybookAsync(Path.Combine(folder, "story"));
+            var view = w.StorybookView!;
+            await ArtistsCompanionWindowTests.Until(() => w.Storybook!.Usage().Keys.All(k => view.Thumbnails.Get(k, true) is { Large: true }), 20_000);
+            view.Select(0);
+            w.ShowToast("");
+            Save(w, "11-storybook");
+            w.CloseStorybook();
+            FinishingTouchesScreenshots.CloseNow(w);
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
 }

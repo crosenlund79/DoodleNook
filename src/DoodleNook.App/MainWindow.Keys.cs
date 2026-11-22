@@ -28,7 +28,42 @@ public partial class MainWindow
             }
             return;
         }
+        if (StorybookShown && HandleStorybookKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            return;
+        }
         if (HandleKey(e.Key, e.KeyModifiers, e.KeySymbol)) e.Handled = true;
+    }
+
+    /// <summary>While the storybook is shown, undo and redo are the storybook's (the drawing underneath is left alone),
+    /// Page Up / Page Down turn pages and Esc goes back to the drawing.</summary>
+    internal bool HandleStorybookKey(Key key, KeyModifiers mods)
+    {
+        bool ctrl = mods.HasFlag(KeyModifiers.Control) || mods.HasFlag(KeyModifiers.Meta);
+        bool shift = mods.HasFlag(KeyModifiers.Shift);
+        var view = _storybookView!;
+        switch (key)
+        {
+            case Key.Z when ctrl && shift:
+            case Key.Y when ctrl:
+                view.Redo();
+                return true;
+            case Key.Z when ctrl:
+                view.Undo();
+                return true;
+            case Key.PageDown:
+                view.GoTo(view.PageIndex + 1);
+                return true;
+            case Key.PageUp:
+                view.GoTo(view.PageIndex - 1);
+                return true;
+            case Key.Escape:
+                HideStorybook();
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>Runs the shortcut for a key. Returns false when the key isn't a shortcut here.</summary>

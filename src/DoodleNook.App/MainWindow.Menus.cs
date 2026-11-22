@@ -55,6 +55,12 @@ public partial class MainWindow
         new("place", "Place image as layer…", null, () => _ = PlaceImageAsync()),
         MenuEntry.Separator,
         new("image", "Game Edit Mode…", null, () => _ = EnterGameEditModeAsync()),
+        new("book", "New storybook…", null, () => _ = NewStorybookAsync()),
+        new("book", Storybook is null ? "Open storybook…" : $"Storybook “{Storybook.Name}”", null, () =>
+        {
+            if (Storybook is null) _ = OpenStorybookAsync();
+            else ShowStorybook();
+        }),
         MenuEntry.Separator,
         new("settings", "Preferences…", null, () => _ = PreferencesAsync()),
         new("exit", "Exit", "Alt+F4", Close),
@@ -211,6 +217,8 @@ public partial class MainWindow
             new("flip", "Flip view", null, ToggleFlipView, Checked: Canvas.View.FlipHorizontal),
             MenuEntry.Separator,
         };
+        list.AddRange(PreviewViewEntries());
+        list.Add(MenuEntry.Separator);
         list.AddRange(DesignViewEntries());
         if (pixel)
         {
@@ -274,6 +282,7 @@ public partial class MainWindow
         MenuEntry.Heading("Sample animations"),
         new("film", "Bouncing ball (hand-drawn)", null, () => _ = OpenSampleAsync(SampleAnimation.BouncingBall)),
         new("pixpencil", "Pixel slime (pixel art)", null, () => _ = OpenSampleAsync(SampleAnimation.PixelSlime)),
+        new("book", "A little walk (storybook)", null, () => _ = OpenSampleStorybookAsync()),
         MenuEntry.Separator,
         new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics),
         new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()),

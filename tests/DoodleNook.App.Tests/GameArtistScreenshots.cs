@@ -105,4 +105,99 @@ public sealed class GameArtistScreenshots : IDisposable
             Pump();
         }
     }
+
+    [AvaloniaFact]
+    public async Task Capture_the_live_animation_preview()
+    {
+        var png = Path.Combine(_dir, "walk-sheet.png");
+        File.WriteAllBytes(png, PngCodec.Encode(WalkSheet()));
+        foreach (var (size, width, height, scaling) in Sizes)
+        {
+            var w = Open(width, height, WorkspaceKind.Animation);
+            w.SetRenderScaling(scaling);
+            w.Session.Document.MarkSaved();
+            Pump();
+            var import = w.ImportSpriteSheetFromAsync(png);
+            await Until(() => w.Dialogs.IsOpen);
+            w.Dialogs.Close("import"); // a plain, transparent animation
+            await import;
+            w.ShowToast("");
+            w.SetPreviewPanel(true);
+            w.PreviewSettings.Backdrop = new Settings.BackdropSetting();
+            w.AnimationPreviewPanel.SetBackdrop(new Settings.BackdropSetting { Kind = Settings.BackdropKind.Colour, Colour = "#2E4A3A" });
+            // Draw on frame 3 while the preview plays all of them.
+            w.Session.GoToFrame(2);
+            w.Session.SelectTool(Editor.ToolKind.PixelPencil);
+            Pump();
+            Drag(w, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None, (24, 16), (30, 14), (36, 16), (40, 22));
+            var p = w.AnimationPreviewPanel;
+            p.ManualElapsedMs = 300; // frame 3, the one being drawn on
+            p.Tick();
+            Pump();
+            Save(w, $"m015-live-preview-docked-{size}");
+            Click(w, Find<Button>(w, "PreviewBackground"));
+            Pump();
+            Save(w, $"m015-preview-backgrounds-{size}");
+            UiKitClose();
+            if (size == "desktop")
+            {
+                w.SetPreviewFloating(true);
+                Pump();
+                var win = w.PreviewWindow!;
+                win.Width = 420;
+                win.Height = 380;
+                p.ManualElapsedMs = 260;
+                p.Tick();
+                Pump();
+                win.CaptureRenderedFrame()?.Dispose();
+                Pump();
+                using (var frame = win.CaptureRenderedFrame()!)
+                    frame.Save(Path.Combine(Screenshots.OutDir, "m015-live-preview-window.png"), new PngBitmapEncoderOptions());
+                w.SetPreviewFloating(false);
+            }
+            w.SetPreviewPanel(false);
+            w.Session.Document.MarkSaved();
+            w.Close();
+            Pump();
+        }
+    }
+
+    private static void UiKitClose()
+    {
+        Shell.UiKit.HideOpenFlyouts();
+        Pump();
+    }
+
+    [AvaloniaFact]
+    public async Task Capture_storybook_studio()
+    {
+        var folder = Path.Combine(_dir, "A little walk");
+        foreach (var (size, width, height, scaling) in Sizes)
+        {
+            var w = Open(width, height, WorkspaceKind.Painting);
+            w.SetRenderScaling(scaling);
+            Pump();
+            await w.OpenSampleStorybookAsync(folder);
+            var view = w.StorybookView!;
+            // Wait for the sharper pictures of the page's drawings.
+            await Until(() => w.Storybook!.Usage().Keys.Where(k => w.Storybook.Pages[0].Panels.Any(p => w.Storybook.Resolve(p.Artwork) == k))
+                .All(k => view.Thumbnails.Get(k, true) is { Large: true }), 20_000);
+            await Until(() => w.Storybook!.Usage().Keys.All(k => view.Thumbnails.Get(k, false) is { Bitmap: not null }), 20_000);
+            view.Select(1);
+            w.ShowToast("");
+            Pump();
+            Save(w, $"m015-storybook-page-{size}");
+            Click(w, Find<Button>(w, "StorybookLayout"));
+            Pump();
+            Save(w, $"m015-storybook-layouts-{size}");
+            UiKitClose();
+            await w.OpenStorybookPanelAsync(0, 1);
+            w.ShowToast("");
+            Pump();
+            Save(w, $"m015-storybook-panel-in-editor-{size}");
+            w.CloseStorybook();
+            w.Close();
+            Pump();
+        }
+    }
 }

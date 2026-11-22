@@ -2,13 +2,17 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 014 "The Gentle Guide"**: Help › Guided Tutorials… and the first interactive lesson,
-"Your First Animation". A small floating guide points at the real controls with a soft outline and notices when each
-step is done, while you draw a bouncing ball, add frames, use onion skin, play, save and export it. Read
-[docs/iterations/014-the-gentle-guide](docs/iterations/014-the-gentle-guide/README.md) and try it with the
-[playtest guide](docs/iterations/014-the-gentle-guide/PLAYTEST.md); the [Quick Start guide](docs/QUICK-START.md)
-(also Help › Quick Start Guide) has a new section, "Learn by doing".
-Earlier milestones: [Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)
+**Current milestone: Mission 015 "The Game Artist's Workshop"**: four everyday jobs made easier. **File › Import sprite
+sheet…** slices a sheet into an animation with the grid shown over it (and **Sprite sheet from pictures…** goes the other
+way); **View › Animation preview** loops the animation while you draw any frame, docked or in its own window;
+**Palettes › Import folder…** brings a whole folder of palettes into your library at once; and **Storybook Studio**
+(**File › New storybook…**) arranges your drawings into comic and storyboard pages, every panel at the same pixels per
+centimetre. Read [docs/iterations/015-game-artists-workshop](docs/iterations/015-game-artists-workshop/README.md) and try it
+with the [playtest guide](docs/iterations/015-game-artists-workshop/PLAYTEST.md); the [Quick Start guide](docs/QUICK-START.md)
+(also Help › Quick Start Guide) has new sections for sprite sheets and Storybook.
+Earlier milestones: [Mission 014 "The Gentle Guide"](docs/iterations/014-the-gentle-guide/README.md) (Help › Guided
+Tutorials… and "Your First Animation"),
+[Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)
 (now 35 reference cycles for game animation, with Expansion Pack 1: carrying, limping, emotions, transitions),
 [Mission 012 "The Artist's Companion"](docs/iterations/012-artists-companion/README.md) (animation
 import for reconstruction, layer opacity, pasting from other programs, credited palettes, the Quick Start guide),

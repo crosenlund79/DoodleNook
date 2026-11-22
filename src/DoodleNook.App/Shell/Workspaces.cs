@@ -174,7 +174,7 @@ public static class CustomOptions
             [WorkspaceKind.Animation], None),
         new(OnionOpacity, "Onion-skin opacity slider", "Change onion-skin strength directly in the timeline bar", [WorkspaceKind.Animation], None),
         new(FrameDuration, "Frame duration control", "Set how long the current frame is shown, in the timeline bar", [WorkspaceKind.Animation], None),
-        new(PreviewPanel, "Animation preview", "A small looping preview of the whole animation over the canvas", [WorkspaceKind.Animation], None),
+        new(PreviewPanel, "Animation preview", "The live animation preview: it loops the whole animation while you draw (in the canvas corner or its own window)", [WorkspaceKind.Animation], None),
         new(LayersDock, "Layers panel", "The full layers panel docked on the right (the timeline already lists the layers)", [WorkspaceKind.Animation], None),
         new(TimelineThumbnails, "Drawing thumbnails in the timeline", "Small pictures of each drawing when the timeline is tall enough",
             [WorkspaceKind.Animation], [WorkspaceKind.Animation]),

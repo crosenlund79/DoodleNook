@@ -340,6 +340,7 @@ public partial class MainWindow : Window
             _settings.Save();
         }
         Animator.Pause();
+        CloseFloatingPreview();
         _referenceBoard?.SaveNow();
         _autosaveTimer.Stop();
         _recovery?.EndSession();

@@ -80,6 +80,14 @@ public static class Menus
     }
 
     /// <summary>A button that opens a menu built fresh each time (so enabled states and check marks are current).</summary>
+    /// <summary>A menu at the pointer, over a control (right-click menus).</summary>
+    public static void ShowAt(Control anchor, IEnumerable<MenuEntry> entries, double width = 270)
+    {
+        var flyout = UiKit.PopFlyout(new Panel(), PlacementMode.Pointer);
+        flyout.Content = Build(entries, flyout.Hide, width);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => flyout.ShowAt(anchor, showAtPointer: true));
+    }
+
     public static Button MenuButton(Control content, Func<IEnumerable<MenuEntry>> entries, string? tip = null, double width = 270, PlacementMode placement = PlacementMode.BottomEdgeAlignedLeft)
     {
         var b = new Button { Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("DnButton")!, Content = content };

@@ -262,6 +262,54 @@ public static class DnkFile
         return Read(stream);
     }
 
+    /// <summary>
+    /// A project's canvas size and its small flattened preview, without reading its layers (quick: Storybook panels and
+    /// page thumbnails, Mission 015). The thumbnail is null for a file written without one.
+    /// </summary>
+    public static (int Width, int Height, RasterImage? Thumbnail) ReadSummary(string path)
+    {
+        using var stream = File.OpenRead(path);
+        ZipArchive zip;
+        try
+        {
+            zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        }
+        catch (InvalidDataException)
+        {
+            throw new DnkFormatException("This file isn't a DoodleNook project (or it is damaged).");
+        }
+        using (zip)
+        {
+            var entry = zip.GetEntry("document.json") ?? throw new DnkFormatException("This file isn't a DoodleNook project: document.json is missing.");
+            Manifest manifest;
+            try
+            {
+                using var ms = entry.Open();
+                manifest = JsonSerializer.Deserialize<Manifest>(ms, Json) ?? throw new DnkFormatException("The project description is empty.");
+            }
+            catch (JsonException ex)
+            {
+                throw new DnkFormatException("The project description is damaged: " + ex.Message);
+            }
+            RasterImage? thumb = null;
+            if (zip.GetEntry("thumbnail.png") is { } t)
+            {
+                using var ts = t.Open();
+                using var mem = new MemoryStream();
+                ts.CopyTo(mem);
+                try
+                {
+                    thumb = PngCodec.Decode(mem.ToArray());
+                }
+                catch (Exception ex) when (ex is InvalidDataException or ArgumentException)
+                {
+                    thumb = null;
+                }
+            }
+            return (manifest.Width, manifest.Height, thumb);
+        }
+    }
+
     public static Document Read(Stream stream)
     {
         ZipArchive zip;
