@@ -282,7 +282,16 @@ See [the results](#results) for numbers.
 
 ### Results
 
-(filled in below after the Windows CI run)
+| | Engine tests | App tests (real window) | Smoke test of the packaged program |
+|---|---|---|---|
+| Linux (development) | 370 passed | 228 passed | 83 checks passed |
+| Windows CI, [run #41](https://github.com/crosenlund79/DoodleNook/actions/runs/44981318224) (commit `fa7ba8f`) | 370 passed | 228 passed | 86 checks passed (Windows NT 10.0.26100) |
+
+New in this mission: 27 engine tests (sprite sheets 11, palette import 5, Storybook 11) and 20 app tests (sprite sheets
+3, palette folder 1, preview 7 with the measurement, Storybook 4, screenshots 5), and 4 smoke checks. The
+packaged `DoodleNook.exe` reports version `0.15.0+fa7ba8f…` and the title "DoodleNook — M015". The first checkpoint
+(sprite sheets and palettes, commit `6f8e9e1`) was also green on Windows:
+[run #40](https://github.com/crosenlund79/DoodleNook/actions/runs/44978354446).
 
 ## Performance
 
