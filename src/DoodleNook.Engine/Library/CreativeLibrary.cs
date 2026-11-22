@@ -235,6 +235,23 @@ public sealed class CreativeLibrary
         return p;
     }
 
+    /// <summary>Adds imported palettes in one go (one save, one change notification).</summary>
+    public IReadOnlyList<PaletteAsset> AddPalettes(IEnumerable<(PaletteFileData Data, string Collection, string FileName)> palettes)
+    {
+        var added = new List<PaletteAsset>();
+        foreach (var (data, collection, file) in palettes)
+        {
+            var p = new PaletteAsset(NewId(), CleanName(data.Name, "Palette"), CleanName(collection, "Imported"), data.Colors.Take(1024).ToList(),
+                Origin: new PaletteOrigin(file, Short(data.Description), Short(data.Creator), Short(data.Source), Short(data.Licence)));
+            _palettes.Add(p);
+            added.Add(p);
+        }
+        if (added.Count > 0) Save();
+        return added;
+    }
+
+    private static string? Short(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim().Length > 400 ? text.Trim()[..400] + "…" : text.Trim();
+
     public bool UpdatePalette(string id, IEnumerable<ColorRgb> colors) => Replace(_palettes, id, p => p with { Colors = colors.Take(1024).ToList() });
 
     public bool RenamePalette(string id, string name) => Replace(_palettes, id, p => p with { Name = CleanName(name, p.Name) });
@@ -375,7 +392,11 @@ public sealed class CreativeLibrary
             Stamps = _stamps.Select(s => new AssetDto { Id = s.Id, Name = s.Name, Collection = s.Collection }).ToList(),
             Patterns = _patterns.Select(p => new AssetDto { Id = p.Id, Name = p.Name, Collection = p.Collection }).ToList(),
             Tips = _tips.ToList(),
-            Palettes = _palettes.Select(p => new PaletteDto { Id = p.Id, Name = p.Name, Collection = p.Collection, Colors = p.Colors.Select(c => c.ToHex()).ToList() }).ToList(),
+            Palettes = _palettes.Select(p => new PaletteDto
+            {
+                Id = p.Id, Name = p.Name, Collection = p.Collection, Colors = p.Colors.Select(c => c.ToHex()).ToList(),
+                ImportedFrom = p.Origin?.FileName, Description = p.Origin?.Description, Creator = p.Origin?.Creator, Source = p.Origin?.Source, Licence = p.Origin?.Licence,
+            }).ToList(),
             Favorites = new FavoritesDto { Brushes = _favBrushes.ToList(), Stamps = _favStamps.ToList(), Patterns = _favPatterns.ToList() },
         };
         Directory.CreateDirectory(Root);
@@ -423,7 +444,8 @@ public sealed class CreativeLibrary
         foreach (var p in file.Palettes ?? [])
             if (!string.IsNullOrEmpty(p.Id))
                 _palettes.Add(new PaletteAsset(p.Id, CleanName(p.Name, "Palette"), CleanName(p.Collection, "My palettes"),
-                    (p.Colors ?? []).Select(h => ColorRgb.TryParse(h, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>().ToList()));
+                    (p.Colors ?? []).Select(h => ColorRgb.TryParse(h, out var c) ? (ColorRgb?)c : null).OfType<ColorRgb>().ToList(),
+                    Origin: p.ImportedFrom is { Length: > 0 } from ? new PaletteOrigin(from, p.Description, p.Creator, p.Source, p.Licence) : null));
         _favBrushes.UnionWith(file.Favorites?.Brushes ?? []);
         _favStamps.UnionWith(file.Favorites?.Stamps ?? []);
         _favPatterns.UnionWith(file.Favorites?.Patterns ?? []);
@@ -490,6 +512,13 @@ public sealed class CreativeLibrary
         public string? Name { get; set; }
         public string? Collection { get; set; }
         public List<string>? Colors { get; set; }
+
+        // Mission 015: where an imported palette came from (left out for other palettes; older versions ignore them).
+        public string? ImportedFrom { get; set; }
+        public string? Description { get; set; }
+        public string? Creator { get; set; }
+        public string? Source { get; set; }
+        public string? Licence { get; set; }
     }
 
     private sealed class FavoritesDto

@@ -183,41 +183,13 @@ public static class AssetPack
 
 /// <summary>Palette files other programs use: GIMP palettes (<c>.gpl</c>) and plain lists of hex colours (<c>.hex</c>,
 /// one <c>RRGGBB</c> per line, as palette sites offer them). Colours are kept exactly.</summary>
-public static class PaletteFiles
+public static partial class PaletteFiles
 {
+    /// <summary>A palette file's name and colours (any format <see cref="ReadFile"/> understands).</summary>
     public static (string Name, List<ColorRgb> Colors) Read(string path)
     {
-        var lines = File.ReadAllLines(path);
-        string name = Path.GetFileNameWithoutExtension(path);
-        var colours = new List<ColorRgb>();
-        bool gpl = lines.Length > 0 && lines[0].Trim().StartsWith("GIMP Palette", StringComparison.OrdinalIgnoreCase);
-        foreach (var raw in lines.Skip(gpl ? 1 : 0))
-        {
-            var line = raw.Trim();
-            if (line.Length == 0 || line.StartsWith('#') && gpl || line.StartsWith(';')) continue;
-            if (gpl)
-            {
-                if (line.StartsWith("Name:", StringComparison.OrdinalIgnoreCase))
-                {
-                    name = line[5..].Trim();
-                    continue;
-                }
-                if (line.StartsWith("Columns:", StringComparison.OrdinalIgnoreCase)) continue;
-                var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 3 && byte.TryParse(parts[0], out var r) && byte.TryParse(parts[1], out var g) && byte.TryParse(parts[2], out var b))
-                    colours.Add(new ColorRgb(r, g, b));
-                else throw new InvalidDataException($"Not a colour line in the GIMP palette: \"{line}\".");
-            }
-            else
-            {
-                var hex = line.TrimStart('#');
-                if (hex.Length == 8) hex = hex[2..]; // AARRGGBB
-                if (ColorRgb.TryParse("#" + hex, out var c)) colours.Add(c);
-                else throw new InvalidDataException($"Not a hex colour: \"{line}\".");
-            }
-        }
-        if (colours.Count == 0) throw new InvalidDataException("The file contains no colours.");
-        return (name, colours);
+        var data = ReadFile(path);
+        return (data.Name, data.Colors.ToList());
     }
 
     public static void Write(string path, string name, IReadOnlyList<ColorRgb> colors)

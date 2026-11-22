@@ -32,6 +32,15 @@ public sealed class PaletteManager : Grid
     private readonly StackPanel _extract = new() { Spacing = 6, IsVisible = false };
     private readonly WrapPanel _extracted = new() { ItemWidth = 26, ItemHeight = 26, MaxWidth = 330 };
     private readonly StackPanel _editButtons;
+    // Mission 015: Import folder… shows what it found, then what it did, right here (no dialog per palette).
+    private readonly StackPanel _folder = new() { Spacing = 6, IsVisible = false, Name = "PaletteFolderImport", MaxWidth = 330, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _folderText = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 330, Name = "PaletteFolderText" };
+    private readonly TextBlock _folderDetails = new() { Classes = { "dim" }, FontSize = 11, TextWrapping = TextWrapping.Wrap, MaxWidth = 330, Name = "PaletteFolderDetails" };
+    private readonly Button _folderGo;
+    private readonly Control _folderSubfolders;
+    private string? _folderPath;
+    private bool _includeSubfolders = true;
+    private bool _importing;
     private readonly Action _refreshCount;
     private RasterImage? _extractSource;
     private int _extractCount = 8;
@@ -51,10 +60,14 @@ public sealed class PaletteManager : Grid
             var p = Lib.AddPalette("New palette", "My palettes", [_app.Session.Foreground]);
             Select(p.Id);
         });
-        var import = Small("open", "Import…", "GIMP .gpl, .hex or a DoodleNook asset pack", () => _ = ImportAsync());
+        var import = Small("open", "Import…", "Palette files (.gpl, .hex, .pal, .txt, .ase, .png) or a DoodleNook asset pack", () => _ = ImportAsync());
+        var importFolder = Small("folder", "Import folder…", "Every palette file in a folder (and its subfolders) into your library at once", () => _ = ImportFolderAsync());
+        importFolder.Name = "PaletteImportFolder";
+        importFolder.HorizontalAlignment = HorizontalAlignment.Left;
         var left = new StackPanel { Spacing = 6 };
         left.Children.Add(new ScrollViewer { Content = _list, MaxHeight = 280, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         left.Children.Add(UiKit.Row(4, newButton, import));
+        left.Children.Add(importFolder);
         Children.Add(left);
 
         var right = new StackPanel { Spacing = 8 };
@@ -93,6 +106,21 @@ public sealed class PaletteManager : Grid
             Small("check", "Save as palette", "Keep these colours as a new palette (nothing else changes)", () => SaveProposal()),
             Small("close", "Cancel", null, () => _extract.IsVisible = false)));
         right.Children.Add(_extract);
+        _folder.Children.Add(new TextBlock { Text = "Import a folder of palettes", FontWeight = FontWeight.SemiBold });
+        _folder.Children.Add(_folderText);
+        var (subfolders, refreshSubfolders) = UiKit.Check("Include subfolders", "Also the palettes in the folders inside it", () => _includeSubfolders, v =>
+        {
+            _includeSubfolders = v;
+            ShowFolderPlan();
+        });
+        _refreshSubfolders = refreshSubfolders;
+        _folderSubfolders = subfolders;
+        _folder.Children.Add(subfolders);
+        _folderGo = Small("check", "Import", "Copy the palettes into your library (the folder is only read)", () => _ = RunFolderImportAsync());
+        _folderGo.Name = "PaletteFolderGo";
+        _folder.Children.Add(UiKit.Row(4, _folderGo, Small("close", "Close", null, () => _folder.IsVisible = false)));
+        _folder.Children.Add(_folderDetails);
+        right.Children.Add(_folder);
         right.Children.Add(_info);
         SetColumn(right, 2);
         Children.Add(right);
@@ -103,6 +131,8 @@ public sealed class PaletteManager : Grid
         app.Session.LibraryChanged += Refresh;
         Refresh();
     }
+
+    private Action _refreshSubfolders = () => { };
 
     private CreativeLibrary Lib => _app.Session.Library;
 
@@ -268,7 +298,8 @@ public sealed class PaletteManager : Grid
         {
             Title = "Import palettes",
             AllowMultiple = true,
-            FileTypeFilter = [new FilePickerFileType("Palettes (.gpl, .hex)") { Patterns = ["*.gpl", "*.hex"] }, MainWindow.PackType, FilePickerFileTypes.All],
+            FileTypeFilter = [new FilePickerFileType("Palettes (.gpl, .hex, .pal, .txt, .ase, .png)") { Patterns = ["*.gpl", "*.hex", "*.pal", "*.txt", "*.ase", "*.png"] },
+                MainWindow.PackType, FilePickerFileTypes.All],
         });
         foreach (var f in files)
         {
@@ -282,15 +313,95 @@ public sealed class PaletteManager : Grid
                 }
                 else
                 {
-                    var (name, colors) = PaletteFiles.Read(path);
-                    Select(Lib.AddPalette(name, "Imported", colors).Id);
-                    _info.Text = $"Imported “{name}” ({colors.Count} colours).";
+                    var data = PaletteFiles.ReadFile(path);
+                    Select(Lib.AddPalettes([(data, "Imported", Path.GetFileName(path))])[0].Id);
+                    _info.Text = $"Imported “{data.Name}” ({data.Colors.Count} colours).";
                 }
             }
             catch (Exception ex)
             {
                 _info.Text = $"Couldn't import {f.Name}: {ex.Message}";
             }
+        }
+    }
+
+    // ================================================================== a whole folder
+
+    private async Task ImportFolderAsync()
+    {
+        var folders = await _app.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose a folder of palettes (.gpl, .hex, .pal, .txt, .ase, .png)",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } path) return;
+        PrepareFolderImport(path);
+    }
+
+    /// <summary>Shows what a folder holds, ready to import (tests call this with their own folder).</summary>
+    public void PrepareFolderImport(string folder)
+    {
+        _folderPath = folder;
+        _folderDetails.Text = "";
+        _folderGo.IsVisible = true;
+        _extract.IsVisible = false;
+        _folder.IsVisible = true;
+        ShowFolderPlan();
+    }
+
+    private void ShowFolderPlan()
+    {
+        if (_folderPath is not { } folder || _importing) return;
+        try
+        {
+            var (palettes, other, subfolders) = PaletteFolderImport.Count(folder, _includeSubfolders);
+            string name = new DirectoryInfo(folder).Name;
+            _folderText.Text = $"“{name}” holds {palettes} palette file{(palettes == 1 ? "" : "s")}{(_includeSubfolders && subfolders > 0 ? " (with its subfolders)" : "")}" +
+                               (other > 0 ? $" and {other} other file{(other == 1 ? "" : "s")}, which are left alone." : ".") +
+                               $" They go into “{PaletteFolderImport.CollectionFor(folder, Lib)}”; palettes you already have are skipped.";
+            _folderSubfolders.IsVisible = subfolders > 0;
+            _folderGo.IsEnabled = palettes > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            _folderText.Text = $"Couldn't look in the folder: {ex.Message}";
+            _folderGo.IsEnabled = false;
+        }
+    }
+
+    /// <summary>Imports the prepared folder: files are read in the background, then added to the library in one go.</summary>
+    public async Task<PaletteImportSummary?> RunFolderImportAsync()
+    {
+        if (_folderPath is not { } folder || _importing) return null;
+        _importing = true;
+        _folderGo.IsEnabled = false;
+        _folderDetails.Text = "Reading the palettes…";
+        try
+        {
+            var existing = Lib.Palettes;
+            string collection = PaletteFolderImport.CollectionFor(folder, Lib);
+            bool sub = _includeSubfolders;
+            var plan = await Task.Run(() => PaletteFolderImport.Plan(existing, collection, folder, sub));
+            var summary = PaletteFolderImport.Commit(Lib, plan);
+            _folderText.Text = PaletteFolderImport.Describe(summary);
+            var notes = summary.Items.Where(i => i.Outcome is PaletteImportOutcome.Invalid or PaletteImportOutcome.Error)
+                .Select(i => $"{Path.GetFileName(i.Path)}: {i.Detail}").Take(6).ToList();
+            if (summary.Items.Count(i => i.Outcome is PaletteImportOutcome.Invalid or PaletteImportOutcome.Error) > notes.Count) notes.Add("…");
+            _folderDetails.Text = string.Join("\n", notes);
+            _folderGo.IsVisible = false;
+            _folderSubfolders.IsVisible = false;
+            if (summary.Imported.Count > 0) Select(summary.Imported[0].Id);
+            return summary;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _folderDetails.Text = $"Couldn't import the folder: {ex.Message}";
+            _folderGo.IsEnabled = true;
+            return null;
+        }
+        finally
+        {
+            _importing = false;
         }
     }
 
@@ -376,11 +487,22 @@ public sealed class PaletteManager : Grid
             };
             _swatches.Children.Add(sw);
         }
-        _credit.IsVisible = cur.Credit is not null;
+        _credit.IsVisible = cur.Credit is not null || cur.Origin is not null;
         if (cur.Credit is { } credit)
         {
             _creditText.Text = $"By {credit.Creator} · {credit.Mood}\n{credit.Licence}\nSource: {credit.Source}";
             ToolTip.SetTip(_creditText, $"Where the creator says so: {credit.Evidence}");
+        }
+        else if (cur.Origin is { } origin)
+        {
+            // An imported palette: what its file said about it, kept with your copy.
+            var lines = new List<string> { $"Imported from {origin.FileName}" };
+            if (origin.Creator is { } by) lines.Add($"By {by}");
+            if (origin.Description is { } about) lines.Add(about);
+            if (origin.Licence is { } licence) lines.Add(licence);
+            if (origin.Source is { } source) lines.Add($"Source: {source}");
+            _creditText.Text = string.Join("\n", lines);
+            ToolTip.SetTip(_creditText, "Your own copy in your library: the original file isn't needed any more");
         }
         if (!_confirmDelete)
             _info.Text = cur.BuiltIn

@@ -24,9 +24,14 @@ public sealed record StampAsset(string Id, string Name, string Collection, bool 
 /// <summary>A repeating tile for pattern fills and brush textures.</summary>
 public sealed record PatternAsset(string Id, string Name, string Collection, bool BuiltIn = false);
 
-/// <summary>A named colour collection. Palettes by other artists carry their <see cref="Credit"/>.</summary>
+/// <summary>A named colour collection. Palettes by other artists carry their <see cref="Credit"/>; palettes imported from
+/// files remember where they came from and what the file said about them (<see cref="Origin"/>).</summary>
 public sealed record PaletteAsset(string Id, string Name, string Collection, IReadOnlyList<ColorRgb> Colors, bool BuiltIn = false,
-    PaletteCredit? Credit = null);
+    PaletteCredit? Credit = null, PaletteOrigin? Origin = null);
+
+/// <summary>Where an imported palette came from: the file's name (the file itself isn't needed afterwards: the colours
+/// are copied into the library), and the description, creator, source and licence the file gave, when it gave them.</summary>
+public sealed record PaletteOrigin(string FileName, string? Description = null, string? Creator = null, string? Source = null, string? Licence = null);
 
 /// <summary>Who made a palette, where it is published, the terms it is shared under (and where the creator says so),
 /// and its mood in a few words.</summary>
