@@ -20,8 +20,8 @@ public sealed record ReferenceCycleChoice(ReferenceCycleSettings Settings, doubl
 
 /// <summary>
 /// Mission 013: Animation › Insert reference cycle… (and Adjust reference cycle…). One compact window: the library's
-/// cycles by category with their drawing counts on the left; on the right a live preview of the cycle playing over the
-/// current frame of the scene, where a drag places the figure's feet; the view and facing, the figure's height, where
+/// cycles by category with their drawing counts on the left; on the right a live preview of the chosen cycle alone on a
+/// plain page the size of the canvas, where a drag places the figure's feet; the view and facing, the figure's height, where
 /// the cycle starts and how long each drawing lasts, repeating, the opacity and the ground marker. A line says exactly
 /// what happens to the timeline before anything changes.
 /// </summary>
@@ -132,13 +132,22 @@ public sealed class ReferenceCycleDialog
         }
         var left = new ScrollViewer { Content = _list, Width = 196, MaxHeight = 560, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
 
-        // ---- the preview (right): the scene's current frame with the figure playing over it; drag to place the feet
-        var scene = BrushPreview.ToBitmap(_doc.RenderFrame(_doc.Animation?.CurrentFrame ?? 0, includePaper: true));
-        var sceneImage = new Image { Source = scene, Width = _doc.Width * _scale, Height = _doc.Height * _scale, Stretch = Stretch.Fill, IsHitTestVisible = false };
-        if (_scale >= 2) RenderOptions.SetBitmapInterpolationMode(sceneImage, BitmapInterpolationMode.None);
-        Avalonia.Controls.Canvas.SetLeft(sceneImage, (PreviewWidth - sceneImage.Width) / 2);
-        Avalonia.Controls.Canvas.SetTop(sceneImage, (PreviewHeight - sceneImage.Height) / 2);
-        _stage.Children.Add(sceneImage);
+        // ---- the preview (right): the chosen cycle alone, playing on a plain page the size of the canvas; drag to place
+        // the feet. (Mission 016: the scene used to be drawn behind it, so references inserted earlier looked like part
+        // of the cycle being chosen.)
+        var page = new Border
+        {
+            Width = _doc.Width * _scale,
+            Height = _doc.Height * _scale,
+            Background = _doc.Paper is { } paper && _doc.PaperVisible ? new SolidColorBrush(Color.FromRgb(paper.R, paper.G, paper.B)) : Brushes.Transparent,
+            BorderBrush = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)),
+            BorderThickness = new Thickness(1),
+            IsHitTestVisible = false,
+            Name = "ReferencePreviewPage",
+        };
+        Avalonia.Controls.Canvas.SetLeft(page, (PreviewWidth - page.Width) / 2);
+        Avalonia.Controls.Canvas.SetTop(page, (PreviewHeight - page.Height) / 2);
+        _stage.Children.Add(page);
         _stage.Children.Add(_figure);
         _stage.Background = UiKit.CheckerBrush();
         RenderOptions.SetBitmapInterpolationMode(_figure, BitmapInterpolationMode.None);

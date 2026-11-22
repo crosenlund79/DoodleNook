@@ -87,6 +87,65 @@ public sealed class ReferenceCycleWindowTests
         w.Close();
     }
 
+    /// <summary>Mission 016: the preview showed the scene behind the figure, so references inserted earlier (and the
+    /// rest of the artwork) looked like part of the chosen cycle. It now shows the canvas as plain paper with only the
+    /// chosen cycle on it; dragging still places the feet on the canvas.</summary>
+    [AvaloniaFact]
+    public async Task The_preview_shows_only_the_chosen_reference_not_the_scene_or_earlier_references()
+    {
+        var w = Open(1280, 800, WorkspaceKind.Animation);
+        // A scene: a magenta block (the artwork) on white paper, eight frames.
+        var frames = Enumerable.Range(0, 8).Select(_ =>
+        {
+            var img = new DoodleNook.Engine.Imaging.RasterImage(640, 360);
+            for (int y = 40; y < 140; y++)
+                for (int x = 470; x < 620; x++) img[x, y] = DoodleNook.Engine.Imaging.Pixel.Opaque(new DoodleNook.Engine.Imaging.ColorRgb(255, 0, 255));
+            return img;
+        }).ToList();
+        var doc = DoodleNook.Engine.Files.SpriteSheetImport.NormalDocument(frames, 12);
+        doc.SetPaper(DoodleNook.Engine.Imaging.ColorRgb.White, true);
+        w.Session.ReplaceDocument(doc, null);
+        Pump();
+        // A reference inserted earlier, on the left, fully opaque so it would be obvious.
+        ReferenceInsert.Insert(doc, new ReferenceCycleSettings("walk", ReferenceView.Side, ReferenceFacing.Right, 250, 90, 330), opacity: 1);
+        Assert.Equal(2, doc.Layers.Count);
+        Pump();
+
+        var insert = w.InsertReferenceCycleAsync();
+        await ArtistsCompanionWindowTests.Until(() => w.Dialogs.IsOpen && Has(w, "ReferenceCycleDialog"));
+        Pump();
+        var stage = Find<Avalonia.Controls.Canvas>(w, "ReferencePreview");
+        using (var shot = w.CaptureRenderedFrame()!)
+        {
+            shot.Save(Path.Combine(Screenshots.OutDir, "m016-reference-preview.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            // The stage shows the 640 × 360 canvas at 0.75: 480 × 270, centred in 500 × 270.
+            int magenta = 0, earlier = 0, paper = 0;
+            var origin = stage.TranslatePoint(new Point(10, 0), w)!.Value;
+            for (int y = 4; y < 266; y += 2) // inside the page's thin outline
+                for (int x = 4; x < 476; x += 2)
+                {
+                    var (r, g, b, _) = Screenshots.ReadPixel(shot, (int)origin.X + x, (int)origin.Y + y);
+                    if (r > 200 && g < 80 && b > 200) magenta++;
+                    // Left of the middle figure (which stands at x = 320 of 640): only paper is expected there.
+                    if (x < 140) { if (r < 235 || g < 235 || b < 235) earlier++; else paper++; }
+                }
+            Assert.Equal(0, magenta);  // no scene artwork
+            Assert.Equal(0, earlier);  // no earlier reference
+            Assert.True(paper > 4000); // the paper itself is shown
+        }
+        // Only the page and the chosen figure are on the stage; dragging still places the feet on the canvas.
+        Assert.DoesNotContain(stage.Children.OfType<Image>(), i => i.Name != "ReferencePreviewFigure");
+        DragOn(w, stage, new Point(250, 200), new Point(130, 240));
+        w.Dialogs.Close("ok");
+        Assert.True(await insert);
+        var added = doc.Layers.Last(l => l.ReferenceCycle is not null && l.ReferenceCycle.AnchorX != 90);
+        Assert.InRange(added.ReferenceCycle!.AnchorX, 150, 175); // (130 − 10) / 0.75 = 160
+        Assert.Equal(3, doc.Layers.Count);
+        Assert.Equal(2, doc.Layers.Count(l => l.ReferenceCycle is not null)); // both references are in the document
+        doc.MarkSaved();
+        w.Close();
+    }
+
     [AvaloniaFact]
     public async Task Adjusting_from_the_layer_menu_redraws_the_cycle_and_one_undo_takes_it_back()
     {
