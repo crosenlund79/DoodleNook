@@ -70,6 +70,8 @@ of references, as before.
   - Edit › Undo and Redo act on the storybook, as Ctrl+Z does.
 - A floating preview window stays where you put it, as with Tab.
 
+![The storybook at the Kamvas's 150 %: no drawing tools around it](storybook-kamvas13-150.png)
+
 ## 4. Copy to other programs
 
 **Edit › Copy** (Ctrl+C) and **Cut** (Ctrl+X) put the copied pixels (only the copied area) on the Windows clipboard:
@@ -117,6 +119,7 @@ seated, so Stand up, which plays it backwards, pushes up from them. No new refer
   fits, keeps its buttons visible and closes with Esc. Two fixes:
   - Customize's buttons had been off screen;
   - the reference dialog's summary had scrolled out of view.
+  ![Customize Animation Studio at 150 %: the list scrolls, Done stays in view](customize-kamvas13-150.png)
 - **Document safety:** closing, opening another file, a missing file, switching workspaces, the storybook's panel
   drawings and autosave were checked; nothing unsaved is lost without asking. One fix: the storybook's chip under a
   panel's drawing now says "not saved yet" as soon as you draw (it used to stay silent).
@@ -135,7 +138,39 @@ New in this mission:
 
 ## Performance
 
-PERFORMANCE-SECTION
+Mission 011's benchmarks (`UnderTheHoodBenchmarks`, `HeadToHeadBenchmarks`, `UnderTheHoodAppBenchmarks`, unchanged
+since then) were run on Mission 011's final commit (`efa32ae`) and on this mission's code. The run was on the same
+machine (the Linux sandbox, 4 cores, no GPU), one after the other, in two rounds in opposite order. The raw results are
+in [measurements/](measurements/). This compares Mission 011 with everything since (Missions 012–016), not only this
+mission.
+
+| Moment | M011 (round 1 / 2) | M016 (round 1 / 2) |
+|---|---|---|
+| Thin ink stroke, per pen event, 1 layer (head to head) | 0.0231 / 0.0232 ms | 0.0225 / 0.0229 ms |
+| Thin ink stroke, 3 layers (head to head) | 0.0505 / 0.0459 ms | 0.0443 / 0.0442 ms |
+| Big soft brush, 12 layers, per pen event (engine) | 3.47 / 2.91 ms | 2.93 / 3.01 ms |
+| Pen event in the window, 3 layers, 24 px | 0.065 / 0.069 ms | 0.068 / 0.074 ms |
+| Recomposite everything, 2560 × 1440, 12 layers | 259 / 259 ms | 244 / 249 ms |
+| Undo all of 30 big strokes, 12 layers | 4,953 / 4,878 ms | 4,665 / 4,813 ms |
+| Undo memory after those strokes | 195 MB | 195 MB |
+| Workspace switch, 95th percentile | 365 / 344 ms | 343 / 352 ms |
+| Game Edit, 300 PNGs: longest UI stall | 100 / 100 ms | 98 / 96 ms |
+| First window | 1,915 / 1,795 ms | 1,771 / 1,771 ms |
+
+**No regression was found.** A few single-shot numbers looked worse in one or both rounds, so each was measured
+directly and repeatedly with both engines in fresh processes:
+
+| Item | M011 | M016 | Verdict |
+|---|---|---|---|
+| Saving and opening a 48-frame 1080p animation (seven writes and reads; medians of two runs) | write 345–381, read 205–220 ms | write 408–411, read 199–239 ms | Within the noise: single writes ranged 318–616 ms on both |
+| Adding 200 brushes to a library | 214–351 ms | 228–387 ms | Same |
+| Adding 100 stamps to a library | 105 / 129 ms | 123 / 134 ms | Same |
+| PNG encode, 64 × 64 / 256 × 256 | 0.20–0.34 / 2.8–4.8 ms | 0.20–0.31 / 2.7–4.0 ms | Same |
+| Palette-locked big soft brush, per pen event | 0.85 / 0.90 ms | 1.22 / 0.98 ms | Round 1 high, round 2 the same as M011: noise |
+
+The drawing engine wasn't changed in this mission. GIF export, which was, is measured in the quality report (the same
+without dithering, up to about 20 % slower with it, in the background). The packaged program's frame timing on Windows
+is in the CI run's smoke report.
 
 ## Known limitations
 

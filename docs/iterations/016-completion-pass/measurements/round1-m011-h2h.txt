@@ -1,0 +1,10 @@
+1 layer ink: median 0.0231 min 0.0228
+1 layer pencil: median 0.0191 min 0.0186
+3 layers ink: median 0.0505 min 0.0461
+3 layers pencil: median 0.0270 min 0.0252
+save .dnk, 1920x1080 animation, 24 drawings: median 1362.5 ms
+save .dnk, 2560x1440 picture, 6 layers: median 574.1 ms
+PNG encode 256x256 sprite: median 2.500 ms
+PNG decode 256x256 sprite: median 0.704 ms
+PNG encode 2560x1440 picture: median 634.5 ms
+PNG decode 2560x1440 picture: median 48.1 ms

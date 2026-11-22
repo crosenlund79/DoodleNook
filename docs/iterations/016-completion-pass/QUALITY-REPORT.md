@@ -231,4 +231,6 @@ guarantee rests on the existing design and wasn't fault-tested in Mission 016.
 
 ## 10. Performance
 
-See README, section "Performance".
+Mission 011's benchmarks, run on Mission 011's code and this mission's, on the same machine in two rounds: no
+regression found. Every number that looked worse in one round was measured again directly and repeatedly; all were
+within the noise. The full tables are in the README, section "Performance"; the raw results are in `measurements/`.

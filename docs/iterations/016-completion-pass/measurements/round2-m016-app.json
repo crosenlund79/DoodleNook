@@ -1,0 +1,103 @@
+{
+  "measuredAt": "2026-11-22T17:32:09.7266659+00:00",
+  "os": "Unix 6.18.44.726",
+  "cpu": "4 logical processors",
+  "configuration": "Release",
+  "note": "Headless Avalonia with Skia drawing in memory (no GPU). Times in milliseconds.",
+  "results": {
+    "start window (Painting)": {
+      "firstWindowMs": 1771,
+      "heapMB": 26.7
+    },
+    "listeners \u00B7 at start": {
+      "stateChangedListeners": 18,
+      "libraryChangedListeners": 2,
+      "documentReplacedListeners": 14,
+      "sizeChangeMs": 7.004
+    },
+    "listeners \u00B7 after 120 tool changes": {
+      "stateChangedListeners": 18,
+      "libraryChangedListeners": 2,
+      "documentReplacedListeners": 14,
+      "sizeChangeMs": 1.4868
+    },
+    "workspace switch (each of 6, 3 rounds)": {
+      "avg": 162.365,
+      "p50": 149.441,
+      "p95": 352.121,
+      "max": 352.121
+    },
+    "listeners \u00B7 after 18 workspace switches": {
+      "stateChangedListeners": 25,
+      "libraryChangedListeners": 2,
+      "documentReplacedListeners": 23,
+      "sizeChangeMs": 2.1304
+    },
+    "listeners \u00B7 after 60 more tool changes": {
+      "stateChangedListeners": 25,
+      "libraryChangedListeners": 2,
+      "documentReplacedListeners": 23,
+      "sizeChangeMs": 1.837
+    },
+    "managed heap growth over 180 tool changes": 3.1,
+    "frame time \u00B7 1920x1080 picture in a 1280x800 window": {
+      "plainMs": 125.9,
+      "rectangleSelectionMs": 153.9,
+      "ellipseSelectionMs": 156.3
+    },
+    "pen stroke in the window \u00B7 2560x1440, 12 layers \u00B7 24 px": {
+      "perEvent": {
+        "avg": 0.189,
+        "p50": 0.169,
+        "p95": 0.312,
+        "max": 2.513
+      },
+      "releaseMs": 3.8,
+      "undoMs": 41.9,
+      "redoMs": 38,
+      "allocatedKBPerEvent": 24
+    },
+    "pen stroke in the window \u00B7 2560x1440, 12 layers \u00B7 300 px soft": {
+      "perEvent": {
+        "avg": 3.262,
+        "p50": 3.143,
+        "p95": 7.263,
+        "max": 10.709
+      },
+      "releaseMs": 4.9,
+      "undoMs": 90.2,
+      "redoMs": 98.9,
+      "allocatedKBPerEvent": 51.1
+    },
+    "pen stroke in the window \u00B7 1920x1080, 3 layers \u00B7 24 px": {
+      "perEvent": {
+        "avg": 0.074,
+        "p50": 0.068,
+        "p95": 0.142,
+        "max": 0.169
+      },
+      "releaseMs": 1.4,
+      "undoMs": 14.6,
+      "redoMs": 10.5,
+      "allocatedKBPerEvent": 20.5
+    },
+    "documents replaced \u00B7 managed heap change": {
+      "after12MB": 26,
+      "after24MB": 53.5,
+      "listeners": {
+        "stateChangedListeners": 25,
+        "libraryChangedListeners": 2,
+        "documentReplacedListeners": 23,
+        "sizeChangeMs": 1.7605
+      }
+    },
+    "game edit \u00B7 300 PNGs": {
+      "openedWithAllThumbnailsMs": 418,
+      "reloadAllThumbnailsMs": 390,
+      "thumbnails": 300,
+      "uiThreadBusyWhileReloadingMs": 164,
+      "longestUiPumpMs": 95.9,
+      "heapMB": 46
+    }
+  }
+}
