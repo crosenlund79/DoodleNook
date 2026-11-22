@@ -1,8 +1,10 @@
 using System.Buffers.Binary;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using DoodleNook.App.Files;
 using DoodleNook.App.Shell;
 using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Files;
@@ -179,6 +181,76 @@ public sealed class StorybookWindowTests : IDisposable
         view.Undo();
         Assert.Equal(2, w.Storybook.Pages.Count);
         w.Close();
+    }
+
+    /// <summary>Mission 016: the storybook has the window to itself below the menus — no drawing tools, brush options,
+    /// dock, timeline or docked preview beside it — and everything comes back when you return to drawing (Esc, Back to
+    /// the drawing, choosing a workspace, or opening a panel's drawing). At 100 % and at the Kamvas's 150 %.</summary>
+    [AvaloniaFact]
+    public async Task While_the_storybook_is_shown_the_drawing_chrome_steps_aside_and_comes_back_afterwards()
+    {
+        foreach (var (width, height, scaling) in new[] { (1440.0, 900.0, 1.0), (1280.0, 720.0, 1.5) })
+        {
+            var w = Open(width, height, WorkspaceKind.Animation);
+            w.SetRenderScaling(scaling);
+            Pump();
+            await w.OpenSampleAsync(SampleAnimation.BouncingBall);
+            w.SetPreviewPanel(true); // the animation preview docked in the canvas corner
+            Pump();
+            Border Host(string name) => w.GetVisualDescendants().OfType<Border>().First(b => b.Name == name);
+            // Whichever of the drawing hosts this workspace shows (Animation Studio: tools, options, timeline).
+            var drawingChrome = new[] { "OptionsHost", "ToolHost", "RightHost", "BottomHost" }.Where(n => Host(n).IsVisible).ToArray();
+            Assert.Contains("ToolHost", drawingChrome);
+            Assert.Contains("BottomHost", drawingChrome); // the timeline
+            Assert.True(w.AnimationPreviewPanel.IsVisible);
+
+            var path = Path.Combine(_dir, $"Chrome {scaling}.donkbook");
+            Assert.True(await w.CreateStorybookAsync(path, 210, 297, 300, StoryLayouts.Comic));
+            Pump();
+            Assert.True(w.StorybookShown);
+            Assert.All(drawingChrome, n => Assert.False(Host(n).IsVisible, $"{n} while the storybook is shown"));
+            Assert.True(Host("TopHost").IsVisible); // the menus and workspace switcher stay
+            Assert.False(w.AnimationPreviewPanel.IsVisible);
+            var view = w.StorybookView!;
+            Assert.True(view.Bounds.Width >= width - 2, $"the storybook is {view.Bounds.Width} wide in a {width} window");
+            Assert.True(Has(w, "StorybookPanel4"));
+            Assert.True(Has(w, "StorybookTitle"));
+            using (var shot = w.CaptureRenderedFrame()!)
+                shot.Save(Path.Combine(Screenshots.OutDir, $"m016-storybook-{scaling * 100:0}.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+            // Esc: back to drawing, with everything back where it was.
+            Key(w, Avalonia.Input.Key.Escape);
+            Assert.False(w.StorybookShown);
+            Assert.All(drawingChrome, n => Assert.True(Host(n).IsVisible, $"{n} after Esc"));
+            Assert.True(w.AnimationPreviewPanel.IsVisible);
+
+            // The storybook's own Back to drawing button does the same.
+            w.ShowStorybook();
+            Pump();
+            Assert.All(drawingChrome, n => Assert.False(Host(n).IsVisible, $"{n} shown again"));
+            Click(w, Find<Button>(w, "StorybookBack"));
+            Assert.False(w.StorybookShown);
+            Assert.All(drawingChrome, n => Assert.True(Host(n).IsVisible, $"{n} after Back to drawing"));
+
+            // Shown again from the File menu, then a workspace chosen: back to drawing in that workspace.
+            w.ShowStorybook();
+            Pump();
+            w.SetWorkspace(WorkspaceKind.Painting);
+            Pump();
+            Assert.False(w.StorybookShown);
+            Assert.Equal(WorkspaceKind.Painting, w.Workspace.Kind);
+            Assert.True(Host("ToolHost").IsVisible && Host("OptionsHost").IsVisible && Host("RightHost").IsVisible); // Painting's dock
+
+            // Choosing the workspace you are already in also returns to the drawing.
+            w.ShowStorybook();
+            Pump();
+            w.SetWorkspace(WorkspaceKind.Painting);
+            Pump();
+            Assert.False(w.StorybookShown);
+            Assert.True(Host("ToolHost").IsVisible);
+            w.Session.Document.MarkSaved();
+            w.Close();
+        }
     }
 
     [AvaloniaFact]

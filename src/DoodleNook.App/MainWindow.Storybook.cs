@@ -146,6 +146,7 @@ public partial class MainWindow
         Session.EndStroke();
         Session.CommitTransform();
         _storybookView.IsVisible = true;
+        ApplyChromeVisibility();
         if (!ReferenceEquals(_storybookView.Project, Storybook)) _storybookView.Open(Storybook);
         else _storybookView.Rebuild();
         _storybookView.Focus();
@@ -155,7 +156,9 @@ public partial class MainWindow
     public void HideStorybook()
     {
         if (_storybookView is null) return;
+        bool was = _storybookView.IsVisible;
         _storybookView.IsVisible = false;
+        if (was) ApplyChromeVisibility();
         RefreshStorybookChip();
         Canvas.Focus();
     }

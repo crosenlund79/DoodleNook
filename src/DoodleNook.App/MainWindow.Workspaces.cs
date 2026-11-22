@@ -48,6 +48,8 @@ public partial class MainWindow
     /// <summary>Switches workspace. The document, its history, the view and the colours stay exactly as they are.</summary>
     public void SetWorkspace(WorkspaceKind kind)
     {
+        // Choosing a workspace while the storybook is shown means going back to drawing (there, or in this one).
+        if (StorybookShown) HideStorybook();
         if (kind == Workspace.Kind) return;
         Canvas.InterruptGesture();
         HideFlyouts();
@@ -222,25 +224,28 @@ public partial class MainWindow
         var kind = Workspace.Kind;
         bool hidden = UiHidden;
         bool pure = kind == WorkspaceKind.PureSketch;
+        // Mission 016: the storybook has the window to itself below the menus; the drawing tools, options, dock and
+        // timeline come back when you return to drawing.
+        bool story = StorybookShown;
         ApplyRulers();
         TopHost.IsVisible = !hidden && TopHost.Child is not null;
-        OptionsHost.IsVisible = !hidden && OptionsHost.Child is not null;
-        ToolHost.IsVisible = !hidden && ToolHost.Child is not null;
-        RightHost.IsVisible = !hidden && RightHost.Child is not null;
-        BottomHost.IsVisible = !hidden && BottomHost.Child is not null;
-        _viewChip.IsVisible = !hidden && WsState.IsShown(CustomOptions.ViewChip, kind);
+        OptionsHost.IsVisible = !hidden && !story && OptionsHost.Child is not null;
+        ToolHost.IsVisible = !hidden && !story && ToolHost.Child is not null;
+        RightHost.IsVisible = !hidden && !story && RightHost.Child is not null;
+        BottomHost.IsVisible = !hidden && !story && BottomHost.Child is not null;
+        _viewChip.IsVisible = !hidden && !story && WsState.IsShown(CustomOptions.ViewChip, kind);
         _showUi.IsVisible = hidden;
         _corner.IsVisible = pure;
-        _pixelPreview.IsVisible = kind == WorkspaceKind.PixelArt && WsState.Preview;
+        _pixelPreview.IsVisible = !story && kind == WorkspaceKind.PixelArt && WsState.Preview;
         if (_pixelPreview.IsVisible) _pixelPreview.Update();
-        PlacePreview(hidden, kind);
+        PlacePreview(hidden || story, kind);
         _quickBar?.SetLayersChipVisible(_settings.StateFor(WorkspaceKind.QuickSketch).IsShown(CustomOptions.LayersChip, WorkspaceKind.QuickSketch));
         if (kind == WorkspaceKind.Animation) _timeline?.ApplyLayout();
         ApplyReferenceBoard();
 
         // The dock column: a fixed, draggable width when expanded; just the icon strip when collapsed.
         var col = MainGrid.ColumnDefinitions[3];
-        bool resizable = !hidden && RightHost.Child is DockArea { Collapsed: false };
+        bool resizable = !hidden && !story && RightHost.Child is DockArea { Collapsed: false };
         if (resizable)
         {
             col.MinWidth = 220;
