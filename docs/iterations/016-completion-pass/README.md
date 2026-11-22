@@ -128,8 +128,18 @@ seated, so Stand up, which plays it backwards, pushes up from them. No new refer
 
 | | Engine tests | App tests (real window) | Smoke test of the packaged program |
 |---|---|---|---|
-| Linux (development) | RESULTS-LINUX-ENGINE | RESULTS-LINUX-APP | RESULTS-LINUX-SMOKE |
-| Windows CI | RESULTS-WIN-ENGINE | RESULTS-WIN-APP | RESULTS-WIN-SMOKE |
+| Linux (development) | 383 passed | 244 passed | 83 checks passed |
+| Windows CI, [run #47](https://github.com/crosenlund79/DoodleNook/actions/runs/45050551041) (commit `bd0fb59`) | 383 passed | 244 passed | 89 checks passed (Windows NT 10.0.26100), including the 3 real-clipboard Copy checks |
+
+The benchmarks run separately (2 engine, 1 app) and passed on both. Every Mission 016 checkpoint was green on Windows:
+
+| Run | Commit | What it added |
+|---|---|---|
+| [#43](https://github.com/crosenlund79/DoodleNook/actions/runs/45041042001) | `22ab315` | The GIF colour fix |
+| [#44](https://github.com/crosenlund79/DoodleNook/actions/runs/45044582064) | `57a253c` | Reference preview, storybook chrome, clipboard, import fixes |
+| [#45](https://github.com/crosenlund79/DoodleNook/actions/runs/45047444794) | `714b281` | Dialogs at 150 %, version M016 |
+| [#46](https://github.com/crosenlund79/DoodleNook/actions/runs/45048628426) | `7564173` | Document safety |
+| [#47](https://github.com/crosenlund79/DoodleNook/actions/runs/45050551041) | `bd0fb59` | Performance and screenshots |
 
 New in this mission:
 - **Engine tests:** GIF colours 8, DIB encoder 2, PNG decoding 3, palette limit 1, sprite sheet guess 1.
