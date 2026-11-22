@@ -132,6 +132,8 @@ public sealed class StorybookView : Border
     internal StorybookThumbnails Thumbnails => _thumbs;
     public bool CanUndo => _undoStack.Count > 0;
 
+    public bool CanRedo => _redoStack.Count > 0;
+
     private StoryPage? Page => _book is { } b && _pageIndex < b.Pages.Count ? b.Pages[_pageIndex] : null;
 
     /// <summary>Shows a storybook (from its first page, or the page and panel given).</summary>

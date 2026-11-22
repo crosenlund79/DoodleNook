@@ -37,7 +37,9 @@ public partial class MainWindow
     }
 
     /// <summary>While the storybook is shown, undo and redo are the storybook's (the drawing underneath is left alone),
-    /// Page Up / Page Down turn pages and Esc goes back to the drawing.</summary>
+    /// Page Up / Page Down turn pages and Esc goes back to the drawing. Mission 016: no other shortcut reaches the
+    /// drawing out of sight (Delete, Ctrl+V or Ctrl+J used to change it unseen); New and Open go back to drawing first,
+    /// Ctrl+S says the storybook saves itself, and Help, full screen and Tab work as everywhere.</summary>
     internal bool HandleStorybookKey(Key key, KeyModifiers mods)
     {
         bool ctrl = mods.HasFlag(KeyModifiers.Control) || mods.HasFlag(KeyModifiers.Meta);
@@ -61,8 +63,16 @@ public partial class MainWindow
             case Key.Escape:
                 HideStorybook();
                 return true;
-            default:
+            case Key.N or Key.O when ctrl:
+                HideStorybook(); // a new or another picture: shown, not hidden behind the storybook
                 return false;
+            case Key.S when ctrl:
+                ShowToast("The storybook is saved as you go · Esc goes back to the drawing");
+                return true;
+            case Key.F1 or Key.F11 or Key.F12 or Key.Tab:
+                return false;
+            default:
+                return true; // nothing else may change the drawing out of sight
         }
     }
 

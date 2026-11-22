@@ -22,19 +22,49 @@ public partial class MainWindow
         _ => ["File", "Edit", "Image", "Layer", "Select", "View", "Window", "Help"],
     };
 
-    internal IEnumerable<MenuEntry> MenuFor(string name) => name switch
+    internal IEnumerable<MenuEntry> MenuFor(string name)
     {
-        "File" => FileMenu(),
-        "Edit" => EditMenu(),
-        "Image" or "Sprite" => ImageMenu(),
-        "Animation" => AnimationMenu(),
-        "Layer" => LayerMenu(),
-        "Select" => SelectMenu(),
-        "View" => ViewMenu(),
-        "Window" => WindowMenu(),
-        "Help" => HelpMenu(),
-        _ => [],
-    };
+        IEnumerable<MenuEntry> entries = name switch
+        {
+            "File" => FileMenu(),
+            "Edit" => EditMenu(),
+            "Image" or "Sprite" => ImageMenu(),
+            "Animation" => AnimationMenu(),
+            "Layer" => LayerMenu(),
+            "Select" => SelectMenu(),
+            "View" => ViewMenu(),
+            "Window" => WindowMenu(),
+            "Help" => HelpMenu(),
+            _ => [],
+        };
+        if (!StorybookShown || name is "View" or "Window" or "Help") return entries;
+        // Mission 016: while the storybook is shown the drawing is out of sight. A drawing command chosen from the menus
+        // goes back to the drawing first, so you see what it does; Edit's Undo and Redo are the storybook's (as Ctrl+Z);
+        // the storybook's own File entries stay as they are.
+        if (name == "Edit")
+            entries = entries.Select(e => e.Icon switch
+            {
+                "undo" => new MenuEntry("undo", "Undo (storybook)", "Ctrl+Z", () => _storybookView?.Undo(), _storybookView?.CanUndo == true),
+                "redo" => new MenuEntry("redo", "Redo (storybook)", "Ctrl+Shift+Z", () => _storybookView?.Redo(), _storybookView?.CanRedo == true),
+                _ => e,
+            });
+        return entries.Select(BackToDrawingFirst).ToList();
+    }
+
+    private MenuEntry BackToDrawingFirst(MenuEntry e)
+    {
+        if (e.IsSeparator || e.IsHeading || e.Icon == "book" || e.Label.EndsWith("(storybook)", StringComparison.Ordinal)) return e;
+        if (e.Children is { } children) return e with { Children = children.Select(BackToDrawingFirst).ToList() };
+        if (e.Run is not { } run) return e;
+        return e with
+        {
+            Run = () =>
+            {
+                HideStorybook();
+                run();
+            },
+        };
+    }
 
     private IEnumerable<MenuEntry> FileMenu() =>
     [
