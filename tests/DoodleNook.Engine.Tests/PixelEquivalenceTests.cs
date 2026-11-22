@@ -40,7 +40,9 @@ public class PixelEquivalenceTests
         ["animation · frame 3"] = "E57AACD434E3E3FB4A870718",
         ["animation · frame 4"] = "8E5736C9150EB1218B5B200D",
         ["animation · onion projection"] = "055A488AF7BA536DA6428471",
-        ["animation · gif bytes"] = "BC9A720F879933D7A9E4E6B4",
+        // Mission 016 changed this deliberately: the GIF palette no longer lets the white paper swallow the artwork's colours
+        // (see GifColourTests). Decoded, these frames are within 0.1 levels of the rendered frames on average.
+        ["animation · gif bytes"] = "E8294EF745C5F541967231A6",
         ["animation · sprite sheet"] = "221BF4286586F1E72950094C",
         ["retouch · Smudge"] = "803C578A2AE0285F45BA9989",
         ["retouch · Clone"] = "ECED76CD5827DA7AF0DE4781",

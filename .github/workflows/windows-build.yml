@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion", "iteration/013-animation-reference-library", "iteration/014-the-gentle-guide", "iteration/015-game-artists-workshop" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion", "iteration/013-animation-reference-library", "iteration/014-the-gentle-guide", "iteration/015-game-artists-workshop", "iteration/016-completion-pass" ]
   workflow_dispatch:
 
 permissions:
