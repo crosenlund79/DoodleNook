@@ -118,7 +118,8 @@ seated, so Stand up, which plays it backwards, pushes up from them. No new refer
   - Customize's buttons had been off screen;
   - the reference dialog's summary had scrolled out of view.
 - **Document safety:** closing, opening another file, a missing file, switching workspaces, the storybook's panel
-  drawings and autosave were checked; nothing unsaved is lost without asking. No defect found.
+  drawings and autosave were checked; nothing unsaved is lost without asking. One fix: the storybook's chip under a
+  panel's drawing now says "not saved yet" as soon as you draw (it used to stay silent).
 
 ## Verification
 

@@ -220,6 +220,11 @@ The workspaces themselves showed no clipped bars, overlaps or unreadable labels 
   yet"), autosave writes a recovery copy while the storybook is shown, opening another panel asks first (Cancel keeps
   them; Save writes them and then opens).
 
+**Defect found:** after drawing in a panel's drawing, the chip under it kept saying "Safe · page 1, panel 1" without
+"· not saved yet". It refreshed only on other changes of state, not when the drawing changed. Nothing was lost,
+because opening another drawing still asked, but the reminder Mission 015 promised didn't appear. The chip now
+refreshes whenever the drawing changes, as the window title does.
+
 Saves still go to a temporary file first and replace the original only when complete. A real write failure could not
 be injected in this sandbox, because the tests run as root and file permissions don't stop root writing, so that
 guarantee rests on the existing design and wasn't fault-tested in Mission 016.

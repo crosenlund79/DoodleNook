@@ -220,7 +220,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshTitle() => Title = WindowTitle;
+    private void RefreshTitle()
+    {
+        Title = WindowTitle;
+        RefreshStorybookChip(); // Mission 016: "· not saved yet" appears as soon as a storybook drawing changes
+    }
 
     private void OnFlyoutOpened(Flyout flyout)
     {
