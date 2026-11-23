@@ -64,7 +64,31 @@ Every check, how it was run and what it found, including the ones that found not
 
 ## Verification
 
-_Filled in with the final runs._
+| | Engine tests | App tests (real window) | Benchmarks and long session | Smoke test of the packaged program |
+|---|---|---|---|---|
+| Linux (development) | 383 passed | 261 passed | passed | 83 checks passed |
+| Windows CI, [run #50](https://github.com/crosenlund79/DoodleNook/actions/runs/45092004652) (commit `666ac2c`) | 383 passed | 261 passed | 2 + 2 passed | 89 checks passed (Windows NT 10.0.26100) |
+
+Windows CI was green at each Mission 017 commit: [run #49](https://github.com/crosenlund79/DoodleNook/actions/runs/45090187920)
+(`b05eaba`, the fixes and tests) and [run #50](https://github.com/crosenlund79/DoodleNook/actions/runs/45092004652)
+(`666ac2c`, the long session's results kept with the others). The run for this README's own commit is the delivery
+run (see the final report).
+
+New in this mission (17 app tests, plus one measurement):
+- **`MenuCrawlTests`** (5):
+  - every menu command and dialog at 150 %;
+  - menu shortcuts against the real keys;
+  - every key the F1 list names;
+  - icon-only buttons have tooltips;
+  - every menu entry fits its menu.
+- **`Mission017FixTests`** (12): one per defect, each failing on the old code.
+- **`LongSessionBenchmarks`** (1 measurement): runs with the benchmarks.
+
+Checks outside the test suite, each in the quality report with its tools and output:
+- files from seven earlier engines;
+- the real program crashed and its saves made to fail;
+- the workflow audit in the real program;
+- exports read by Pillow.
 
 ## Known limitations
 

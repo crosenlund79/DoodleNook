@@ -212,7 +212,13 @@ so a stroke took 2–3 seconds: that measures the test harness, not drawing.
 | Memory right after reopening the file (the same state every time) | 76.2 MB (2nd reopen) | 76.7 MB (16th reopen) |
 | Listeners on the session and the picture (state, document, history, layers) | 21 / 20 / 6 / 12 | 21 / 20 / 6 / 12 |
 
-No slowdown, no growth, no listener pile-up. A screen catch-up took about 270 ms in Painting and Editing, 390 ms in
+No slowdown, no growth, no listener pile-up. Windows CI ran the 16-round session ([run #50](https://github.com/crosenlund79/DoodleNook/actions/runs/45092004652),
+Windows NT 10.0.26100):
+- strokes 1.4 ms early and 1.4 ms late;
+- memory after each reopen 70.5, 76.4, 77.0 and 76.6 MB;
+- 2 of 5 closed pictures still in memory;
+- the same listener counts;
+- the screen caught up in 69 ms (Painting), 53 ms (Editing), 38 ms (Pixel Art) and 97 ms (Quick Sketch). A screen catch-up took about 270 ms in Painting and Editing, 390 ms in
 Quick Sketch (a bigger canvas) and 70 ms in Pixel Art. That is the headless window repainting everything in software,
 the same every round.
 
