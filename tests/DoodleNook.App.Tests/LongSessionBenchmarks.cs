@@ -93,7 +93,10 @@ public sealed class LongSessionBenchmarks : IDisposable
             layersChanged = Listeners(w.Session.Document, "LayersChanged"),
         };
         var total = Stopwatch.StartNew();
-        var outDir = Path.Combine(AppContext.BaseDirectory, "out");
+        // Next to the other benchmarks' results (tests/DoodleNook.App.Tests/out, uploaded by CI).
+        var repo = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "DoodleNook.slnx"))) repo = repo.Parent;
+        var outDir = repo is not null ? Path.Combine(repo.FullName, "tests", "DoodleNook.App.Tests", "out") : Path.Combine(AppContext.BaseDirectory, "out");
         Directory.CreateDirectory(outDir);
         var progress = Path.Combine(outDir, "long-session.progress.txt");
         File.WriteAllText(progress, "");

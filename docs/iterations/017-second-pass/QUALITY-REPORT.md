@@ -59,8 +59,8 @@ their buttons in view and closed with Esc. The other 158 acted directly. No comm
 
 ## 3. Old files keep opening
 
-**How.** The engines of seven earlier missions were checked out at their final commits: M005, M006, M007, M008, M011,
-M013 and M015. A small program built against each old engine wrote files with that engine's own code. Each engine also
+**How.** The engines of seven earlier missions were checked out at their final commits: M005 (`4e63ccb`), M006
+(`c17424e`), M007 (`54995e6`), M008 (`1ddf4f4`), M011 (`efa32ae`), M013 (`e0f1e43`) and M015 (`cb2fc96`). A small program built against each old engine wrote files with that engine's own code. Each engine also
 rendered its own files (every frame of every animation) to PNG. Today's engine then opened every file and rendered it
 again, and the pixels were compared exactly. The programs are in [measurements/tools](measurements/tools); the output
 is [measurements/old-files.txt](measurements/old-files.txt).
