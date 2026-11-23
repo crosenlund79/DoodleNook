@@ -48,14 +48,16 @@ public sealed class TextEditorOverlay : Border
             // Focus can move to a pop-over of the text options; only finish when it really left the editor.
             if (!_box.IsFocused && !UiKit.AnyFlyoutOpen) Finish();
         });
-        _box.KeyDown += (_, e) =>
+        // Mission 017: before the box itself sees the key (tunnel). It accepts Return, so it used to take Ctrl+Enter
+        // as a new line and the editor stayed open.
+        _box.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
                 Finish();
                 e.Handled = true;
             }
-        };
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         var hint = new TextBlock
         {
             Text = "Ctrl+Enter or Esc to finish · the options bar changes font, size and effects",

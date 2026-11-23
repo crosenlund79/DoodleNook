@@ -687,11 +687,11 @@ public sealed class GameEditTests : IDisposable
     public void The_window_title_shows_the_milestone()
     {
         var w = Open(1280, 800, WorkspaceKind.Painting);
-        Assert.Equal("M016", MainWindow.Milestone);
-        Assert.Equal("DoodleNook — M016", w.Title);
+        Assert.Equal("M017", MainWindow.Milestone);
+        Assert.Equal("DoodleNook — M017", w.Title);
         w.Session.AddLayer();
         Pump();
-        Assert.StartsWith("DoodleNook — M016 — Untitled", w.Title);
+        Assert.StartsWith("DoodleNook — M017 — Untitled", w.Title);
         w.Close();
     }
 }

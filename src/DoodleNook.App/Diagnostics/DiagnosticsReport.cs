@@ -138,12 +138,14 @@ public static class DiagnosticsReport
             grid.Children.Clear();
             foreach (var s in Build(w))
             {
-                var g = new Grid { ColumnDefinitions = new ColumnDefinitions("130,*"), RowSpacing = 3 };
+                // Mission 017: long timing names ("Save: compress and write (background)") wrap in their column
+                // instead of running into the value.
+                var g = new Grid { ColumnDefinitions = new ColumnDefinitions("150,*"), RowSpacing = 3 };
                 foreach (var (k, v) in s.Rows)
                 {
                     int row = g.RowDefinitions.Count;
                     g.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var label = new TextBlock { Text = k, Classes = { "dim" }, FontSize = 12 };
+                    var label = new TextBlock { Text = k, Classes = { "dim" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0) };
                     var value = new TextBlock { Text = v, FontSize = 12, TextWrapping = TextWrapping.Wrap };
                     Grid.SetRow(label, row);
                     Grid.SetRow(value, row);

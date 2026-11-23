@@ -34,7 +34,9 @@ public static class Menus
     /// <summary>Builds the content of a menu pop-over; clicking an entry closes the pop-over and runs it.</summary>
     public static Control Build(IEnumerable<MenuEntry> entries, Action close, double width = 270)
     {
-        var stack = new StackPanel { Spacing = 1, Width = width };
+        // Mission 017: at least the usual width, wider when an entry needs it (long labels used to run into their
+        // shortcut or under the ▸ of a sub-menu).
+        var stack = new StackPanel { Spacing = 1, MinWidth = width, MaxWidth = 560 };
         foreach (var e in entries)
         {
             if (e.IsSeparator)
@@ -451,8 +453,26 @@ public sealed class TitleBar : Border
         Child = dock;
         app.WorkspaceChanged += BuildMenus;
         app.Session.StateChanged += RefreshTitle;
-        app.Session.DocumentReplaced += RefreshTitle;
+        app.Session.DocumentReplaced += Watch;
+        Watch();
         BuildMenus();
+    }
+
+    private Document? _watched;
+
+    /// <summary>Mission 017: "· edited" follows the picture itself (a finished stroke, undo, redo, a resize), not only
+    /// changes of tool or colour, which was all it heard before.</summary>
+    private void Watch()
+    {
+        if (_watched is not null)
+        {
+            _watched.HistoryChanged -= RefreshTitle;
+            _watched.SizeChanged -= RefreshTitle;
+        }
+        _watched = _app.Session.Document;
+        _watched.HistoryChanged += RefreshTitle;
+        _watched.SizeChanged += RefreshTitle;
+        RefreshTitle();
     }
 
     private void BuildMenus()

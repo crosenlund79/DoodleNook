@@ -322,7 +322,8 @@ public sealed partial class OptionsBuilder
             string? key = null;
             _refresh.Add(() =>
             {
-                var k = s.Brush.ToString();
+                // Mission 017: the name counts too (renamed in the Brush Laboratory, same settings).
+                var k = s.Brush + "|" + s.CurrentPreset?.Name;
                 if (k == key) return;
                 key = k;
                 preview.Source = BrushPreview.Render(s.Brush, new ColorRgb(DnColors.Text.R, DnColors.Text.G, DnColors.Text.B), 44, 22, resources: s.Library.Resolve(s.Brush));

@@ -128,6 +128,10 @@ public static class EditDialogs
                 bool on = x == ax && y == ay;
                 b.Classes.Set("solid", on);
                 b.Classes.Set("on", on);
+                // Mission 017: the chosen cell shows it (a background set here would hide the "on" style).
+                if (on) b.ClearValue(Button.BackgroundProperty);
+                else b.Background = new SolidColorBrush(DnColors.Ui3);
+                b.Content = on ? "●" : "·";
             }
         }
         for (int row = 0; row < 3; row++)
@@ -138,7 +142,7 @@ public static class EditDialogs
                 b.Width = 30;
                 b.Height = 30;
                 b.MinWidth = 30;
-                b.Background = new SolidColorBrush(DnColors.Ui3);
+                b.Name = $"CanvasAnchor{row}{col}";
                 b.Click += (_, _) => { ax = x; ay = y; Mark(); };
                 Grid.SetRow(b, row);
                 Grid.SetColumn(b, col);
@@ -234,7 +238,7 @@ public static class EditDialogs
             var (root, refresh) = UiKit.Slider(null, min, max, () => values[index], v => { values[index] = v; Update(); }, fmt, trackWidth: 220,
                 log: kind == AdjustKind.Blur || (kind == AdjustKind.Levels && index == 2));
             refreshers.Add(refresh);
-            body.Children.Add(UiKit.Row(8, Dim(label, 110), root));
+            body.Children.Add(UiKit.Row(8, Dim(label, 132), root)); // wide enough for "Magenta ↔ Green" (Mission 017)
         }
         var (previewToggle, refreshToggle) = UiKit.Toggle("eye", "Preview", "Compare with the original", () => show, v => { show = v; Update(); });
         previewToggle.Click += (_, _) => refreshToggle();

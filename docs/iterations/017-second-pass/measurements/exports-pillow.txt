@@ -1,0 +1,8 @@
+OK   PNG still: PNG RGBA (320, 200), differing bytes 0
+OK   JPEG still: JPEG RGB (320, 200), mean error 0.98/255, largest 58 (lossy, quality 92)
+OK   WebP still: WEBP RGB (320, 200), mean error 0.64/255, largest 61
+OK   PNG sequence: 8 files, transparent, identical pixels in 8/8
+OK   Sprite sheet + JSON: JSON parses; 3×3 grid in (112, 112); 8 frame rectangles inside the image, not overlapping, each crop identical to its frame; durations [125, 180, 125, 125, 125, 125, 125, 180]
+OK   GIF slime.gif: 8 frames, durations [120, 180, 130, 130, 120, 120, 130, 180] (asked [125, 180, 125, 125, 125, 125, 125, 180]; GIF counts in 10 ms, frame boundaries within 5 ms of the asked timeline), loop on, identical pixels in 8/8 frames
+OK   GIF ball.gif: 12 frames, durations [80, 90, 80, 80, 90, 80, 160, 80, 80, 90, 80, 80] (asked [83, 83, 83, 83, 83, 83, 160, 83, 83, 83, 83, 83]; GIF counts in 10 ms, frame boundaries within 5 ms of the asked timeline), loop off, 12/12 frames close, worst mean error 0.00/255 (colour-reduced)
+ALL EXPORTS READ CORRECTLY BY PILLOW

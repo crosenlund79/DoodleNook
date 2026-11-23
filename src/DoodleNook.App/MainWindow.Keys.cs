@@ -285,11 +285,11 @@ public partial class MainWindow
                 return true;
             case Key.OemOpenBrackets:
                 s.StepSize(-1);
-                ShowToast($"Size {s.CurrentSize:0} px");
+                ShowSizeToast();
                 return true;
             case Key.OemCloseBrackets:
                 s.StepSize(+1);
-                ShowToast($"Size {s.CurrentSize:0} px");
+                ShowSizeToast();
                 return true;
 
             // ---------------------------------------------------------- held keys
@@ -329,11 +329,13 @@ public partial class MainWindow
         if (symbol == "[")
         {
             s.StepSize(-1);
+            ShowSizeToast();
             return true;
         }
         if (symbol == "]")
         {
             s.StepSize(+1);
+            ShowSizeToast();
             return true;
         }
         return false;
@@ -413,5 +415,14 @@ public partial class MainWindow
             Canvas.RefreshCursor();
             e.Handled = true; // keep Alt from activating the window menu
         }
+    }
+
+    /// <summary>What [ and ] changed. Mission 017: the stamp tool's size is its own (it used to report the brush's).</summary>
+    private void ShowSizeToast()
+    {
+        var s = Session;
+        if (s.Tool == ToolKind.Stamp)
+            ShowToast(s.PixelMode ? $"Stamp size {Math.Max(1, Math.Round(s.StampOptions.Scale)):0}×" : $"Stamp size {s.StampOptions.Scale * 100:0}%");
+        else ShowToast($"Size {s.CurrentSize:0} px");
     }
 }

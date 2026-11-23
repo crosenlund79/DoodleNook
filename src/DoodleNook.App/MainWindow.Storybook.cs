@@ -106,7 +106,7 @@ public partial class MainWindow
     /// <summary>Help › Samples › A little walk: the sample storybook in Documents/DoodleNook/Samples (made once, then reopened).</summary>
     public async Task OpenSampleStorybookAsync(string? folder = null)
     {
-        folder ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoodleNook", "Samples", SampleStorybook.Name);
+        folder ??= Path.Combine(DocumentsFolder(), "DoodleNook", "Samples", SampleStorybook.Name);
         string path;
         try
         {
@@ -118,6 +118,15 @@ public partial class MainWindow
             return;
         }
         await OpenStorybookFromAsync(path);
+    }
+
+    /// <summary>The user's Documents folder; their profile folder when Documents isn't available (Mission 017: an empty
+    /// answer made a relative path, and the sample storybook couldn't be made).</summary>
+    private static string DocumentsFolder()
+    {
+        foreach (var f in new[] { Environment.SpecialFolder.MyDocuments, Environment.SpecialFolder.UserProfile })
+            if (Environment.GetFolderPath(f) is { Length: > 0 } path && Path.IsPathRooted(path)) return path;
+        return Path.GetTempPath();
     }
 
     private void OpenStorybook(StorybookProject book)

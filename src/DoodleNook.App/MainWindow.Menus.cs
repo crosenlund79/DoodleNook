@@ -172,7 +172,7 @@ public partial class MainWindow
         {
             list.Add(new("image", "Palette from the picture", null, () =>
             {
-                Session.Document.Palette = Palette.FromImage(Session.Document.Flatten(), 64);
+                Session.ChangePalette(Palette.FromImage(Session.Document.Flatten(), 64), "Palette from the picture");
                 Session.SetForeground(Session.Foreground);
                 ShowToast($"Palette: {Session.Document.Palette.Colors.Count} colours from the picture");
             }, !doc.PaletteLocked));
@@ -358,7 +358,7 @@ public partial class MainWindow
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
         list.Add(MenuEntry.Separator);
         list.Add(new("exit", "Exit", "Alt+F4", Close));
-        return list;
+        return StorybookShown ? list.Select(BackToDrawingFirst).ToList() : list;
     }
 
     /// <summary>Pure Sketch's corner menu: workspaces, files and view, without leaving the canvas.</summary>
@@ -382,7 +382,8 @@ public partial class MainWindow
         list.Add(new("fullscreen", "Full screen", "F11", ToggleFullScreen));
         list.Add(MenuEntry.Separator);
         list.Add(new("exit", "Exit", "Alt+F4", Close));
-        return list;
+        // Mission 017: with a storybook shown, a command here goes back to the drawing first (as the menu bar's do).
+        return StorybookShown ? list.Select(BackToDrawingFirst).ToList() : list;
     }
 
     /// <summary>Opens a workspace with one of its dock sections showing (e.g. Edit › History).</summary>
@@ -399,7 +400,8 @@ public partial class MainWindow
 
     internal Task ShowShortcutsAsync()
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowSpacing = 3, ColumnSpacing = 16 };
+        // Mission 017: room on the right for the scroll bar, which otherwise covered the ends of long lines.
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowSpacing = 3, ColumnSpacing = 16, Margin = new Thickness(0, 0, 16, 0) };
         var rows = ShortcutRows;
         for (int i = 0; i < rows.Length; i++)
         {
@@ -420,14 +422,17 @@ public partial class MainWindow
     internal static readonly (string Keys, string What)[] ShortcutRows =
         [
             ("Alt+1 … Alt+6", "Pure Sketch · Quick Sketch · Painting · Editing · Pixel Art · Animation Studio"),
+            // Mission 017: a tool key only picks a tool the workspace shows (Painting has no rectangle select, for one).
+            ("Tools the workspace shows", ""),
             ("B / E / I / H", "Brush (pixel pencil) / Eraser / Eyedropper / Hand"),
-            ("V / M / L / W / C", "Move / Rectangle select (Shift: ellipse) / Lasso / Magic wand / Crop"),
+            ("V / M / L / W / C", "Move / Rectangle select (Shift: ellipse) / Lasso / Magic wand / Crop · M, W, C in Editing (M also in Pixel Art and Animation Studio)"),
             ("G / Shift+G / U", "Paint bucket (colour or pattern) / Gradient / Shapes (pixel art: rectangle, Shift: ellipse)"),
             ("S", "Stamp tool · [ and ] change the stamp's size"),
             ("T", "Text tool (Painting, Editing) · click to type, click text to edit it"),
             ("Shift+B / Shift+S / J", "Smudge / Clone (Alt+click: where to copy from) / Repair (Painting, Editing)"),
             ("Ctrl+Shift+X", "Liquify · drag to reshape · Enter / Esc · Ctrl+Z takes back a stroke · Alt reverses"),
             ("Shift+drag · Shift+click", "Straight brush line · line from the end of the last stroke"),
+            ("Commands", ""),
             ("Ctrl+G / Ctrl+Shift+G", "Group layer / Ungroup"),
             ("Ctrl+R · Ctrl+; · Ctrl+Shift+;", "Rulers · show guides · snapping"),
             ("Ctrl+click (Move tool)", "Pick the text or shape under the pointer"),
@@ -474,8 +479,9 @@ public partial class MainWindow
     }
 
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
-        DialogHost.Text($"DoodleNook {Version} ({Milestone}) — Mission 014 “The Gentle Guide”.\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, animation import for drawing over existing animations, a library of reference cycles (walk, run, attack…) to animate over, and guided tutorials (Help › Guided Tutorials).\n\n" +
+        // Mission 017: no mission name here (it said Mission 014 long after); the version and milestone say which build it is.
+        DialogHost.Text($"DoodleNook {Version} ({Milestone}).\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, sprite sheets, animation import and a live animation preview, a library of reference cycles (walk, run, attack…) to animate over, Storybook Studio for comic and storyboard pages, and guided tutorials (Help › Guided Tutorials).\n\n" +
                         "Bundled palettes by other artists are credited in the Palettes window and in PALETTE-ATTRIBUTION.md.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

@@ -4,7 +4,7 @@ name: Windows build
 # then starts the packaged app once (smoke test) and uploads it as the "DoodleNook-win-x64" artifact.
 on:
   push:
-    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion", "iteration/013-animation-reference-library", "iteration/014-the-gentle-guide", "iteration/015-game-artists-workshop", "iteration/016-completion-pass" ]
+    branches: [ "iteration/004-the-missing-ink", "iteration/005-canvas-comes-alive", "iteration/006-make-it-move", "iteration/007-artists-workshop", "iteration/008-designers-toolkit", "iteration/009-game-edit-mode", "iteration/010-finishing-touches", "iteration/011-under-the-hood", "iteration/012-artists-companion", "iteration/013-animation-reference-library", "iteration/014-the-gentle-guide", "iteration/015-game-artists-workshop", "iteration/016-completion-pass", "iteration/017-second-pass" ]
   workflow_dispatch:
 
 permissions:
@@ -38,12 +38,12 @@ jobs:
       - name: Run automated tests
         # -m:1 runs the engine and app test projects one after the other, so the engine's performance measurements
         # (written to tests/DoodleNook.Engine.Tests/out/) don't share the CPU with the app tests.
-        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName!~UnderTheHoodBenchmarks&FullyQualifiedName!~UnderTheHoodAppBenchmarks&FullyQualifiedName!~HeadToHeadBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
+        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName!~UnderTheHoodBenchmarks&FullyQualifiedName!~UnderTheHoodAppBenchmarks&FullyQualifiedName!~HeadToHeadBenchmarks&FullyQualifiedName!~LongSessionBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
 
-      - name: Run the Mission 011 benchmarks
+      - name: Run the Mission 011 benchmarks and the Mission 017 long session
         # In a process of their own, after the tests: they use a lot of memory (several large pictures and animations),
         # which would otherwise disturb the older performance measurements. Results: tests/*/out/*.json.
-        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName~UnderTheHoodBenchmarks|FullyQualifiedName~UnderTheHoodAppBenchmarks|FullyQualifiedName~HeadToHeadBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
+        run: dotnet test DoodleNook.slnx -c Release --no-build -m:1 --filter "FullyQualifiedName~UnderTheHoodBenchmarks|FullyQualifiedName~UnderTheHoodAppBenchmarks|FullyQualifiedName~HeadToHeadBenchmarks|FullyQualifiedName~LongSessionBenchmarks" --logger "trx" --logger "console;verbosity=normal" --results-directory TestResults
 
       - name: Compare with Mission 010 on the same runner (Mission 011 only)
         # The Windows half of Mission 011's before/after measurements: Mission 010's engine (commit 702aa2f) with the same

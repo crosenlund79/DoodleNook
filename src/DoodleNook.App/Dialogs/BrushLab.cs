@@ -256,7 +256,14 @@ public sealed class BrushLab : Grid
 
     private Control SliderRow(string label, double min, double max, Func<double> get, Action<double> set, Func<double, string> fmt, string? tip = null, bool log = false)
     {
-        var (row, _) = UiKit.Slider(null, min, max, get, set, fmt, trackWidth: 150, log: log, tip: tip);
+        // Mission 017: the number beside the knob follows it (the refresh used to be thrown away).
+        Action refresh = () => { };
+        var (row, r) = UiKit.Slider(null, min, max, get, v =>
+        {
+            set(v);
+            refresh();
+        }, fmt, trackWidth: 150, log: log, tip: tip);
+        refresh = r;
         var l = new TextBlock { Text = label, Classes = { "dim" }, Width = 100, VerticalAlignment = VerticalAlignment.Center };
         return UiKit.Row(4, l, row);
     }

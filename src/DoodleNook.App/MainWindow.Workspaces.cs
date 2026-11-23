@@ -228,7 +228,9 @@ public partial class MainWindow
         // timeline come back when you return to drawing.
         bool story = StorybookShown;
         ApplyRulers();
-        TopHost.IsVisible = !hidden && TopHost.Child is not null;
+        // Quick Sketch's top bar is its drawing bar (brush, undo, ☰ with Clear layer): it steps aside for the storybook too
+        // (Mission 017; the menu bar of the other workspaces stays).
+        TopHost.IsVisible = !hidden && TopHost.Child is not null && !(story && kind == WorkspaceKind.QuickSketch);
         OptionsHost.IsVisible = !hidden && !story && OptionsHost.Child is not null;
         ToolHost.IsVisible = !hidden && !story && ToolHost.Child is not null;
         RightHost.IsVisible = !hidden && !story && RightHost.Child is not null;

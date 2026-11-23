@@ -1,0 +1,37 @@
+m005 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m006 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m006 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m006 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m007 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m007 palette-locked.dnk (format 3): opens · 2 layers, locked to "Nook 32" (32 colours) · 1 renders: identical pixels
+m007 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m007 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m007 workshop: pack imports (3 brushes, 2 stamps, 1 pattern, 1 palette) · board opens (5 pictures) · palette "Autumn walk" 10 colours
+m008 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m008 design.dnk (format 4): opens · 6 layers · 1 renders: identical pixels
+m008 palette-locked.dnk (format 3): opens · 2 layers, locked to "Nook 32" (32 colours) · 1 renders: identical pixels
+m008 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m008 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m008 workshop: pack imports (3 brushes, 2 stamps, 1 pattern, 1 palette) · board opens (5 pictures) · palette "Autumn walk" 10 colours
+m011 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m011 design.dnk (format 4): opens · 6 layers · 1 renders: identical pixels
+m011 palette-locked.dnk (format 3): opens · 2 layers, locked to "Nook 32" (32 colours) · 1 renders: identical pixels
+m011 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m011 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m011 workshop: pack imports (3 brushes, 2 stamps, 1 pattern, 1 palette) · board opens (5 pictures) · palette "Autumn walk" 10 colours
+m013 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m013 design.dnk (format 4): opens · 6 layers · 1 renders: identical pixels
+m013 palette-locked.dnk (format 3): opens · 2 layers, locked to "Nook 32" (32 colours) · 1 renders: identical pixels
+m013 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m013 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m013 with-reference.dnk (format 5): opens · 4 layers, 12 frames · 12 renders: identical pixels
+m013 workshop: pack imports (3 brushes, 2 stamps, 1 pattern, 1 palette) · board opens (5 pictures) · palette "Autumn walk" 10 colours
+m015 bouncing-ball.dnk (format 2): opens · 3 layers, 12 frames · 12 renders: identical pixels
+m015 design.dnk (format 4): opens · 6 layers · 1 renders: identical pixels
+m015 palette-locked.dnk (format 3): opens · 2 layers, locked to "Nook 32" (32 colours) · 1 renders: identical pixels
+m015 pixel-slime.dnk (format 2): opens · 2 layers, 8 frames · 8 renders: identical pixels
+m015 still.dnk (format 1): opens · 2 layers · 1 renders: identical pixels
+m015 with-reference.dnk (format 5): opens · 4 layers, 12 frames · 12 renders: identical pixels
+m015 workshop: pack imports (3 brushes, 2 stamps, 1 pattern, 1 palette) · board opens (5 pictures) · palette "Autumn walk" 10 colours
+m015 storybook: opens · 2 pages · 7/7 linked drawings open
+ALL OLD FILES OPEN WITH IDENTICAL PIXELS

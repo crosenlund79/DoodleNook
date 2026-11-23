@@ -86,7 +86,7 @@ public partial class MainWindow
         }
         Session.SetActivePalette(paletteId);
         if (paletteId is not null && Session.Library.FindPalette(paletteId) is { } p && Session.PixelMode && !Session.Document.PaletteLocked)
-            Session.Document.Palette = new Engine.Documents.Palette(p.Name, p.Colors) { LibraryId = p.Id };
+            Session.ChangePalette(new Engine.Documents.Palette(p.Name, p.Colors) { LibraryId = p.Id }, $"Use “{p.Name}”");
         ShowToast(paletteId is null ? "Swatches: your own swatches" : $"Palette: {Session.Library.FindPalette(paletteId)?.Name}");
     }
 

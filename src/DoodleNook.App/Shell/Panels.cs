@@ -645,10 +645,10 @@ public sealed class PaletteColumn : StackPanel
                 }
                 yield break;
             }
-            yield return new("plus", "Add the foreground colour", null, () => Change(p => { if (!p.Colors.Contains(session.Foreground)) p.Colors.Add(session.Foreground); }));
-            yield return new("trash", "Remove the foreground colour", null, () => Change(p => p.Colors.Remove(session.Foreground)));
-            yield return new("image", "Palette from the picture", null, () => { session.Document.Palette = Palette.FromImage(session.Document.Flatten(), 64); Refresh(); });
-            yield return new("palette", "Reset to Nook 32", null, () => { session.Document.Palette = Palette.Default(); Refresh(); });
+            yield return new("plus", "Add the foreground colour", null, () => Change("Add palette colour", p => { if (!p.Colors.Contains(session.Foreground)) p.Colors.Add(session.Foreground); }));
+            yield return new("trash", "Remove the foreground colour", null, () => Change("Remove palette colour", p => p.Colors.Remove(session.Foreground)));
+            yield return new("image", "Palette from the picture", null, () => { session.ChangePalette(Palette.FromImage(session.Document.Flatten(), 64), "Palette from the picture"); Refresh(); });
+            yield return new("palette", "Reset to Nook 32", null, () => { session.ChangePalette(Palette.Default(), "Reset to Nook 32"); Refresh(); });
             yield return MenuEntry.Separator;
             yield return MenuEntry.Heading("Use a saved palette");
             foreach (var p in session.Library.Palettes)
@@ -657,9 +657,9 @@ public sealed class PaletteColumn : StackPanel
                 yield return new(null, p.Name, null, () =>
                 {
                     if (app is not null) app.UsePalette(id);
-                    else session.Document.Palette = new Palette(p.Name, p.Colors);
+                    else session.ChangePalette(new Palette(p.Name, p.Colors) { LibraryId = id }, $"Use “{p.Name}”");
                     Refresh();
-                }, Checked: session.ActivePaletteId == id);
+                }, Checked: session.Document.Palette.LibraryId == id); // the picture's palette (Mission 017: was the swatches' choice)
             }
             yield return MenuEntry.Separator;
             yield return new("save", "Save this palette…", null, () =>
@@ -701,11 +701,11 @@ public sealed class PaletteColumn : StackPanel
         session.DocumentReplaced += Refresh;
         Refresh();
 
-        void Change(Action<Palette> f)
+        void Change(string name, Action<Palette> f)
         {
             var p = session.Document.Palette.Clone();
             f(p);
-            session.Document.Palette = p;
+            session.ChangePalette(p, name);
             Refresh();
         }
     }

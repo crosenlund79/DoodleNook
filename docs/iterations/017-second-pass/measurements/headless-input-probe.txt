@@ -1,0 +1,12 @@
+Painting 640x400: down 144.6 · 15 moves 436.4 · up 35.6 · jobs 0.0 · pump 0.0 ms
+Painting 640x400: down 50.0 · 15 moves 386.4 · up 27.1 · jobs 0.0 · pump 0.0 ms
+Painting 640x400: down 51.3 · 15 moves 771.0 · up 24.6 · jobs 0.0 · pump 0.0 ms
+Painting 640x400: down 49.5 · 15 moves 389.7 · up 25.7 · jobs 0.0 · pump 0.0 ms
+Painting 1920x1080: down 405.6 · 15 moves 2431.5 · up 148.5 · jobs 0.0 · pump 0.0 ms
+Painting 1920x1080: down 272.5 · 15 moves 2276.1 · up 160.6 · jobs 0.0 · pump 0.0 ms
+Painting 1920x1080: down 332.4 · 15 moves 2064.0 · up 131.9 · jobs 0.0 · pump 0.0 ms
+Painting 1920x1080: down 278.0 · 15 moves 2057.3 · up 141.8 · jobs 0.0 · pump 0.0 ms
+QuickSketch 1920x1080: down 604.0 · 15 moves 3045.7 · up 209.9 · jobs 0.0 · pump 0.0 ms
+QuickSketch 1920x1080: down 389.3 · 15 moves 2993.0 · up 201.9 · jobs 0.0 · pump 0.0 ms
+QuickSketch 1920x1080: down 392.9 · 15 moves 2992.3 · up 201.4 · jobs 0.0 · pump 0.0 ms
+QuickSketch 1920x1080: down 395.1 · 15 moves 3036.4 · up 197.4 · jobs 0.0 · pump 0.0 ms

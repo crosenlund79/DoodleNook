@@ -735,6 +735,23 @@ public sealed partial class EditorSession
         Document.SetLayerProperties(layer, change(layer.Properties), name);
     }
 
+    /// <summary>Changes the palette of a picture that isn't locked to it, as one undo step. Mission 017: the palette was
+    /// set directly, so choosing one in Pixel Art couldn't be undone and the picture didn't count as changed (closing
+    /// didn't ask, and the choice was lost). A locked picture changes palette only through the remap preview.</summary>
+    public bool ChangePalette(Palette palette, string historyName)
+    {
+        var doc = Document;
+        if (doc.PaletteLocked) return false;
+        if (doc.Palette.Name == palette.Name && doc.Palette.LibraryId == palette.LibraryId && doc.Palette.Colors.SequenceEqual(palette.Colors)) return false;
+        Do(() =>
+        {
+            doc.ChangePalette(palette, locked: false, pixels: null, historyName);
+            return true;
+        });
+        Changed();
+        return true;
+    }
+
     private T Do<T>(Func<T> action)
     {
         EndStroke();

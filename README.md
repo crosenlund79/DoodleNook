@@ -2,15 +2,18 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 016 "The Completion Pass"**: no new features — what was reported is fixed and the
-existing workflows were checked with real files. GIF export keeps the colours you drew, the reference picker shows only
-the chosen cycle, Storybook has the window to itself (and never changes the drawing underneath), Copy reaches other
-programs, real palette folders and sprite sheets import better, and dialogs fit the Kamvas at 150 %. Read
-[docs/iterations/016-completion-pass](docs/iterations/016-completion-pass/README.md), the
-[quality report](docs/iterations/016-completion-pass/QUALITY-REPORT.md) and the
-[playtest guide](docs/iterations/016-completion-pass/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
+**Current milestone: Mission 017 "The Second Pass"**: no new features. Every menu command and dialog was checked at
+150 %. The keys were checked against the F1 list. Files from earlier versions open with identical pixels. The real
+program was crashed and its saves were made to fail on purpose. Eight workflows were used with real mouse and keyboard
+input, exports were read by an independent decoder, and a long session was measured. Eighteen defects were fixed, such
+as "· edited" not following the picture, palette changes in Pixel Art that couldn't be undone, menus too narrow for their
+entries, and Ctrl+Enter in text. Read
+[docs/iterations/017-second-pass](docs/iterations/017-second-pass/README.md), the
+[quality report](docs/iterations/017-second-pass/QUALITY-REPORT.md) and the
+[playtest guide](docs/iterations/017-second-pass/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
 sums up what has been tested by you and what by the automated checks.
-Earlier milestones: [Mission 015 "The Game Artist's Workshop"](docs/iterations/015-game-artists-workshop/README.md)
+Earlier milestones: [Mission 016 "The Completion Pass"](docs/iterations/016-completion-pass/README.md)
+(GIF colours, Storybook chrome, Copy to other programs, real-file checks), [Mission 015 "The Game Artist's Workshop"](docs/iterations/015-game-artists-workshop/README.md)
 (sprite sheets, the Live Animation Preview, palette folders, Storybook Studio), [Mission 014 "The Gentle Guide"](docs/iterations/014-the-gentle-guide/README.md) (Help › Guided
 Tutorials… and "Your First Animation"),
 [Mission 013 "Animation Reference Library"](docs/iterations/013-animation-reference-library/README.md)

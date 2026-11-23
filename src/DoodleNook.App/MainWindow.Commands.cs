@@ -22,10 +22,14 @@ public partial class MainWindow
     {
         if (CancelCrop()) return;
         var name = Session.Document.History.NextUndoName;
+        // Mission 017: inside Liquify, Ctrl+Z takes back a Liquify stroke, and during a transform it cancels it; the
+        // message named the picture's next undo step instead (or nothing at all).
+        bool liquify = Session.ActiveLiquify is not null;
+        bool transform = !liquify && Session.ActiveTransform is not null;
         long start = PerformanceLog.Now();
         if (!Session.Undo()) return;
         PerformanceLog.Operation("Undo", PerformanceLog.Since(start));
-        ShowToast($"Undid {name?.ToLowerInvariant()}");
+        ShowToast(liquify ? "Took back the last Liquify stroke" : transform ? "Transform cancelled" : $"Undid {name?.ToLowerInvariant()}");
     }
 
     public void Redo()
@@ -461,7 +465,10 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            await _dialogs.ShowMessageAsync("Couldn't save", $"{Path.GetFileName(path)}: {ex.Message}");
+            // Mission 017: say what matters (saving writes a copy first, so the file itself is untouched) and what to do.
+            await _dialogs.ShowMessageAsync("Couldn't save",
+                $"{Path.GetFileName(path)} couldn't be written: {ex.Message}\n\nThe file on disk was not changed, and your picture is " +
+                "still open with all its changes. File › Save As… can save it somewhere else.");
             return false;
         }
     }
