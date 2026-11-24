@@ -31,6 +31,9 @@ public sealed class RadialPalette : Panel
     private readonly MainWindow _app;
     private readonly Avalonia.Controls.Canvas _ring = new() { Width = Diameter, Height = Diameter + PillSpace };
     private readonly Ellipse _truePreview = new() { IsHitTestVisible = false, IsVisible = false, StrokeThickness = 1.5 };
+    // Mission 018: while the centre is dragged, the size also shows above the pen (the pen covers the centre).
+    private readonly TextBlock _readoutText = new() { FontSize = 14, FontWeight = FontWeight.SemiBold, Classes = { "num" } };
+    private readonly Border _readout;
     private TextBlock _size = new();
     private Ellipse _dot = new();
     private readonly LayersPanel _layers;
@@ -51,6 +54,12 @@ public sealed class RadialPalette : Panel
         };
         Children.Add(_ring);
         Children.Add(_truePreview);
+        _readout = new Border
+        {
+            Classes = { "float" }, CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4), IsHitTestVisible = false, IsVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Name = "RadialSizeReadout", Child = _readoutText,
+        };
+        Children.Add(_readout);
         _layers = new LayersPanel(app.Session, 320) { Width = 290 };
         _layersFlyout = UiKit.PopFlyout(_layers, PlacementMode.RightEdgeAlignedTop);
         var picker = new BrushPanel(app.Session, app: app, picker: true, picked: () => _brushFlyout?.Hide()) { Name = "RadialBrushPicker" };
@@ -89,6 +98,7 @@ public sealed class RadialPalette : Panel
         IsVisible = false;
         _dragStart = null;
         _truePreview.IsVisible = false;
+        _readout.IsVisible = false;
         _layersFlyout.Hide();
         _brushFlyout.Hide();
     }
@@ -222,18 +232,21 @@ public sealed class RadialPalette : Panel
             _dragging = true;
             s.SetSize(SizeForDrag(_dragStartSize, d, s.IsPixelTool(s.Tool), e.KeyModifiers.HasFlag(KeyModifiers.Shift)));
             ShowSize(preview: true);
+            ShowReadout(p);
         };
         centre.PointerReleased += (_, e) =>
         {
             _dragStart = null;
             _dragging = false;
             _truePreview.IsVisible = false;
+            _readout.IsVisible = false;
             e.Pointer.Capture(null);
         };
         centre.PointerCaptureLost += (_, _) =>
         {
             _dragStart = null;
             _truePreview.IsVisible = false;
+            _readout.IsVisible = false;
         };
         centre.PointerWheelChanged += (_, e) =>
         {
@@ -312,6 +325,21 @@ public sealed class RadialPalette : Panel
         _truePreview.Margin = new Thickness(c.X - d / 2, c.Y - d / 2, 0, 0);
         _truePreview.IsVisible = onScreen > CentreSize - 8; // smaller sizes show in the centre's dot
     }
+
+    /// <summary>The size above the pen while the centre is dragged (Mission 018).</summary>
+    private void ShowReadout(Point pen)
+    {
+        _readoutText.Text = $"{_app.Session.CurrentSize:0.#} px";
+        _readout.Margin = default; // the size alone (DesiredSize includes the margin, which is the position)
+        _readout.IsVisible = true; // a hidden control measures as nothing
+        _readout.Measure(Size.Infinity);
+        var area = Bounds.Size;
+        var (x, y) = PenReadout.Place(pen.X, pen.Y, _readout.DesiredSize.Width, _readout.DesiredSize.Height, area.Width, area.Height);
+        _readout.Margin = new Thickness(x, y, 0, 0);
+    }
+
+    /// <summary>For tests: the size read-out shown above the pen (null when hidden).</summary>
+    internal (string Text, Rect Bounds)? Readout => _readout.IsVisible ? (_readoutText.Text ?? "", _readout.Bounds) : null;
 
     private void Place(Control control, double cx, double cy)
     {

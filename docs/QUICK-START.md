@@ -10,6 +10,8 @@ Everything here is also in the menus, and holding the pointer over a button show
 DoodleNook opens ready to draw.
 
 - `B` is the brush and `E` the eraser. `[` and `]` make it smaller or larger.
+- **Hold** `B`, `E` or `Z` for a moment: a small card appears just above the pen to set zoom, size, opacity and
+  smoothing. Drag on it, or anywhere (size with `B` and `E`, zoom with `Z`), and let go of the key to keep the change.
 - **Right-click** (or your pen's button) opens the quick palette at the pen, with colours, brushes and size.
 - `Ctrl+Z` undoes and `Ctrl+Shift+Z` redoes.
 - `Ctrl+S` saves a `.dnk` file with every layer and frame. **File › Export as PNG…** saves a flat picture, and

@@ -167,7 +167,7 @@ public sealed class ViewControls : StackPanel
             return b;
         }
         Children.Add(Small("minus", "Zoom out (Ctrl+−)", () => app.Canvas.ZoomStep(-1)));
-        var zoom = UiKit.Button(null, null, "Actual pixels, 100% (Ctrl+1)", app.Canvas.ZoomToActualPixels);
+        var zoom = UiKit.Button(null, null, "Actual pixels, 100% (Ctrl+1) · hold Z to zoom at the pen", app.Canvas.ZoomToActualPixels);
         zoom.Content = _zoom;
         zoom.Height = h;
         zoom.MinWidth = 52;

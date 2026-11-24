@@ -242,6 +242,15 @@ public sealed partial class CanvasView : Control, ICustomHitTest
         View.ZoomCentered(Bounds.Width, Bounds.Height, 1.0 / RenderScaling);
     }
 
+    /// <summary>Zooms to <paramref name="actualZoom"/> (1 = 100 %), keeping the picture under (x, y) where it is. Pixel Art
+    /// keeps whole-number zoom from 100 % up. Mission 018 (the quick adjust panel).</summary>
+    public void ZoomAroundTo(double x, double y, double actualZoom)
+    {
+        _fitMode = false;
+        if (IntegerZoom && actualZoom >= 1) actualZoom = Math.Round(actualZoom);
+        View.ZoomAround(x, y, actualZoom / RenderScaling);
+    }
+
     public void ZoomStep(int direction)
     {
         _fitMode = false;
@@ -534,7 +543,11 @@ public sealed partial class CanvasView : Control, ICustomHitTest
             context.DrawEllipse(null, new Pen(Brushes.White, 1.5), p, r, r);
             var label = new FormattedText($"{_session.CurrentSize:0} px", System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight, new Typeface(new FontFamily("fonts:Inter#Inter, $Default")), 13, Brushes.White);
-            var box = new Rect(ax + r + 10, ay - 14, label.Width + 20, 28);
+            // Mission 018: the size above the pen tip, where the pen and hand can't hide it (it used to sit just past
+            // the circle's edge, which is where the pen is while dragging).
+            var (px, py) = Input.Hover ?? (ax + r, ay);
+            var (bx, by) = Shell.PenReadout.Place(px, py, label.Width + 20, 28, Bounds.Width, Bounds.Height);
+            var box = new Rect(bx, by, label.Width + 20, 28);
             context.DrawRectangle(new SolidColorBrush(Controls.DnColors.Ui), new Pen(new SolidColorBrush(Controls.DnColors.Line), 1), new RoundedRect(box, 8));
             context.DrawText(label, new Point(box.X + 10, box.Y + (28 - label.Height) / 2));
             return;

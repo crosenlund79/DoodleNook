@@ -1,6 +1,6 @@
 # Playtest status
 
-Mission 016, 22 November 2026; updated in Mission 017, 23 November 2026. What the owner has actually reported, what the automated checks verify, and what only
+Mission 016, 22 November 2026; updated in Missions 017 (23 November) and 018 (24 November 2026). What the owner has actually reported, what the automated checks verify, and what only
 hands-on use can confirm. It is meant to make the next playtest short and focused.
 
 **Rules for this page.** Only owner feedback that is written down is recorded: in the repository, in the Mission 016
@@ -22,6 +22,7 @@ verified here.
 | "The new stuff looked good" | Owner's message after Expansion Pack 1 | General praise of Expansion Pack 1, recorded as such. It isn't treated as acceptance of any particular cycle or mission. |
 | The reference picker seemed to show scene content inserted earlier | Mission 016 assignment | Reproduced and fixed in Mission 016: the preview shows only the chosen cycle. |
 | The Mission 003 look is the approved visual foundation | CLAUDE.md ("Keep the approved look") | Kept. Mission 016 changes no visual style. |
+| When adjusting brush size, show the pixel size in a pop-up, because the pen covers the view; an easy zoom drag in the drawing area (hold Z); the same for brush and eraser size; then: "when either is held a popup appears where you can adjust zoom, brush size, opacity, smoothing… once you let go of the key the change is made" | Owner's notebook page, sent 24 November 2026 | Built in Mission 018: hold B, E or Z for the quick adjust card at the pen; size read-outs above the pen. **Awaiting your playtest.** |
 
 ## By area: automated verification and what still needs hands-on checks
 
@@ -43,6 +44,7 @@ the same tests on Linux, and, for Mission 016, independent checks recorded in th
 | Guided tutorial (014) | — | Tutorial tests, smoke test | Whether the tutorial is helpful |
 | Sprite sheets, live preview, palette folders, Storybook (015) | — | Tests; Mission 016 real-file validation; audit B, F, H | Storybook on the Kamvas; a sprite sheet from the owner's own game |
 | **Mission 016 fixes** | GIF colours, picker preview (reported) | See the QUALITY-REPORT | The four checks below |
+| **Mission 018 Quick Adjust** | Requested in the notebook page (above) | Window tests, the real program with X11 input, the smoke test | Hold B / E / Z with the pen: delay, placement, size of the card |
 | **Mission 017 fixes** | — | See [its QUALITY-REPORT](iterations/017-second-pass/QUALITY-REPORT.md): every menu command at 150 %, the F1 keys, files from earlier versions, the real program crashed and its saves made to fail, a workflow audit with real input, exports read by Pillow, a long session | The four checks after the Mission 016 ones |
 
 ## The four Mission 016 checks only the owner can do
@@ -63,3 +65,9 @@ the same tests on Linux, and, for Mission 016, independent checks recorded in th
 2. **After a crash:** draw, wait a minute, end DoodleNook in Task Manager, start it again: it should offer to recover.
 3. **Pixel Art palettes:** choose another palette in the palette ⋯ menu; Ctrl+Z should bring the old one back.
 4. **At 150 % on the Kamvas:** are the menus (Edit, View, the ⋯ menus) and dialogs readable, with nothing cut off?
+
+## The Mission 018 check only the owner can do
+
+**Hold B, E or Z** with the pen over the drawing. Does the card come up at the right moment, in a comfortable place,
+with numbers you can read while dragging? Does letting go keep what you wanted? (See the
+[Mission 018 playtest](iterations/018-quick-adjust/PLAYTEST.md).)

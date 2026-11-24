@@ -361,6 +361,24 @@ internal static class SmokeTest
         await lab;
         Check("Brush Laboratory playground leaves the picture and its undo history alone",
             window.LastBrushLab is not null && art.History.UndoCount == historyBefore && art.Flatten().Pixels.AsSpan().SequenceEqual(flatBefore.Pixels));
+        //     Mission 018: the quick adjust card (hold B) opens at the pen with its rows, and keeps the change.
+        {
+            var tool = session.Tool;
+            session.SelectTool(Editor.ToolKind.Brush);
+            double sizeBefore = session.CurrentSize;
+            var c = new Point(window.Canvas.Bounds.Width / 2, window.Canvas.Bounds.Height / 2);
+            window.QuickAdjust.Open(Avalonia.Input.Key.B, c.X, c.Y);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            int rows = window.QuickAdjust.GetVisualDescendants().OfType<Controls.DnSlider>().Count(x => x.IsEffectivelyVisible);
+            var card = window.QuickAdjust.CardBounds;
+            session.SetSize(sizeBefore + 7);
+            await Shot("smoke-I-quick-adjust.png");
+            window.QuickAdjust.Close(keep: true);
+            Check("quick adjust card (hold B) shows zoom, size, opacity and smoothing above the pen and keeps the change",
+                rows == 4 && card.Bottom <= c.Y && !window.QuickAdjust.IsOpen && session.CurrentSize == sizeBefore + 7, $"{rows} rows, card {card}");
+            session.SetSize(sizeBefore);
+            session.SelectTool(tool);
+        }
         //     The reference board is on screen but never in the artwork or its exports.
         window.SetReferenceBoardVisible(true);
         window.ReferenceBoard.Add(Engine.Samples.SampleAnimations.BouncingBall().RenderFrame(3), "Ball");
@@ -891,7 +909,7 @@ internal static class SmokeTest
 
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M017", window.Title);
+            && MainWindow.Milestone == "M018", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;

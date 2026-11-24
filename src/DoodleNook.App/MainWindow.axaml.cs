@@ -119,6 +119,7 @@ public partial class MainWindow : Window
 
         _radial = new RadialPalette(this) { Name = "RadialPalette" };
         CanvasHost.Children.Add(_radial);
+        InitQuickAdjust();
 
         // ---- events
         UiKit.FlyoutOpened += OnFlyoutOpened;

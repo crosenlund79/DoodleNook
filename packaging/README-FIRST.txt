@@ -1,5 +1,5 @@
-DoodleNook — Mission 017 "The Second Pass"
-=========================================
+DoodleNook — Mission 018 "Quick Adjust"
+======================================
 
 Start
 -----
@@ -23,6 +23,7 @@ A few shortcuts
 B brush · E eraser · I or hold Alt eyedropper · hold Space to pan · [ and ] brush size
 Ctrl+Z undo · Ctrl+Shift+Z or Ctrl+Y redo · mouse wheel zoom · Ctrl+0 fit · Ctrl+1 100 %
 Ctrl+N new · Ctrl+O open · Ctrl+S save · Tab hide interface · F11 full screen
+Hold B, E or Z: zoom, size, opacity and smoothing at the pen (let go to keep, Esc undoes)
 S stamp · G paint bucket · T text · Alt+1 … Alt+6 workspaces · F1 all shortcuts
 
 Animation Studio (Alt+6)

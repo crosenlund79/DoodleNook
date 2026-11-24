@@ -86,8 +86,8 @@ public static class Workspaces
 
     public static readonly IReadOnlyDictionary<ToolKind, ToolInfo> Tools = new Dictionary<ToolKind, ToolInfo>
     {
-        [ToolKind.Brush] = new(ToolKind.Brush, "Brush", "brush", "B", "Paint with the current brush · right-drag changes the size"),
-        [ToolKind.Eraser] = new(ToolKind.Eraser, "Eraser", "eraser", "E", "Erase to transparent"),
+        [ToolKind.Brush] = new(ToolKind.Brush, "Brush", "brush", "B", "Paint with the current brush · right-drag changes the size · hold B: size, opacity, smoothing and zoom at the pen"),
+        [ToolKind.Eraser] = new(ToolKind.Eraser, "Eraser", "eraser", "E", "Erase to transparent · hold E: size, smoothing and zoom at the pen"),
         [ToolKind.Eyedropper] = new(ToolKind.Eyedropper, "Eyedropper", "eyedropper", "I", "Click to pick a colour · hold Alt with any tool"),
         [ToolKind.Hand] = new(ToolKind.Hand, "Hand", "hand", "H", "Drag to pan · hold Space with any tool · hold R and drag to rotate the view"),
         [ToolKind.Fill] = new(ToolKind.Fill, "Paint bucket", "fill", "G", "Click to fill similar colours"),

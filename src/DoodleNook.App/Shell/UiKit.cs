@@ -144,7 +144,8 @@ public static class UiKit
         Func<double, string> format, double trackWidth = 96, bool log = false, Action? finished = null, string? tip = null)
     {
         var slider = new DnSlider { Minimum = min, Maximum = max, IsLogarithmic = log, TrackWidth = trackWidth };
-        var value = new TextBlock { Classes = { "num" }, MinWidth = 40, VerticalAlignment = VerticalAlignment.Center };
+        // Mission 018: room for "100%" before the next control (it ran into the following label).
+        var value = new TextBlock { Classes = { "num" }, MinWidth = 46, VerticalAlignment = VerticalAlignment.Center };
         slider.UserChanged += (_, v) => set(v);
         if (finished is not null) slider.UserFinished += (_, _) => finished();
         var root = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0, VerticalAlignment = VerticalAlignment.Center };

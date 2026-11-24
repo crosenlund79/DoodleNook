@@ -99,6 +99,14 @@ public partial class MainWindow
             return true;
         }
 
+        // Mission 018: hold B, E or Z for the quick adjust card. Esc while it is open puts everything back.
+        if (_quickAdjust!.IsOpen && key == Key.Escape)
+        {
+            EndQuickAdjust(keep: false);
+            return true;
+        }
+        if (!ctrl && !alt && !shift && key is Key.B or Key.E or Key.Z && QuickAdjustKeyDown(key)) return true;
+
         if (Workspace.Kind == WorkspaceKind.Animation && HandleAnimationKey(key, ctrl, shift, alt, symbol)) return true;
 
         switch (key)
@@ -398,6 +406,7 @@ public partial class MainWindow
     private void OnKeyUpTunnel(object? sender, KeyEventArgs e)
     {
         var input = Canvas.Input!;
+        QuickAdjustKeyUp(e.Key);
         if (e.Key == Key.Space)
         {
             input.SpaceHeld = false;

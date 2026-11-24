@@ -438,6 +438,7 @@ public partial class MainWindow
             ("Ctrl+click (Move tool)", "Pick the text or shape under the pointer"),
             ("Ctrl+L / Ctrl+B", "Levels / Colour balance"),
             ("[ and ] · right-drag", "Smaller / larger brush"),
+            ("Hold B · E · Z", "Quick adjust at the pen: zoom, size, opacity, smoothing · drag anywhere for size (B, E) or zoom (Z) · let go to keep, Esc undoes"),
             ("Right-click · pen button", "Quick palette at the pen"),
             ("X / D", "Swap / default colours · Alt: eyedropper with any tool"),
             ("Ctrl+Z / Ctrl+Shift+Z", "Undo / Redo (also Ctrl+Y)"),

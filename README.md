@@ -2,17 +2,15 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 017 "The Second Pass"**: no new features. Every menu command and dialog was checked at
-150 %. The keys were checked against the F1 list. Files from earlier versions open with identical pixels. The real
-program was crashed and its saves were made to fail on purpose. Eight workflows were used with real mouse and keyboard
-input, exports were read by an independent decoder, and a long session was measured. Eighteen defects were fixed, such
-as "· edited" not following the picture, palette changes in Pixel Art that couldn't be undone, menus too narrow for their
-entries, and Ctrl+Enter in text. Read
-[docs/iterations/017-second-pass](docs/iterations/017-second-pass/README.md), the
-[quality report](docs/iterations/017-second-pass/QUALITY-REPORT.md) and the
-[playtest guide](docs/iterations/017-second-pass/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
+**Current milestone: Mission 018 "Quick Adjust"**, from your notebook. **Hold B, E or Z** and a small card appears
+just above the pen with zoom, size, opacity and smoothing. Drag on it, or anywhere on the canvas; let go of the key
+to keep the change, or press Esc to undo it. The brush size now also shows above the pen while you resize, where the
+pen can't hide it. Read [docs/iterations/018-quick-adjust](docs/iterations/018-quick-adjust/README.md) and the
+[playtest guide](docs/iterations/018-quick-adjust/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
 sums up what has been tested by you and what by the automated checks.
-Earlier milestones: [Mission 016 "The Completion Pass"](docs/iterations/016-completion-pass/README.md)
+Earlier milestones: [Mission 017 "The Second Pass"](docs/iterations/017-second-pass/README.md)
+(every menu and dialog at 150 %, old files, crash and save safety in the real program, eighteen fixes),
+[Mission 016 "The Completion Pass"](docs/iterations/016-completion-pass/README.md)
 (GIF colours, Storybook chrome, Copy to other programs, real-file checks), [Mission 015 "The Game Artist's Workshop"](docs/iterations/015-game-artists-workshop/README.md)
 (sprite sheets, the Live Animation Preview, palette folders, Storybook Studio), [Mission 014 "The Gentle Guide"](docs/iterations/014-the-gentle-guide/README.md) (Help › Guided
 Tutorials… and "Your First Animation"),
