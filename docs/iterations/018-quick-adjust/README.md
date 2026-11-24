@@ -80,7 +80,9 @@ The card is not a permanent control: it exists only while a key is held, at the 
 | | Engine tests | App tests (real window) | Smoke test of the packaged program |
 |---|---|---|---|
 | Linux (development) | 383 passed | 270 passed | 84 checks passed, including the new quick adjust check |
-| Windows CI | see the final report | see the final report | see the final report |
+| Windows CI, [run #52](https://github.com/crosenlund79/DoodleNook/actions/runs/45493691063) (commit `5ca96e7`) | 383 passed | 270 passed | 90 checks passed (Windows NT 10.0.26100), including the new quick adjust check: the card opened at the pen with its 4 rows and kept the change |
+
+The benchmarks and the long session (2 + 2) also passed on Windows.
 
 New window tests (`QuickAdjustTests`, 9):
 - a tap only picks the tool;
