@@ -478,6 +478,13 @@ public partial class MainWindow
             ("Home / End", "First / last frame"),
             ("N / Shift+N", "New blank frame / duplicate frame"),
             ("O", "Onion skin on or off"),
+            ("Bare Bones (File › New / Open skeletal animation)", ""),
+            ("Tab · A / V · H", "Setup / Animate · add bones / pose · bones shown or hidden (never exported)"),
+            ("Drag a joint · a bone · its tip", "Move · turn about the joint (Shift: 15° steps) · length (Setup)"),
+            ("K · Delete", "Key the selected bone here · delete its keys here (Setup: the bone)"),
+            ("Ctrl+C / Ctrl+V", "Copy the pose at this frame · paste it as keys at another"),
+            ("Enter · ← → · Home / End", "Play / pause · previous / next frame · first / last"),
+            ("Esc", "Back to the drawing"),
         ];
 
     /// <summary>Help › Diagnostics…: version, picture, memory, recent timings and caches, with Copy diagnostics (Mission 011).
@@ -498,7 +505,7 @@ public partial class MainWindow
     private Task ShowAboutAsync() => _dialogs.ShowAsync("About DoodleNook",
         // Mission 017: no mission name here (it said Mission 014 long after); the version and milestone say which build it is.
         DialogHost.Text($"DoodleNook {Version} ({Milestone}).\nSix workspaces around one picture: Pure Sketch, Quick Sketch, Painting, Editing, Pixel Art and Animation Studio, " +
-                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, sprite sheets, animation import and a live animation preview, a library of reference cycles (walk, run, attack…) to animate over, Storybook Studio for comic and storyboard pages, and guided tutorials (Help › Guided Tutorials).\n\n" +
+                        "with the Brush Laboratory, stamps, patterns, palettes, a reference board, editable text and shapes, groups, masks, adjustment layers and drawing assistants, Game Edit Mode for replacing a game's graphics, sprite sheets, animation import and a live animation preview, a library of reference cycles (walk, run, attack…) to animate over, Storybook Studio for comic and storyboard pages, Bare Bones for skeletal animation with your own drawings as the parts, and guided tutorials (Help › Guided Tutorials).\n\n" +
                         "Bundled palettes by other artists are credited in the Palettes window and in PALETTE-ATTRIBUTION.md.\n\n" +
                         "Built with .NET, Avalonia and SkiaSharp (MIT licences). Fonts: Inter and Varela Round (SIL Open Font License). " +
                         "See THIRD-PARTY-NOTICES.txt next to DoodleNook.exe."),

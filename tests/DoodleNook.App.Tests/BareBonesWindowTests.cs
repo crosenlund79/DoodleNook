@@ -382,4 +382,33 @@ public sealed class BareBonesWindowTests : IDisposable
         Assert.True(w.ToolHost.IsVisible);
         w.Close();
     }
+
+    [AvaloniaFact]
+    public async Task Bare_Bones_fits_the_Kamvas_at_150_percent()
+    {
+        var w = Open(1280, 720, WorkspaceKind.Painting);
+        w.SetRenderScaling(1.5);
+        Pump();
+        await w.OpenSampleSkeletonAsync(Path.Combine(_dir, "sample"));
+        var view = w.BonesView!;
+        view.Select(view.Project!.Bones.Single(b => b.Name == "Head"));
+        view.SetFrame(11);
+        Pump();
+        // The stage keeps a useful size, every bone's row is in the timeline, and the controls are inside the window.
+        Assert.True(view.Stage.Bounds.Width > 600 && view.Stage.Bounds.Height > 330, view.Stage.Bounds.ToString());
+        var area = Find<DockPanel>(w, "BonesTimelineArea");
+        Assert.True(area.Bounds.Height >= 150, area.Bounds.ToString());
+        var timeline = view.Timeline;
+        Assert.True(timeline.Bounds.Height >= BonesTimeline.RulerHeight + 9 * BonesTimeline.RowHeight, $"timeline {timeline.Bounds.Height:0} high for 9 bones");
+        File.WriteAllText(Path.Combine(Path.GetDirectoryName(Screenshots.OutDir)!, "m019-kamvas-stage.txt"),
+            $"stage {view.Stage.Bounds.Width:0} x {view.Stage.Bounds.Height:0}, timeline {timeline.Bounds.Height:0}");
+        foreach (var name in new[] { "BonesBack", "BonesExport", "BonesPlay", "BonesPastePose", "BonesAddBone", "BonesMode" })
+        {
+            var c = Find<Control>(w, name);
+            var r = new Rect(c.TranslatePoint(new Point(0, 0), w)!.Value, c.Bounds.Size);
+            Assert.True(r.Right <= w.Bounds.Width + 0.5 && r.Bottom <= w.Bounds.Height + 0.5, $"{name} at {r}");
+        }
+        Shot(w, "m019-bare-bones-kamvas-150");
+        w.Close();
+    }
 }

@@ -17,7 +17,7 @@ namespace DoodleNook.App.Bones;
 /// </summary>
 public sealed class BonesTimeline : Control
 {
-    public const double NameWidth = 150, RulerHeight = 22, RowHeight = 20;
+    public const double NameWidth = 150, RulerHeight = 22, RowHeight = 19;
 
     private static readonly Typeface Font = new(new FontFamily("fonts:Inter#Inter, $Default"));
     private static readonly IBrush Bg = new SolidColorBrush(DnColors.Ui);

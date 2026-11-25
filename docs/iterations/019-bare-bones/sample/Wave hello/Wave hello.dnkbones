@@ -1,0 +1,389 @@
+{
+  "format": "DoodleNook skeletal animation",
+  "version": 1,
+  "width": 360,
+  "height": 440,
+  "pixelArt": false,
+  "fps": 12,
+  "length": 48,
+  "loop": true,
+  "bones": [
+    {
+      "id": "8f748cf2c7",
+      "name": "Hips",
+      "x": 180,
+      "y": 262,
+      "rotation": -90,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 16,
+      "attachments": []
+    },
+    {
+      "id": "ede6451363",
+      "name": "Body",
+      "parentId": "8f748cf2c7",
+      "x": 16,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 104,
+      "attachments": [
+        {
+          "id": "5489b238d3",
+          "name": "Torso",
+          "source": "art/torso.dnk",
+          "x": 44,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "5489b238d3"
+    },
+    {
+      "id": "0b9a5eeae4",
+      "name": "Head",
+      "parentId": "ede6451363",
+      "x": 104,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 76,
+      "attachments": [
+        {
+          "id": "889bf23049",
+          "name": "Idle",
+          "source": "art/head-idle.dnk",
+          "x": 38,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        },
+        {
+          "id": "faf32ba6bc",
+          "name": "Blink",
+          "source": "art/head-blink.dnk",
+          "x": 38,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": false,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "889bf23049"
+    },
+    {
+      "id": "f8e563a3de",
+      "name": "Left arm",
+      "parentId": "ede6451363",
+      "x": 92,
+      "y": -40,
+      "rotation": -168,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 88,
+      "attachments": [
+        {
+          "id": "095a70017f",
+          "name": "Arm",
+          "source": "art/arm-back.dnk",
+          "x": 44,
+          "y": 0,
+          "rotation": -90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "095a70017f"
+    },
+    {
+      "id": "91a4dccc06",
+      "name": "Left hand",
+      "parentId": "f8e563a3de",
+      "x": 88,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 26,
+      "attachments": [
+        {
+          "id": "64d74381bd",
+          "name": "Hand",
+          "source": "art/hand.dnk",
+          "x": 12,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "64d74381bd"
+    },
+    {
+      "id": "cc111c1de2",
+      "name": "Right arm",
+      "parentId": "ede6451363",
+      "x": 92,
+      "y": 40,
+      "rotation": 168,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 88,
+      "attachments": [
+        {
+          "id": "46f280ce90",
+          "name": "Arm",
+          "source": "art/arm-front.dnk",
+          "x": 44,
+          "y": 0,
+          "rotation": -90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "46f280ce90"
+    },
+    {
+      "id": "d851945bab",
+      "name": "Right hand",
+      "parentId": "cc111c1de2",
+      "x": 88,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 26,
+      "attachments": [
+        {
+          "id": "a1ddd8b2ed",
+          "name": "Hand",
+          "source": "art/hand.dnk",
+          "x": 12,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        },
+        {
+          "id": "aac81c9738",
+          "name": "Wave",
+          "source": "art/hand-wave.dnk",
+          "x": 12,
+          "y": 0,
+          "rotation": 90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "a1ddd8b2ed"
+    },
+    {
+      "id": "758df618d3",
+      "name": "Left leg",
+      "parentId": "8f748cf2c7",
+      "x": 0,
+      "y": -22,
+      "rotation": -176,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 124,
+      "attachments": [
+        {
+          "id": "3719016a05",
+          "name": "Leg",
+          "source": "art/leg-back.dnk",
+          "x": 56,
+          "y": 0,
+          "rotation": -90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "3719016a05"
+    },
+    {
+      "id": "69dc416283",
+      "name": "Right leg",
+      "parentId": "8f748cf2c7",
+      "x": 0,
+      "y": 22,
+      "rotation": 176,
+      "scaleX": 1,
+      "scaleY": 1,
+      "length": 124,
+      "attachments": [
+        {
+          "id": "3b4ca912bd",
+          "name": "Leg",
+          "source": "art/leg-front.dnk",
+          "x": 56,
+          "y": 0,
+          "rotation": -90,
+          "scale": 1,
+          "loop": true,
+          "speed": 1,
+          "restart": true
+        }
+      ],
+      "attachment": "3b4ca912bd"
+    }
+  ],
+  "drawOrder": [
+    "758df618d3",
+    "f8e563a3de",
+    "91a4dccc06",
+    "69dc416283",
+    "8f748cf2c7",
+    "ede6451363",
+    "0b9a5eeae4",
+    "cc111c1de2",
+    "d851945bab"
+  ],
+  "tracks": [
+    {
+      "boneId": "0b9a5eeae4",
+      "keys": [],
+      "switches": [
+        {
+          "frame": 10,
+          "attachment": "faf32ba6bc"
+        },
+        {
+          "frame": 16,
+          "attachment": "889bf23049"
+        }
+      ]
+    },
+    {
+      "boneId": "cc111c1de2",
+      "keys": [
+        {
+          "frame": 0,
+          "x": 92,
+          "y": 40,
+          "rotation": 168,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": false
+        },
+        {
+          "frame": 16,
+          "x": 92,
+          "y": 40,
+          "rotation": 168,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": true
+        },
+        {
+          "frame": 22,
+          "x": 92,
+          "y": 40,
+          "rotation": 40,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": false
+        },
+        {
+          "frame": 34,
+          "x": 92,
+          "y": 40,
+          "rotation": 40,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": true
+        },
+        {
+          "frame": 40,
+          "x": 92,
+          "y": 40,
+          "rotation": 168,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": false
+        }
+      ],
+      "switches": []
+    },
+    {
+      "boneId": "d851945bab",
+      "keys": [],
+      "switches": [
+        {
+          "frame": 22,
+          "attachment": "aac81c9738"
+        },
+        {
+          "frame": 34,
+          "attachment": "a1ddd8b2ed"
+        }
+      ]
+    },
+    {
+      "boneId": "ede6451363",
+      "keys": [
+        {
+          "frame": 0,
+          "x": 16,
+          "y": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": false
+        },
+        {
+          "frame": 38,
+          "x": 16,
+          "y": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": true
+        },
+        {
+          "frame": 43,
+          "x": 16,
+          "y": 0,
+          "rotation": 4,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": true
+        },
+        {
+          "frame": 47,
+          "x": 16,
+          "y": 0,
+          "rotation": 0,
+          "scaleX": 1,
+          "scaleY": 1,
+          "smooth": false
+        }
+      ],
+      "switches": []
+    }
+  ]
+}

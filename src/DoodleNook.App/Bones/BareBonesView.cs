@@ -294,12 +294,12 @@ public sealed class BareBonesView : Border
         Hint(null);
     }
 
-    /// <summary>The timeline grows with the skeleton (every bone's row in sight), up to a third of the view.</summary>
+    /// <summary>The timeline grows with the skeleton (every bone's row in sight), up to about a third of the view.</summary>
     private void SizeTimeline()
     {
         if (_bottom is null || _project is not { } p) return;
         _bottom.Height = Math.Clamp(34 + BonesTimeline.RulerHeight + p.Bones.Count * BonesTimeline.RowHeight + 14, TimelineHeight,
-            Math.Max(TimelineHeight, Bounds.Height / 3));
+            Math.Max(TimelineHeight, Bounds.Height * 0.36));
     }
 
     /// <summary>Only what moves while dragging or playing: the stage, the timeline and the key buttons.</summary>
@@ -319,7 +319,7 @@ public sealed class BareBonesView : Border
         _keyButton.IsEnabled = bone is not null;
         _deleteKeyButton.IsEnabled = animate && anyKey;
         _easeButton.IsEnabled = animate && key is not null;
-        _easeButton.Classes.Set("on", key?.Smooth == true);
+        _easeButton.Classes.Set("on", animate && key?.Smooth == true);
         _pasteButton.IsEnabled = _clipboard is { Count: > 0 };
         _copyButton.IsEnabled = _project is { Bones.Count: > 0 };
         _play.Content = UiKit.Content(IsPlaying ? "pause" : "play", null);

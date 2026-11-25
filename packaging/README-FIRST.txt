@@ -1,5 +1,5 @@
-DoodleNook — Mission 018 "Quick Adjust"
-======================================
+DoodleNook — Mission 019 "Bare Bones"
+=====================================
 
 Start
 -----
@@ -32,6 +32,13 @@ N new frame · Shift+N duplicate frame · Enter play/pause · Esc stop · , and 
 Home/End first/last frame · O onion skin on/off
 Two sample animations are in the Samples folder (also: Help › Sample animations).
 Window › Customize workspace chooses which optional controls each workspace shows.
+
+Bare Bones (skeletal animation)
+------------------------------
+File > New skeletal animation... builds a character from bones and your own drawings; Help > Wave hello
+(Bare Bones) opens the sample. Drag on the stage to draw bones, drag a joint to move, a bone or its sprite
+to turn it. Tab: Setup (rest pose) / Animate (every change is a key) · Enter play · K key · Ctrl+C / Ctrl+V
+copy and paste a pose · H hide the bones (they are never exported) · Esc back to the drawing.
 
 The Artist's Workshop
 ---------------------

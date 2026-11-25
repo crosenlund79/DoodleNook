@@ -2,13 +2,14 @@
 
 A cosy Windows drawing application for sketching, painting and editing — made to make you want to draw.
 
-**Current milestone: Mission 018 "Quick Adjust"**, from your notebook. **Hold B, E or Z** and a small card appears
-just above the pen with zoom, size, opacity and smoothing. Drag on it, or anywhere on the canvas; let go of the key
-to keep the change, or press Esc to undo it. The brush size now also shows above the pen while you resize, where the
-pen can't hide it. Read [docs/iterations/018-quick-adjust](docs/iterations/018-quick-adjust/README.md) and the
-[playtest guide](docs/iterations/018-quick-adjust/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
+**Current milestone: Mission 019 "Bare Bones"**, an experimental skeletal animation editor in a view of its own
+(File › New skeletal animation…). Build a skeleton by dragging bones, hang your own drawings on them (still or
+animated: a blink, a wave), and pose the bones on a master timeline; animated sprites run on their own clock and keys
+switch which one plays. Try **Help › Wave hello (Bare Bones)**. Read [docs/iterations/019-bare-bones](docs/iterations/019-bare-bones/README.md)
+and the [playtest guide](docs/iterations/019-bare-bones/PLAYTEST.md); [docs/PLAYTEST-STATUS.md](docs/PLAYTEST-STATUS.md)
 sums up what has been tested by you and what by the automated checks.
-Earlier milestones: [Mission 017 "The Second Pass"](docs/iterations/017-second-pass/README.md)
+Earlier milestones: [Mission 018 "Quick Adjust"](docs/iterations/018-quick-adjust/README.md)
+(hold B, E or Z for zoom, size, opacity and smoothing at the pen), [Mission 017 "The Second Pass"](docs/iterations/017-second-pass/README.md)
 (every menu and dialog at 150 %, old files, crash and save safety in the real program, eighteen fixes),
 [Mission 016 "The Completion Pass"](docs/iterations/016-completion-pass/README.md)
 (GIF colours, Storybook chrome, Copy to other programs, real-file checks), [Mission 015 "The Game Artist's Workshop"](docs/iterations/015-game-artists-workshop/README.md)
@@ -35,7 +36,7 @@ pen-drawing foundation).
 **Less is more — but capable when needed. Ease of use first.** The interface rules are in [`CLAUDE.md`](CLAUDE.md) and
 [docs/design/INTERFACE-PHILOSOPHY.md](docs/design/INTERFACE-PHILOSOPHY.md).
 
-- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F014-the-gentle-guide) → newest green run → artifact **DoodleNook-win-x64**.
+- Download the Windows build: [Actions → Windows build](https://github.com/crosenlund79/DoodleNook/actions/workflows/windows-build.yml?query=branch%3Aiteration%2F019-bare-bones) → newest green run → artifact **DoodleNook-win-x64**.
 - Earlier research and the approved design prototype: [docs/](docs/README.md).
 - Sound identity sketches: [sound-experiments/](sound-experiments/README.md).
 

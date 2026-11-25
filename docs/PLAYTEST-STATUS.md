@@ -1,6 +1,6 @@
 # Playtest status
 
-Mission 016, 22 November 2026; updated in Missions 017 (23 November) and 018 (24 November 2026). What the owner has actually reported, what the automated checks verify, and what only
+Mission 016, 22 November 2026; updated in Missions 017 (23 November), 018 (24 November) and 019 (25 November 2026). What the owner has actually reported, what the automated checks verify, and what only
 hands-on use can confirm. It is meant to make the next playtest short and focused.
 
 **Rules for this page.** Only owner feedback that is written down is recorded: in the repository, in the Mission 016
@@ -45,6 +45,7 @@ the same tests on Linux, and, for Mission 016, independent checks recorded in th
 | Sprite sheets, live preview, palette folders, Storybook (015) | — | Tests; Mission 016 real-file validation; audit B, F, H | Storybook on the Kamvas; a sprite sheet from the owner's own game |
 | **Mission 016 fixes** | GIF colours, picker preview (reported) | See the QUALITY-REPORT | The four checks below |
 | **Mission 018 Quick Adjust** | Requested in the notebook page (above) | Window tests, the real program with X11 input, the smoke test | Hold B / E / Z with the pen: delay, placement, size of the card |
+| **Mission 019 Bare Bones** | Requested in the Mission 019 brief | Engine tests (hierarchy, keys, animated-sprite timing, file, export), window tests, the real program with X11 input, the smoke test | Posing with the pen; Setup / Animate; the New drawing → editor → Back to Bare Bones trip; animated sprites |
 | **Mission 017 fixes** | — | See [its QUALITY-REPORT](iterations/017-second-pass/QUALITY-REPORT.md): every menu command at 150 %, the F1 keys, files from earlier versions, the real program crashed and its saves made to fail, a workflow audit with real input, exports read by Pillow, a long session | The four checks after the Mission 016 ones |
 
 ## The four Mission 016 checks only the owner can do
@@ -71,3 +72,9 @@ the same tests on Linux, and, for Mission 016, independent checks recorded in th
 **Hold B, E or Z** with the pen over the drawing. Does the card come up at the right moment, in a comfortable place,
 with numbers you can read while dragging? Does letting go keep what you wanted? (See the
 [Mission 018 playtest](iterations/018-quick-adjust/PLAYTEST.md).)
+
+## The Mission 019 check only the owner can do
+
+**Bare Bones** with the pen: open Help › Wave hello (Bare Bones), play it, pose a bone at another frame, then build a
+small character of your own from New drawing…. Does posing feel natural, and is the trip to the editor and back
+comfortable? (See the [Mission 019 playtest](iterations/019-bare-bones/PLAYTEST.md).)
