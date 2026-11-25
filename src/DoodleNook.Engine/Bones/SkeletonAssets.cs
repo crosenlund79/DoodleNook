@@ -62,10 +62,13 @@ public sealed class SkeletonAssets
     /// <summary>Decodes picture files other than .dnk and PNG (the app adds JPEG, WebP, …).</summary>
     public Func<string, RasterImage?>? DecodeImage { get; init; }
 
+    /// <summary>A newer version of a file than the one on disk (a drawing open in the editor with unsaved changes), or null.</summary>
+    public Func<string, SpriteFrames?>? Live { get; set; }
+
     public SpriteFrames? Get(SkeletonProject project, BoneAttachment? attachment)
     {
         if (attachment is null || project.Resolve(attachment.Source) is not { } path) return null;
-        return Load(path).Sprite;
+        return Live?.Invoke(path) ?? Load(path).Sprite;
     }
 
     /// <summary>Why a sprite shows nothing (missing file, unreadable), or null when it is fine.</summary>

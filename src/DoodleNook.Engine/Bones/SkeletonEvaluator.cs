@@ -58,14 +58,15 @@ public sealed class SkeletonPose
 public static class SkeletonEvaluator
 {
     /// <summary>The character at master <paramref name="frame"/> (0-based; fractions fall between keys). Sprite frames need
-    /// <paramref name="assets"/> for their timing; without it every sprite shows its first frame.</summary>
-    public static SkeletonPose Evaluate(SkeletonProject project, double frame, SkeletonAssets? assets = null)
+    /// <paramref name="assets"/> for their timing; without it every sprite shows its first frame. With
+    /// <paramref name="setupPose"/> the keys are ignored: every bone in its rest pose with its rest sprite (Setup mode).</summary>
+    public static SkeletonPose Evaluate(SkeletonProject project, double frame, SkeletonAssets? assets = null, bool setupPose = false)
     {
         frame = Math.Clamp(frame, 0, Math.Max(0, project.Length - 1));
         var result = new Dictionary<string, BonePose>();
         foreach (var bone in project.Ordered())
         {
-            var track = project.TrackOf(bone.Id);
+            var track = setupPose ? null : project.TrackOf(bone.Id);
             var (x, y, r, sx, sy) = PoseAt(bone, track, frame);
             var local = Pose.Matrix(x, y, r, sx, sy);
             var world = bone.ParentId is not null && result.TryGetValue(bone.ParentId, out var parent) ? local.Then(parent.World) : local;

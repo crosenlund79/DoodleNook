@@ -151,6 +151,7 @@ public partial class MainWindow
             InitStorybookChip();
         }
         if (CatalogShown) HideCatalog();
+        if (BonesShown) HideBonesView();
         Animator.Pause();
         Session.EndStroke();
         Session.CommitTransform();

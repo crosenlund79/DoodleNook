@@ -33,6 +33,11 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
+        if (BonesShown && HandleBonesKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            return;
+        }
         if (HandleKey(e.Key, e.KeyModifiers, e.KeySymbol)) e.Handled = true;
     }
 
@@ -409,6 +414,7 @@ public partial class MainWindow
         QuickAdjustKeyUp(e.Key);
         if (e.Key == Key.Space)
         {
+            if (_bonesView is not null) _bonesView.Stage.SpaceHeld = false;
             input.SpaceHeld = false;
             Canvas.RefreshCursor();
             e.Handled = true;

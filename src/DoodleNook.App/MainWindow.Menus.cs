@@ -37,11 +37,18 @@ public partial class MainWindow
             "Help" => HelpMenu(),
             _ => [],
         };
-        if (!StorybookShown || name is "View" or "Window" or "Help") return entries;
+        if (!DedicatedViewShown || name is "View" or "Window" or "Help") return entries;
         // Mission 016: while the storybook is shown the drawing is out of sight. A drawing command chosen from the menus
         // goes back to the drawing first, so you see what it does; Edit's Undo and Redo are the storybook's (as Ctrl+Z);
         // the storybook's own File entries stay as they are.
-        if (name == "Edit")
+        if (name == "Edit" && BonesShown)
+            entries = entries.Select(e => e.Icon switch
+            {
+                "undo" => new MenuEntry("undo", "Undo (Bare Bones)", "Ctrl+Z", () => _bonesView?.Undo(), _bonesView?.CanUndo == true),
+                "redo" => new MenuEntry("redo", "Redo (Bare Bones)", "Ctrl+Shift+Z", () => _bonesView?.Redo(), _bonesView?.CanRedo == true),
+                _ => e,
+            });
+        else if (name == "Edit")
             entries = entries.Select(e => e.Icon switch
             {
                 "undo" => new MenuEntry("undo", "Undo (storybook)", "Ctrl+Z", () => _storybookView?.Undo(), _storybookView?.CanUndo == true),
@@ -53,7 +60,8 @@ public partial class MainWindow
 
     private MenuEntry BackToDrawingFirst(MenuEntry e)
     {
-        if (e.IsSeparator || e.IsHeading || e.Icon == "book" || e.Label.EndsWith("(storybook)", StringComparison.Ordinal)) return e;
+        if (e.IsSeparator || e.IsHeading || e.Icon is "book" or "bone" || e.Label.EndsWith("(storybook)", StringComparison.Ordinal) ||
+            e.Label.EndsWith("(Bare Bones)", StringComparison.Ordinal)) return e;
         if (e.Children is { } children) return e with { Children = children.Select(BackToDrawingFirst).ToList() };
         if (e.Run is not { } run) return e;
         return e with
@@ -61,6 +69,7 @@ public partial class MainWindow
             Run = () =>
             {
                 HideStorybook();
+                HideBonesView();
                 run();
             },
         };
@@ -90,6 +99,12 @@ public partial class MainWindow
         {
             if (Storybook is null) _ = OpenStorybookAsync();
             else ShowStorybook();
+        }),
+        new("bone", "New skeletal animation…", null, () => _ = NewSkeletonAsync()),
+        new("bone", Skeleton is null ? "Open skeletal animation…" : $"Bare Bones “{Path.GetFileNameWithoutExtension(Skeleton.FilePath)}”", null, () =>
+        {
+            if (Skeleton is null) _ = OpenSkeletonAsync();
+            else ShowBonesView();
         }),
         MenuEntry.Separator,
         new("settings", "Preferences…", null, () => _ = PreferencesAsync()),
@@ -313,6 +328,7 @@ public partial class MainWindow
         new("film", "Bouncing ball (hand-drawn)", null, () => _ = OpenSampleAsync(SampleAnimation.BouncingBall)),
         new("pixpencil", "Pixel slime (pixel art)", null, () => _ = OpenSampleAsync(SampleAnimation.PixelSlime)),
         new("book", "A little walk (storybook)", null, () => _ = OpenSampleStorybookAsync()),
+        new("bone", "Wave hello (Bare Bones)", null, () => _ = OpenSampleSkeletonAsync()),
         MenuEntry.Separator,
         new("pulse", "Pen diagnostics", "F12", ToggleDiagnostics),
         new("gauge", "Diagnostics…", null, () => _ = ShowPerformanceDiagnosticsAsync()),
@@ -358,7 +374,7 @@ public partial class MainWindow
         list.Add(new("info", "About DoodleNook", null, () => _ = ShowAboutAsync()));
         list.Add(MenuEntry.Separator);
         list.Add(new("exit", "Exit", "Alt+F4", Close));
-        return StorybookShown ? list.Select(BackToDrawingFirst).ToList() : list;
+        return DedicatedViewShown ? list.Select(BackToDrawingFirst).ToList() : list;
     }
 
     /// <summary>Pure Sketch's corner menu: workspaces, files and view, without leaving the canvas.</summary>
@@ -383,7 +399,7 @@ public partial class MainWindow
         list.Add(MenuEntry.Separator);
         list.Add(new("exit", "Exit", "Alt+F4", Close));
         // Mission 017: with a storybook shown, a command here goes back to the drawing first (as the menu bar's do).
-        return StorybookShown ? list.Select(BackToDrawingFirst).ToList() : list;
+        return DedicatedViewShown ? list.Select(BackToDrawingFirst).ToList() : list;
     }
 
     /// <summary>Opens a workspace with one of its dock sections showing (e.g. Edit › History).</summary>

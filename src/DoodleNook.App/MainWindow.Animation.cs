@@ -339,6 +339,12 @@ public partial class MainWindow
         var frames = AnimationExport.RenderFrames(doc, paper, Math.Clamp(settings.Scale, 1, 16));
         double fps = doc.Animation?.Fps ?? Engine.Documents.Animation.DefaultFps;
         bool loop = doc.Animation?.Loop ?? true;
+        return await WriteFramesAsync(path, settings, frames, fps, loop);
+    }
+
+    /// <summary>Encodes and writes rendered frames as the chosen export (shared by Animation Studio and Bare Bones).</summary>
+    private static async Task<string> WriteFramesAsync(string path, AnimationExportSettings settings, List<ExportFrame> frames, double fps, bool loop)
+    {
         switch (settings.Format)
         {
             case AnimationExportFormat.SpriteSheet:

@@ -4,6 +4,7 @@ using Avalonia.Platform.Storage;
 using DoodleNook.App.Dialogs;
 using DoodleNook.App.Files;
 using DoodleNook.App.Shell;
+using DoodleNook.Engine.Bones;
 using DoodleNook.Engine.Documents;
 using DoodleNook.Engine.Files;
 using DoodleNook.Engine.Geometry;
@@ -323,9 +324,9 @@ public partial class MainWindow
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open a picture (or a storybook)",
+            Title = "Open a picture (or a storybook, or a skeletal animation)",
             AllowMultiple = false,
-            FileTypeFilter = [AnyPicture, DnkType, PngType, JpegType, WebPType, StorybookType, FilePickerFileTypes.All],
+            FileTypeFilter = [AnyPicture, DnkType, PngType, JpegType, WebPType, StorybookType, SkeletonType, FilePickerFileTypes.All],
         });
         if (files.Count == 0) return;
         var file = files[0];
@@ -333,6 +334,12 @@ public partial class MainWindow
         if (file.TryGetLocalPath() is { } book && book.EndsWith(Engine.Storybook.StorybookProject.Extension, StringComparison.OrdinalIgnoreCase))
         {
             await OpenStorybookFromAsync(book);
+            return;
+        }
+        // Mission 019: a skeletal animation opens in Bare Bones, likewise.
+        if (file.TryGetLocalPath() is { } bones && bones.EndsWith(SkeletonProject.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenSkeletonFromAsync(bones);
             return;
         }
         if (!await ConfirmDiscardAsync("opening another picture")) return;

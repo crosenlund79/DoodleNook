@@ -50,6 +50,7 @@ public partial class MainWindow
     {
         // Choosing a workspace while the storybook is shown means going back to drawing (there, or in this one).
         if (StorybookShown) HideStorybook();
+        if (BonesShown) HideBonesView();
         if (kind == Workspace.Kind) return;
         Canvas.InterruptGesture();
         HideFlyouts();
@@ -226,7 +227,8 @@ public partial class MainWindow
         bool pure = kind == WorkspaceKind.PureSketch;
         // Mission 016: the storybook has the window to itself below the menus; the drawing tools, options, dock and
         // timeline come back when you return to drawing.
-        bool story = StorybookShown;
+        // Mission 019: Bare Bones too.
+        bool story = DedicatedViewShown;
         ApplyRulers();
         // Quick Sketch's top bar is its drawing bar (brush, undo, ☰ with Clear layer): it steps aside for the storybook too
         // (Mission 017; the menu bar of the other workspaces stays).

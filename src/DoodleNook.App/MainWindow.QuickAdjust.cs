@@ -45,7 +45,7 @@ public partial class MainWindow
         _quickTimer?.Stop();
         if (_quickKey is not { } key || _quickAdjust!.IsOpen) return;
         if (Canvas.Input?.Gesture is not (null or Gesture.None)) return;
-        if (_dialogs.IsOpen || StorybookShown || _radial.IsOpen || IsTyping) return;
+        if (_dialogs.IsOpen || DedicatedViewShown || _radial.IsOpen || IsTyping) return;
         var (x, y) = Canvas.Input?.Hover ?? (Canvas.Bounds.Width / 2, Canvas.Bounds.Height / 2);
         HideFlyouts();
         _quickAdjust.Open(key, x, y);

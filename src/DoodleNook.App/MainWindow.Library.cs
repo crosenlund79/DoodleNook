@@ -117,7 +117,7 @@ public partial class MainWindow
 
     private void ApplyReferenceBoard()
     {
-        bool show = !UiHidden && !StorybookShown && WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind);
+        bool show = !UiHidden && !DedicatedViewShown && WsState.IsShown(CustomOptions.ReferenceBoard, Workspace.Kind);
         if (show) ReferenceBoard.IsVisible = true;
         else if (_referenceBoard is not null) _referenceBoard.IsVisible = false;
     }

@@ -907,9 +907,70 @@ internal static class SmokeTest
             window.CloseStorybook();
         }
 
+        // 21. Mission 019 — Bare Bones: the sample skeletal animation opens, its animated sprites run on their own clocks,
+        // playback moves on with time, posing a bone at a frame is a key (one undo step), and the animation exports through
+        // the existing exporters without the bones.
+        {
+            async Task Wait(Func<bool> done)
+            {
+                for (int i = 0; i < 250 && !done(); i++) await Task.Delay(20);
+            }
+            var work = Path.Combine(dir, "m019");
+            Directory.CreateDirectory(work);
+            await window.OpenSampleSkeletonAsync(Path.Combine(work, "Wave hello"));
+            var bones = window.BonesView;
+            var skel = window.Skeleton;
+            if (bones is not null && skel is not null && window.BonesShown)
+            {
+                Engine.Bones.Bone Named(string name) => window.Skeleton!.Bones.First(b => b.Name == name);
+                bones.SetFrame(11);
+                var head = bones.Stage.Pose![Named("Head").Id]!;
+                bones.SetFrame(27);
+                var hand = bones.Stage.Pose![Named("Right hand").Id]!;
+                Check("the sample skeleton opens with its animated sprites switched on the master timeline (Blink at frame 12, Wave at 28)",
+                    skel.Bones.Count == 9 && skel.Length == 48 && head.Attachment?.Name == "Blink" && head.AttachmentFrame == 1 && hand.Attachment?.Name == "Wave",
+                    $"{skel.Bones.Count} bones, head {head.Attachment?.Name} {head.AttachmentFrame + 1}, hand {hand.Attachment?.Name}");
+                await Shot("smoke-S-bare-bones.png");
+                bones.SetFrame(0);
+                var playClock = Stopwatch.StartNew();
+                bones.Play();
+                await Wait(() => bones.Frame >= 5);
+                bones.StopPlaying();
+                Check("Bare Bones plays with time (12 fps)", bones.Frame >= 5, $"frame {bones.Frame + 1} after {playClock.ElapsedMilliseconds} ms");
+                bones.SetFrame(30);
+                var arm = Named("Left arm");
+                bones.BeginChange(); // what a drag on the stage does: one undo step for the whole drag
+                for (int i = 1; i <= 10; i++) bones.SetPose(arm, arm.X, arm.Y, arm.Rotation - i * 4, 1, 1);
+                bones.EndChange();
+                var keyed = window.Skeleton!.TrackOf(arm.Id)?.Keys.Select(k => k.Frame).ToList() ?? [];
+                bones.Undo();
+                bool undone = window.Skeleton!.TrackOf(Named("Left arm").Id) is not { Keys.Count: > 0 };
+                bones.Redo();
+                Check("posing a bone at a frame keys it (and the rest pose at frame 1), one undo step per drag",
+                    keyed.SequenceEqual([0, 30]) && undone && bones.CanUndo, string.Join(",", keyed));
+                var gif = Path.Combine(work, "wave.gif");
+                await window.ExportSkeletonToPathAsync(gif, new AnimationExportSettings(AnimationExportFormat.Gif));
+                var sheetPng = Path.Combine(work, "wave_sheet.png");
+                await window.ExportSkeletonToPathAsync(sheetPng, new AnimationExportSettings(AnimationExportFormat.SpriteSheet, SheetLayout.Grid, Columns: 8));
+                using var gifCodec = SkiaSharp.SKCodec.Create(gif);
+                var sheetImage = Engine.Files.PngCodec.Decode(File.ReadAllBytes(sheetPng));
+                bones.SetFrame(0);
+                var firstFrame = Engine.Bones.SkeletonRenderer.Render(window.Skeleton!, Engine.Bones.SkeletonEvaluator.Evaluate(window.Skeleton!, 0, bones.Assets), bones.Assets);
+                bool sameAsArtwork = Enumerable.Range(0, firstFrame.Height).All(y => Enumerable.Range(0, firstFrame.Width).All(x => sheetImage[x, y] == firstFrame[x, y]));
+                // The GIF encoder merges identical neighbouring frames into longer ones, so its length is what counts: 48 frames at 12 fps.
+                int gifMs = gifCodec?.FrameInfo.Sum(f => f.Duration) ?? 0;
+                Check("the skeletal animation exports as a 4-second GIF (48 frames at 12 fps) and an 8 × 6 sprite sheet, artwork only (no bones)",
+                    gifMs is >= 3900 and <= 4100 && sheetImage.Width == 8 * skel.Width && sheetImage.Height == 6 * skel.Height && sameAsArtwork,
+                    $"GIF {gifMs} ms in {gifCodec?.FrameCount} frames, sheet {sheetImage.Width} × {sheetImage.Height}");
+                report["bareBonesExport"] = $"GIF {gifMs} ms, sheet {sheetImage.Width} x {sheetImage.Height}";
+            }
+            else Check("the sample skeleton opens in Bare Bones", false, "not shown");
+            window.CloseSkeleton();
+        }
+
         report["windowTitle"] = window.Title;
         Check("the window title shows the milestone", window.Title?.StartsWith($"DoodleNook — {MainWindow.Milestone}", StringComparison.Ordinal) == true
-            && MainWindow.Milestone == "M018", window.Title);
+            && MainWindow.Milestone == "M019", window.Title);
 
         report["canvasFramesFromGpuTexture"] = canvas.GpuFrames;
         report["canvasFramesFromMemory"] = canvas.SoftwareFrames;
