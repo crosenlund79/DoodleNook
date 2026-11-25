@@ -221,8 +221,8 @@ lives in its own view, opened on purpose.
    sprites. Settings are in menus (fps and length presets, Picture size and speed…).
 2. **Relevant to this workspace?** It is its own view, like Storybook Studio. No existing workspace could hold a
    skeleton naturally, and no drawing workspace changed.
-3. **Already reachable another way?** Every action has a key or a right-click menu, and the F1 list has a Bare Bones
-   section.
+3. **Already reachable another way?** The everyday actions have keys (the F1 list has a Bare Bones section), and bones
+   and keys have right-click menus.
 4. **Contextual rather than permanent?** Contextual: sprite settings appear only for the selected sprite, animated-
    sprite settings only for an animated one, Length only in Setup.
 5. **Pinnable instead?** Not needed: nothing is added to the drawing screens.
@@ -244,7 +244,9 @@ lives in its own view, opened on purpose.
 | | Engine tests | App tests (real window) | Smoke test of the packaged program |
 |---|---|---|---|
 | Linux (development) | 406 passed (23 new) | 277 passed (7 new) | 88 checks passed, including the 4 new Bare Bones checks |
-| Windows CI | see the delivery run below | | |
+| Windows CI, [run #56](https://github.com/crosenlund79/DoodleNook/actions/runs/45593244906) (commit `126ad63`) | 406 passed | 277 passed | 94 checks passed (Windows NT 10.0.26100), including the 4 Bare Bones checks: Blink at frame 12 and Wave at 28, playback, one key and one undo step per drag, a 4-second GIF and a sprite sheet identical to the artwork |
+
+The benchmarks and the long session (2 + 2) also passed on Windows.
 
 **New engine tests** (`SkeletonTests`, 23):
 - **Hierarchy:**
